@@ -58,23 +58,22 @@ app.post('/api/auth/login', async (req, res) => {
 // FIXED: Comprehensive GROUP BY for strict MySQL environments
 app.get('/api/inventory/status', async (req, res) => {
     try {
+        // Simpler query to prevent 500 errors
         const [rows] = await db.execute(`
             SELECT 
-                i.id, i.card_name, i.set_name, i.game_title, i.product_type, i.card_id,
-                i.stock_quantity as in_stock, i.price, i.cost_price,
-                COALESCE(SUM(CASE WHEN po.status = 'Ordered' THEN poi.ordered_qty ELSE 0 END), 0) as qty_ordered,
-                COALESCE(SUM(CASE WHEN po.status = 'Invoiced' THEN poi.allocated_qty ELSE 0 END), 0) as qty_allocated,
-                COUNT(DISTINCT CASE WHEN po.status IN ('Ordered', 'Invoiced') THEN po.id END) as active_po_count
+                i.*, 
+                i.stock_quantity as in_stock,
+                COALESCE((SELECT SUM(poi.ordered_qty) FROM po_items poi JOIN purchase_orders po ON poi.po_id = po.id WHERE poi.inventory_id = i.id AND po.status = 'Ordered'), 0) as qty_ordered,
+                COALESCE((SELECT SUM(poi.allocated_qty) FROM po_items poi JOIN purchase_orders po ON poi.po_id = po.id WHERE poi.inventory_id = i.id AND po.status = 'Invoiced'), 0) as qty_allocated,
+                (SELECT COUNT(*) FROM po_items poi JOIN purchase_orders po ON poi.po_id = po.id WHERE poi.inventory_id = i.id AND po.status IN ('Ordered', 'Invoiced')) as active_po_count
             FROM inventory i
-            LEFT JOIN po_items poi ON i.id = poi.inventory_id
-            LEFT JOIN purchase_orders po ON poi.po_id = po.id AND po.status IN ('Ordered', 'Invoiced')
-            GROUP BY i.id, i.card_name, i.set_name, i.game_title, i.product_type, i.card_id, i.stock_quantity, i.price, i.cost_price
-            ORDER BY active_po_count DESC, i.card_name ASC
+            ORDER BY i.card_name ASC
         `);
         res.json(rows);
     } catch (error) {
-        console.error("SQL Error:", error.message);
-        res.status(500).json({ error: 'Failed to fetch inventory status', details: error.message });
+        // THIS IS THE IMPORTANT PART: Look at your Render Logs for this!
+        console.error("CRITICAL SQL ERROR:", error); 
+        res.status(500).json({ error: 'Database Query Failed', message: error.message });
     }
 });
 
