@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Suppliers</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <nav class="bg-white shadow-sm mb-8">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">K10 Manager Portal</h1>
+            <div class="space-x-4">
+                <a href="admin.html" class="text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
+                <a href="admin-events.html" class="text-gray-600 hover:text-blue-600 font-medium">Events</a>
+                <a href="admin-suppliers.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">Suppliers</a>
+                <a href="admin-purchase.html" class="text-gray-600 hover:text-blue-600 font-medium">Purchasing</a>
+                <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm h-fit">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Add New Supplier</h2>
+            <form id="supplier-form" class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase">Supplier Name *</label>
+                    <input type="text" id="name" required class="w-full p-2 border rounded mt-1">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase">Contact Person</label>
+                    <input type="text" id="contact" class="w-full p-2 border rounded mt-1">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase">Email</label>
+                    <input type="email" id="email" class="w-full p-2 border rounded mt-1">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase">Payment Terms</label>
+                    <select id="terms" class="w-full p-2 border rounded mt-1 bg-gray-50">
+                        <option value="COD">COD (Cash on Delivery)</option>
+                        <option value="Net 7">Net 7 Days</option>
+                        <option value="Net 30">Net 30 Days</option>
+                        <option value="Prepaid">Prepaid</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 transition">
+                    Save Supplier
+                </button>
+            </form>
+        </div>
+
+        <div class="md:col-span-2">
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="p-4 text-xs font-bold text-gray-500 uppercase">Supplier</th>
+                            <th class="p-4 text-xs font-bold text-gray-500 uppercase">Contact</th>
+                            <th class="p-4 text-xs font-bold text-gray-500 uppercase">Terms</th>
+                            <th class="p-4 text-xs font-bold text-gray-500 uppercase">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="supplier-table"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10-system.onrender.com/api';
+
+        document.addEventListener('DOMContentLoaded', loadSuppliers);
+
+        // Load Suppliers
+        async function loadSuppliers() {
+            const res = await fetch(`${API_URL}/suppliers`);
+            const suppliers = await res.json();
+            const tbody = document.getElementById('supplier-table');
+            
+            tbody.innerHTML = suppliers.map(s => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-4">
+                        <div class="font-bold text-gray-800">${s.name}</div>
+                        <div class="text-xs text-gray-400">${s.email || 'No email'}</div>
+                    </td>
+                    <td class="p-4 text-sm text-gray-600">${s.contact_person || '-'}</td>
+                    <td class="p-4 text-sm font-medium text-blue-600">${s.payment_terms}</td>
+                    <td class="p-4">
+                        <button onclick="deleteSupplier(${s.id})" class="text-red-500 hover:text-red-700 text-sm font-bold">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Add Supplier
+        document.getElementById('supplier-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('name').value,
+                contact_person: document.getElementById('contact').value,
+                email: document.getElementById('email').value,
+                payment_terms: document.getElementById('terms').value
+            };
+
+            const res = await fetch(`${API_URL}/suppliers`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (res.ok) {
+                document.getElementById('supplier-form').reset();
+                loadSuppliers();
+            } else {
+                alert("Failed to add supplier.");
+            }
+        });
+
+        // Delete Supplier
+        async function deleteSupplier(id) {
+            if (!confirm("Are you sure? This will fail if the supplier has orders.")) return;
+            const res = await fetch(`${API_URL}/suppliers/${id}`, { method: 'DELETE' });
+            if (res.ok) loadSuppliers();
+            else alert("Error: Could not delete.");
+        }
+    </script>
+</body>
+</html>
