@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Inventory</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <div id="login-section" class="min-h-screen flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-md w-96">
+            <h1 class="text-2xl font-bold mb-6 text-center text-blue-600">K10 Staff Login</h1>
+            <div class="space-y-4">
+                <input type="text" id="login-user" placeholder="Username" class="w-full p-2 border rounded">
+                <input type="password" id="login-pass" placeholder="Password" class="w-full p-2 border rounded">
+                <button id="login-btn" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Login</button>
+            </div>
+            <p id="login-error" class="text-red-500 mt-4 text-sm hidden"></p>
+        </div>
+    </div>
+
+    <div id="dashboard-section" class="hidden">
+        
+        <nav class="bg-white shadow-sm mb-8">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                <h1 class="text-xl font-bold text-gray-800">K10 Manager Portal</h1>
+                <div class="space-x-4">
+                    <a href="admin.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">Inventory</a>
+                    <a href="admin-events.html" class="text-gray-600 hover:text-blue-600 font-medium">Events</a>
+                    <a href="admin-customers.html" class="text-gray-600 hover:text-blue-600 font-medium">Customers</a>
+                    <a href="admin-storage.html" class="text-gray-600 hover:text-blue-600 font-medium">Pack Bank</a>
+                    <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="max-w-7xl mx-auto px-4 pb-12">
+            <div class="bg-white p-6 rounded-lg shadow-sm mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-700">Add New Product</h2>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <select id="game-title" class="p-2 border rounded bg-gray-50">
+                        <option value="Hololive">Hololive OCG</option>
+                        <option value="One Piece">One Piece TCG</option>
+                        <option value="Digimon">Digimon TCG</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <select id="product-type" class="p-2 border rounded bg-gray-50">
+                        <option value="Single">Single Card</option>
+                        <option value="Booster Box">Booster Box</option>
+                        <option value="Starter Deck">Starter Deck</option>
+                        <option value="Supply">Supply (Sleeves/Etc)</option>
+                    </select>
+                    <input type="text" id="barcode" placeholder="Barcode (Scan Here)" class="p-2 border rounded">
+                    <input type="text" id="card-id" placeholder="Card ID (e.g. hBP01-001)" class="p-2 border rounded">
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <input type="text" id="card-name" placeholder="Product Name" class="p-2 border rounded col-span-2">
+                    <input type="text" id="set-name" placeholder="Set Name" class="p-2 border rounded">
+                    <input type="text" id="rarity" placeholder="Rarity" class="p-2 border rounded">
+                    <input type="number" id="price" placeholder="Price ($)" class="p-2 border rounded">
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    <input type="number" id="stock" placeholder="Qty Stock" class="p-2 border rounded">
+                    <button id="add-card-btn" class="bg-green-600 text-white p-2 rounded hover:bg-green-700 md:col-start-4">
+                        + Add to Inventory
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-8">
+                <div class="p-4 border-b bg-gray-50 flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <div class="flex-grow w-full md:w-auto">
+                        <input type="text" id="search-input" placeholder="Search by Name, ID or Barcode..." class="w-full p-2 border rounded shadow-sm">
+                    </div>
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <select id="filter-game" class="p-2 border rounded shadow-sm bg-white">
+                            <option value="">All Games</option>
+                            <option value="Hololive">Hololive</option>
+                            <option value="One Piece">One Piece</option>
+                            <option value="Digimon">Digimon</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <select id="filter-type" class="p-2 border rounded shadow-sm bg-white">
+                            <option value="">All Types</option>
+                            <option value="Single">Single Card</option>
+                            <option value="Booster Box">Booster Box</option>
+                            <option value="Starter Deck">Starter Deck</option>
+                            <option value="Supply">Supply</option>
+                        </select>
+                    </div>
+                </div>
+
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="p-4">Game</th>
+                            <th class="p-4">Type</th>
+                            <th class="p-4">ID / Barcode</th>
+                            <th class="p-4">Name</th>
+                            <th class="p-4">Price</th>
+                            <th class="p-4">Stock</th>
+                            <th class="p-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 class="text-xl font-bold mb-4">Edit Product</h3>
+            <input type="hidden" id="edit-id">
+
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">Product Name</label>
+                <input type="text" id="edit-name" disabled class="bg-gray-100 border rounded w-full py-2 px-3 text-gray-700 cursor-not-allowed">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Price ($)</label>
+                    <input type="number" id="edit-price" step="0.01" class="border rounded w-full py-2 px-3 text-gray-700">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Stock Qty</label>
+                    <input type="number" id="edit-stock" class="border rounded w-full py-2 px-3 text-gray-700">
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeEditModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">
+                    Cancel
+                </button>
+                <button onclick="saveEdit()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm mx-4 p-6 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-2">Delete Product?</h3>
+            <p class="text-sm text-gray-500 mb-6">Are you sure you want to delete this product? This action cannot be undone.</p>
+
+            <input type="hidden" id="delete-id">
+
+            <div class="flex justify-center space-x-3">
+                <button onclick="closeDeleteModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded transition">
+                    Cancel
+                </button>
+                <button onclick="confirmDelete()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition shadow-sm">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2"></div>
+
+    <script>
+        const API_URL = 'https://k10-system.onrender.com/api'; 
+
+        // --- TOAST SYSTEM ---
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            const colors = type === 'success' ? 'bg-green-600' : 'bg-red-600';
+            const icon = type === 'success' ? '✅' : '❌';
+
+            toast.className = `${colors} text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-3 transform transition-all duration-300 translate-y-2 opacity-0`;
+            toast.innerHTML = `<span class="font-bold text-lg">${icon}</span><span class="font-medium">${message}</span>`;
+
+            container.appendChild(toast);
+
+            // Animate In
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            // Remove after 3s
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        let globalInventory = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if already logged in
+            const token = localStorage.getItem('k10_token');
+            if (token) {
+                showDashboard();
+            }
+
+            document.getElementById('login-btn').addEventListener('click', handleLogin);
+            
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                localStorage.removeItem('k10_token');
+                location.reload();
+            });
+            
+            document.getElementById('add-card-btn').addEventListener('click', addProduct);
+
+            // Filter Listeners
+            document.getElementById('search-input').addEventListener('input', applyFilters);
+            document.getElementById('filter-game').addEventListener('change', applyFilters);
+            document.getElementById('filter-type').addEventListener('change', applyFilters);
+        });
+
+        async function handleLogin() {
+            const username = document.getElementById('login-user').value;
+            const password = document.getElementById('login-pass').value;
+
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // SAVE TOKEN TO BROWSER SO WE CAN SWITCH PAGES
+                    localStorage.setItem('k10_token', data.token);
+                    showDashboard();
+                } else {
+                    document.getElementById('login-error').innerText = data.error || "Login failed";
+                    document.getElementById('login-error').classList.remove('hidden');
+                }
+            } catch (err) {
+                showToast("Connection Error. Check backend status.", "error");
+            }
+        }
+
+        function showDashboard() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            loadInventory();
+        }
+
+        async function loadInventory() {
+            try {
+                const response = await fetch(`${API_URL}/inventory`);
+                globalInventory = await response.json();
+                applyFilters();
+            } catch (err) { console.error("Load Error:", err); }
+        }
+
+        function applyFilters() {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const game = document.getElementById('filter-game').value;
+            const type = document.getElementById('filter-type').value;
+
+            const filtered = globalInventory.filter(p => {
+                const matchSearch = (p.card_name || '').toLowerCase().includes(search) ||
+                                    (p.card_id || '').toLowerCase().includes(search) ||
+                                    (p.barcode || '').toLowerCase().includes(search);
+                const matchGame = game ? p.game_title === game : true;
+                const matchType = type ? p.product_type === type : true;
+                return matchSearch && matchGame && matchType;
+            });
+
+            renderTable(filtered);
+        }
+
+        function renderTable(products) {
+            const tableBody = document.getElementById('inventory-table-body');
+            if (products.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-500">No products found.</td></tr>`;
+                return;
+            }
+            tableBody.innerHTML = products.map(p => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-4 text-xs font-bold text-gray-500 uppercase">${p.game_title}</td>
+                    <td class="p-4 text-xs text-gray-500">${p.product_type}</td>
+                    <td class="p-4 font-mono text-sm text-blue-600">${p.card_id || p.barcode || '-'}</td>
+                    <td class="p-4 font-medium">
+                        ${p.card_name}
+                        <span class="block text-xs text-gray-400">${p.set_name || ''}</span>
+                    </td>
+                    <td class="p-4 text-green-700 font-bold">$${p.price}</td>
+                    <td class="p-4 font-bold ${p.stock_quantity < 3 ? 'text-red-500' : 'text-gray-700'}">
+                        ${p.stock_quantity}
+                    </td>
+                    <td class="p-4 text-right space-x-2">
+                        <button onclick="openEditModal(${p.id})" class="text-blue-600 hover:text-blue-800 text-sm font-semibold">Edit</button>
+                        <button onclick="deleteProduct(${p.id})" class="text-red-500 hover:text-red-700 text-sm font-semibold">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // --- EDIT / DELETE LOGIC ---
+
+        function openEditModal(id) {
+            const product = globalInventory.find(p => p.id === id);
+            if (!product) return;
+
+            document.getElementById('edit-id').value = product.id;
+            document.getElementById('edit-name').value = product.card_name;
+            document.getElementById('edit-price').value = product.price;
+            document.getElementById('edit-stock').value = product.stock_quantity;
+
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
+        }
+
+        async function saveEdit() {
+            const id = document.getElementById('edit-id').value;
+            const price = document.getElementById('edit-price').value;
+            const stock = document.getElementById('edit-stock').value;
+
+            try {
+                const res = await fetch(`${API_URL}/inventory/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ price: price, stock_quantity: stock })
+                });
+
+                if (res.ok) {
+                    showToast('Product Updated!', 'success');
+                    closeEditModal();
+                    loadInventory(); // Refresh table
+                } else {
+                    showToast('Update failed.', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Connection error.', 'error');
+            }
+        }
+
+        // --- DELETE MODAL LOGIC ---
+
+        function deleteProduct(id) {
+            document.getElementById('delete-id').value = id;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('delete-modal').classList.add('hidden');
+        }
+
+        async function confirmDelete() {
+            const id = document.getElementById('delete-id').value;
+            closeDeleteModal();
+
+            try {
+                const res = await fetch(`${API_URL}/inventory/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (res.ok) {
+                    showToast('Product Deleted.', 'success');
+                    loadInventory();
+                } else {
+                    showToast('Delete failed.', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Connection error.', 'error');
+            }
+        }
+
+        async function addProduct() {
+            // (Same add product logic as before...)
+            const productData = {
+                game_title: document.getElementById('game-title').value,
+                product_type: document.getElementById('product-type').value,
+                barcode: document.getElementById('barcode').value,
+                card_id: document.getElementById('card-id').value,
+                card_name: document.getElementById('card-name').value,
+                set_name: document.getElementById('set-name').value,
+                rarity: document.getElementById('rarity').value,
+                price: document.getElementById('price').value,
+                stock_quantity: document.getElementById('stock').value
+            };
+
+            if(!productData.card_name || !productData.price) {
+                showToast("Name and Price are required!", "error");
+                return;
+            }
+
+            const response = await fetch(`${API_URL}/inventory/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(productData)
+            });
+
+            if (response.ok) {
+                showToast("Product Added!", "success");
+                loadInventory();
+                document.getElementById('barcode').value = '';
+                document.getElementById('card-id').value = '';
+                document.getElementById('card-name').value = '';
+            } else {
+                const err = await response.json();
+                showToast("Error: " + err.error, "error");
+            }
+        }
+    </script>
+</body>
+</html>
