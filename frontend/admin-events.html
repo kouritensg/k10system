@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Event Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <nav class="bg-white shadow-sm mb-8">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">K10 Manager Portal</h1>
+            <div class="space-x-4">
+                <a href="admin.html" class="text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
+                <a href="admin-events.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">Events</a>
+                <a href="admin-customers.html" class="text-gray-600 hover:text-blue-600 font-medium">Customers</a>
+                <a href="admin-storage.html" class="text-gray-600 hover:text-blue-600 font-medium">Pack Bank</a>
+                <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-6xl mx-auto px-4">
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-8 border-l-4 border-purple-500">
+            <h3 class="text-lg font-semibold mb-4 text-gray-700">Schedule New Event</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="md:col-span-2">
+                    <label class="text-xs text-gray-500 block mb-1">Event Title</label>
+                    <input type="text" id="event-title" placeholder="e.g. Saturday Showdown" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">Game</label>
+                    <select id="event-game" class="w-full p-2 border rounded bg-gray-50">
+                        <option value="One Piece">One Piece</option>
+                        <option value="Hololive">Hololive</option>
+                        <option value="Digimon">Digimon</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">Date & Time</label>
+                    <input type="datetime-local" id="event-date" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">Entry Fee ($)</label>
+                    <input type="number" id="event-fee" placeholder="0.00" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">Max Players</label>
+                    <input type="number" id="event-cap" value="32" class="w-full p-2 border rounded">
+                </div>
+            </div>
+            <button onclick="publishNewEvent()" class="mt-6 w-full md:w-auto bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 font-semibold shadow-sm">
+                Publish Event
+            </button>
+        </div>
+
+        <h3 class="text-xl font-bold text-gray-700 mb-4">Event History</h3>
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden mb-12">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50 border-b">
+                    <tr>
+                        <th class="p-4">Date</th>
+                        <th class="p-4">Game</th>
+                        <th class="p-4">Event Name</th>
+                        <th class="p-4">Seats</th>
+                        <th class="p-4">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="events-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="player-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-blue-600 px-6 py-4 flex justify-between items-center">
+                <h3 id="modal-title" class="text-white font-bold text-lg">Event Players</h3>
+                <button onclick="closeModal()" class="text-blue-200 hover:text-white text-2xl">&times;</button>
+            </div>
+            
+            <div class="p-6 bg-gray-50 border-b relative">
+                <h4 class="text-sm font-bold text-gray-700 mb-2">Add Player from Database</h4>
+                
+                <div class="flex gap-2 items-center relative">
+                    <input type="hidden" id="modal-event-id">
+                    
+                    <div class="relative w-2/3">
+                        <input type="text" id="cust-search" placeholder="Search Customer Name..." class="w-full p-2 border rounded" autocomplete="off">
+                        <div id="cust-results" class="absolute z-50 w-full bg-white shadow-xl border rounded mt-1 hidden max-h-40 overflow-y-auto"></div>
+                    </div>
+
+                    <input type="hidden" id="selected-name">
+                    <input type="hidden" id="selected-contact">
+
+                    <label class="flex items-center space-x-2 cursor-pointer select-none">
+                        <input type="checkbox" id="manual-paid" class="w-5 h-5 text-green-600 rounded focus:ring-green-500 border-gray-300">
+                        <span class="text-sm font-bold text-gray-700">Paid?</span>
+                    </label>
+
+                    <button onclick="manualRegister()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold text-sm whitespace-nowrap">
+                        + Add
+                    </button>
+                </div>
+                <p class="text-xs text-gray-400 mt-2">Start typing to find a customer. If they don't exist, go to Customers page first.</p>
+            </div>
+
+            <div class="p-6 overflow-y-auto flex-grow">
+                <table class="w-full">
+                    <thead>
+                        <tr class="text-left text-xs font-bold text-gray-500 border-b">
+                            <th class="pb-2">Player Name</th>
+                            <th class="pb-2">Contact</th>
+                            <th class="pb-2 text-center">Payment Status</th>
+                            <th class="pb-2 text-right">Registered</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-body" class="text-sm"></tbody>
+                </table>
+                <div id="modal-loading" class="text-center py-4 text-gray-500 hidden">Loading...</div>
+                <div id="modal-empty" class="text-center py-4 text-gray-400 hidden">No players registered yet.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10-system.onrender.com/api';
+        let token = localStorage.getItem('k10_token');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!token) window.location.href = 'admin.html'; 
+            loadEvents();
+            
+            // --- CUSTOMER SEARCH LOGIC ---
+            const searchInput = document.getElementById('cust-search');
+            searchInput.addEventListener('input', async (e) => {
+                const q = e.target.value;
+                if (q.length < 2) return;
+                
+                try {
+                    const res = await fetch(`${API_URL}/customers/search?q=${q}`);
+                    const customers = await res.json();
+                    
+                    const resultsDiv = document.getElementById('cust-results');
+                    if(customers.length === 0) {
+                        resultsDiv.classList.add('hidden');
+                        return;
+                    }
+
+                    resultsDiv.innerHTML = customers.map(c => `
+                        <div class="p-2 hover:bg-blue-50 cursor-pointer border-b" 
+                             onclick="selectCustomer('${c.name}', '${c.contact_info}')">
+                            <span class="font-bold">${c.name}</span> 
+                            <span class="text-xs text-gray-500">(${c.contact_info})</span>
+                        </div>
+                    `).join('');
+                    resultsDiv.classList.remove('hidden');
+                } catch(err) { console.error(err); }
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!searchInput.contains(e.target)) {
+                    document.getElementById('cust-results').classList.add('hidden');
+                }
+            });
+
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                localStorage.removeItem('k10_token');
+                window.location.href = 'admin.html';
+            });
+        });
+
+        function selectCustomer(name, contact) {
+            // Fill the hidden fields
+            document.getElementById('selected-name').value = name;
+            document.getElementById('selected-contact').value = contact;
+            
+            // Update the Visible Search Box
+            document.getElementById('cust-search').value = name;
+            
+            // Hide Dropdown
+            document.getElementById('cust-results').classList.add('hidden');
+        }
+
+        async function manualRegister() {
+            const eventId = document.getElementById('modal-event-id').value;
+            const name = document.getElementById('selected-name').value;
+            const contact = document.getElementById('selected-contact').value;
+            const isPaid = document.getElementById('manual-paid').checked;
+
+            // Fallback: If they typed a name but didn't click the dropdown (New Walk-in)
+            // We can block this to force database usage, OR allow it.
+            // Let's FORCE selection for safety, or check if search input has value
+            const manualInput = document.getElementById('cust-search').value;
+            
+            if(!name && !manualInput) return alert("Please search and select a customer.");
+            
+            // Use manual input if no selection was made (Optional: allows ad-hoc add)
+            const finalName = name || manualInput;
+            const finalContact = contact || "Walk-in"; // Ideally force contact info
+
+            try {
+                const res = await fetch(`${API_URL}/events/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        event_id: eventId, 
+                        player_name: finalName, 
+                        contact_info: finalContact,
+                        has_paid: isPaid 
+                    })
+                });
+
+                const data = await res.json();
+                if(res.ok) {
+                    // Clear inputs
+                    document.getElementById('cust-search').value = '';
+                    document.getElementById('selected-name').value = '';
+                    document.getElementById('selected-contact').value = '';
+                    document.getElementById('manual-paid').checked = false;
+                    
+                    refreshPlayerList(eventId);
+                    loadEvents(); 
+                } else {
+                    alert("Error: " + data.error);
+                }
+            } catch(err) { alert("Connection Error"); }
+        }
+
+        async function publishNewEvent() {
+            const eventData = {
+                title: document.getElementById('event-title').value,
+                game_title: document.getElementById('event-game').value,
+                event_date: document.getElementById('event-date').value,
+                entry_fee: document.getElementById('event-fee').value,
+                max_players: document.getElementById('event-cap').value,
+                description: "Standard Format"
+            };
+            if (!eventData.title || !eventData.event_date) return alert("Title and Date required.");
+
+            try {
+                const res = await fetch(`${API_URL}/events/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(eventData)
+                });
+                if (res.ok) { alert("Event Created!"); loadEvents(); }
+                else { alert("Failed to create event."); }
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadEvents() {
+            try {
+                const res = await fetch(`${API_URL}/events?admin=true`);
+                const events = await res.json();
+                
+                const tbody = document.getElementById('events-table-body');
+                if (events.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">No events found.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = events.map(e => {
+                    const isPast = new Date(e.event_date) < new Date();
+                    return `
+                    <tr class="border-b hover:bg-gray-50 ${isPast ? 'bg-gray-50 opacity-75' : ''}">
+                        <td class="p-4 text-sm font-mono text-gray-600">
+                            ${new Date(e.event_date).toLocaleDateString()}
+                            ${isPast ? '<span class="ml-2 text-xs bg-gray-200 text-gray-600 px-1 rounded">PAST</span>' : ''}
+                        </td>
+                        <td class="p-4">
+                            <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded uppercase">${e.game_title}</span>
+                        </td>
+                        <td class="p-4 font-medium text-gray-800">${e.title}</td>
+                        <td class="p-4 font-bold ${e.current_players >= e.max_players ? 'text-red-600' : 'text-green-600'}">
+                            ${e.current_players} / ${e.max_players}
+                        </td>
+                        <td class="p-4">
+                            <button onclick="viewPlayers(${e.id}, '${e.title}')" class="text-sm border border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white px-3 py-1 rounded transition">
+                                Manage
+                            </button>
+                        </td>
+                    </tr>
+                `}).join('');
+            } catch (err) { console.error(err); }
+        }
+
+        async function viewPlayers(eventId, eventTitle) {
+            document.getElementById('modal-title').innerText = eventTitle;
+            document.getElementById('modal-event-id').value = eventId;
+            document.getElementById('player-modal').classList.remove('hidden');
+            
+            // Clear previous search data
+            document.getElementById('cust-search').value = '';
+            document.getElementById('selected-name').value = '';
+            
+            refreshPlayerList(eventId);
+        }
+
+        async function refreshPlayerList(eventId) {
+            const tbody = document.getElementById('modal-body');
+            tbody.innerHTML = '';
+            document.getElementById('modal-loading').classList.remove('hidden');
+            document.getElementById('modal-empty').classList.add('hidden');
+
+            try {
+                const res = await fetch(`${API_URL}/events/${eventId}/players`);
+                const players = await res.json();
+                
+                document.getElementById('modal-loading').classList.add('hidden');
+
+                if (players.length === 0) {
+                    document.getElementById('modal-empty').classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = players.map(p => `
+                    <tr class="border-b last:border-0 hover:bg-gray-50">
+                        <td class="py-3 font-medium text-gray-800">${p.name}</td>
+                        <td class="py-3 text-gray-600">${p.contact_info}</td>
+                        <td class="py-3 text-center">
+                            <button onclick="togglePayment(${p.registration_id}, ${eventId})" 
+                                class="text-xs font-bold px-3 py-1 rounded-full cursor-pointer transition ${p.has_paid 
+                                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                                    : 'bg-red-100 text-red-600 hover:bg-red-200'}">
+                                ${p.has_paid ? 'PAID ✅' : 'UNPAID ❌'}
+                            </button>
+                        </td>
+                        <td class="py-3 text-right text-gray-400 text-xs">${new Date(p.registered_at).toLocaleDateString()}</td>
+                    </tr>
+                `).join('');
+            } catch (err) { }
+        }
+
+        async function togglePayment(regId, eventId) {
+            try {
+                const res = await fetch(`${API_URL}/events/registration/${regId}/toggle-pay`, {
+                    method: 'PUT'
+                });
+                if(res.ok) {
+                    refreshPlayerList(eventId);
+                }
+            } catch(err) { alert("Update failed"); }
+        }
+
+        function closeModal() {
+            document.getElementById('player-modal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
