@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><title>K10 Admin - Create PO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <nav class="bg-white shadow-sm mb-8 px-4 py-4 flex justify-between">
+        <h1 class="text-xl font-bold">K10 Purchasing</h1>
+        <a href="admin.html" class="text-blue-600 font-bold">Back to Inventory</a>
+    </nav>
+
+    <div class="max-w-5xl mx-auto px-4">
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-6 border-t-4 border-blue-600">
+            <h2 class="text-xl font-bold mb-4">New Purchase Order</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="text-xs font-bold text-gray-500">Supplier</label>
+                    <select id="supplier-select" class="w-full p-2 border rounded mt-1 bg-gray-50"></select>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-500">PO Number (Optional)</label>
+                    <input type="text" id="po-number" placeholder="Leave blank for auto-gen" class="w-full p-2 border rounded mt-1">
+                </div>
+            </div>
+
+            <div class="border-t pt-4">
+                <h3 class="font-bold text-gray-700 mb-2">Add Items</h3>
+                <div class="flex gap-2 mb-4 relative">
+                    <input type="text" id="item-search" placeholder="Search Inventory..." class="flex-grow p-2 border rounded">
+                    <div id="search-results" class="absolute top-full left-0 w-full bg-white shadow-xl border rounded z-50 hidden"></div>
+                </div>
+
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="p-3">Product</th>
+                            <th class="p-3 w-24">Qty</th>
+                            <th class="p-3 w-32">Unit Cost</th>
+                            <th class="p-3 w-16"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="po-items-table"></tbody>
+                </table>
+            </div>
+
+            <button onclick="submitPO()" class="mt-8 w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-700">
+                Submit Purchase Order
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10-system.onrender.com/api';
+        let poItems = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Load Suppliers
+            const sRes = await fetch(`${API_URL}/suppliers`);
+            const suppliers = await sRes.json();
+            document.getElementById('supplier-select').innerHTML = suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+            // Search Inventory
+            const searchInput = document.getElementById('item-search');
+            searchInput.addEventListener('input', async (e) => {
+                if (e.target.value.length < 2) return;
+                const res = await fetch(`${API_URL}/inventory`); // Reuse your existing inventory GET
+                const items = await res.json();
+                const filtered = items.filter(i => i.card_name.toLowerCase().includes(e.target.value.toLowerCase()));
+                
+                const resultsDiv = document.getElementById('search-results');
+                resultsDiv.innerHTML = filtered.map(i => `
+                    <div class="p-2 hover:bg-blue-50 cursor-pointer border-b" onclick="addItem(${i.id}, '${i.card_name}')">
+                        ${i.card_name} <span class="text-xs text-gray-400">(${i.set_name})</span>
+                    </div>
+                `).join('');
+                resultsDiv.classList.remove('hidden');
+            });
+        });
+
+        function addItem(id, name) {
+            if (poItems.find(p => p.inventory_id === id)) return alert("Already added");
+            poItems.push({ inventory_id: id, name, qty: 1, cost: 0 });
+            renderTable();
+            document.getElementById('search-results').classList.add('hidden');
+            document.getElementById('item-search').value = '';
+        }
+
+        function renderTable() {
+            document.getElementById('po-items-table').innerHTML = poItems.map((item, idx) => `
+                <tr class="border-b">
+                    <td class="p-3 font-medium">${item.name}</td>
+                    <td class="p-3"><input type="number" value="${item.qty}" onchange="poItems[${idx}].qty=this.value" class="w-full border p-1 rounded"></td>
+                    <td class="p-3"><input type="number" step="0.01" value="${item.cost}" onchange="poItems[${idx}].cost=this.value" class="w-full border p-1 rounded"></td>
+                    <td class="p-3 text-right"><button onclick="poItems.splice(${idx}, 1); renderTable()" class="text-red-500">×</button></td>
+                </tr>
+            `).join('');
+        }
+
+        async function submitPO() {
+            if (poItems.length === 0) return alert("Add items first");
+            const data = {
+                supplier_id: document.getElementById('supplier-select').value,
+                po_number: document.getElementById('po-number').value,
+                items: poItems
+            };
+            const res = await fetch(`${API_URL}/purchase-orders`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) { alert("PO Created Successfully!"); window.location.reload(); }
+        }
+    </script>
+</body>
+</html>
