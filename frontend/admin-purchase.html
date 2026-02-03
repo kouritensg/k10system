@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K10 Admin - Create Purchase Order</title>
+    <title>K10 Admin - Purchase Orders</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 font-sans">
 
     <nav class="bg-white shadow-sm mb-8 px-4 py-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-gray-800">📦 New Purchase Order</h1>
+        <h1 class="text-xl font-bold text-gray-800">📦 Purchase Management</h1>
         <div class="space-x-4">
             <a href="admin.html" class="text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
             <a href="admin-suppliers.html" class="text-gray-600 hover:text-blue-600 font-medium">Suppliers</a>
@@ -17,14 +17,14 @@
         </div>
     </nav>
 
-    <div class="max-w-6xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
+    <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
         
         <div class="lg:col-span-1 space-y-6">
             <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
                 <h2 class="text-lg font-bold mb-4">1. Order Details</h2>
                 <div class="space-y-4">
                     <div>
-                        <label class="text-xs font-bold text-gray-500 uppercase">Distributor / Supplier</label>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Distributor</label>
                         <select id="supplier-select" class="w-full p-2 border rounded mt-1 bg-gray-50"></select>
                     </div>
                     <div>
@@ -35,44 +35,91 @@
             </div>
 
             <div class="bg-white p-6 rounded-lg shadow-sm">
-                <h2 class="text-lg font-bold mb-4">2. Find Products</h2>
+                <h2 class="text-lg font-bold mb-4 text-gray-700">2. Add Products</h2>
                 <div class="relative">
-                    <input type="text" id="item-search" placeholder="Search your inventory..." class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                    <div id="search-results" class="absolute top-full left-0 w-full bg-white shadow-xl border rounded-b-lg z-50 max-h-64 overflow-y-auto hidden"></div>
+                    <input type="text" id="item-search" placeholder="Search card or box name..." 
+                           class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    
+                    <div id="search-results" class="absolute top-full left-0 w-full bg-white shadow-xl border rounded-b-lg z-50 max-h-80 overflow-y-auto hidden"></div>
                 </div>
-                <p class="text-xs text-gray-400 mt-2 italic">Search by card name, set, or ID to restock existing items.</p>
+                <p class="text-xs text-gray-400 mt-2 italic">Search results will show Game and Type details.</p>
             </div>
         </div>
 
         <div class="lg:col-span-2">
             <div class="bg-white rounded-lg shadow-sm overflow-hidden">
                 <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-gray-700">3. Items in Order</h2>
+                    <h2 class="text-lg font-bold text-gray-700">3. Items in this Order</h2>
                     <span id="item-count" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">0 Items</span>
                 </div>
                 
                 <table class="w-full text-left border-collapse">
                     <thead class="bg-white border-b">
                         <tr>
-                            <th class="p-4 text-xs font-bold text-gray-400 uppercase">Product Details</th>
-                            <th class="p-4 text-xs font-bold text-gray-400 uppercase w-24">Order Qty</th>
-                            <th class="p-4 text-xs font-bold text-gray-400 uppercase w-32">Unit Cost ($)</th>
+                            <th class="p-4 text-xs font-bold text-gray-400 uppercase">Product</th>
+                            <th class="p-4 text-xs font-bold text-gray-400 uppercase w-24">Qty</th>
+                            <th class="p-4 text-xs font-bold text-gray-400 uppercase w-32">Cost ($)</th>
                             <th class="p-4 w-12"></th>
                         </tr>
                     </thead>
-                    <tbody id="po-items-table">
-                        </tbody>
+                    <tbody id="po-items-table"></tbody>
                 </table>
 
                 <div id="empty-state" class="p-12 text-center text-gray-400">
-                    <p>No items added yet. Use the search bar on the left to add products.</p>
+                    <p>Search for items on the left to add them to your purchase order.</p>
                 </div>
 
-                <div class="p-6 bg-gray-50 border-t">
-                    <button onclick="submitPO()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 shadow-md transition-all">
-                        Finalize & Send Purchase Order
+                <div class="p-6 bg-gray-50 border-t flex flex-col items-end">
+                    <div class="mb-4 text-right">
+                        <span class="text-gray-500 text-sm">Estimated Total:</span>
+                        <span id="order-total" class="text-2xl font-bold text-blue-600 block">$0.00</span>
+                    </div>
+                    <button onclick="submitPO()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-lg hover:bg-blue-700 shadow-lg transition-all">
+                        Finalize & Save Purchase Order
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="quick-add-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[100]">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
+            <h3 class="text-xl font-bold mb-4 text-blue-600">Register New Product</h3>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="text-xs font-bold text-gray-400 uppercase">Game</label>
+                    <select id="qa-game" class="w-full p-2 border rounded bg-gray-50">
+                        <option value="One Piece">One Piece</option>
+                        <option value="Hololive">Hololive</option>
+                        <option value="Digimon">Digimon</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-400 uppercase">Type</label>
+                    <select id="qa-type" class="w-full p-2 border rounded bg-gray-50">
+                        <option value="Booster Box">Booster Box</option>
+                        <option value="Single">Single Card</option>
+                        <option value="Starter Deck">Starter Deck</option>
+                    </select>
+                </div>
+            </div>
+            <div class="space-y-4">
+                <input type="text" id="qa-name" placeholder="Full Product Name" class="w-full p-2 border rounded">
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="text" id="qa-id" placeholder="Set/Card ID" class="w-full p-2 border rounded">
+                    <input type="text" id="qa-barcode" placeholder="Barcode" class="w-full p-2 border rounded">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="number" id="qa-cost" placeholder="Unit Cost ($)" class="w-full p-2 border rounded bg-blue-50">
+                    <input type="number" id="qa-price" placeholder="Retail Sell Price ($)" class="w-full p-2 border rounded">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button onclick="closeQuickAdd()" class="text-gray-500 font-bold px-4">Cancel</button>
+                <button onclick="submitQuickAdd()" class="bg-green-600 text-white font-bold px-6 py-2 rounded shadow-md hover:bg-green-700">
+                    Save & Add to Order
+                </button>
             </div>
         </div>
     </div>
@@ -82,14 +129,19 @@
         let basket = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Load Suppliers
-            const sRes = await fetch(`${API_URL}/suppliers`);
-            const suppliers = await sRes.json();
-            document.getElementById('supplier-select').innerHTML = suppliers.map(s => 
-                `<option value="${s.id}">${s.name} (${s.payment_terms})</option>`
-            ).join('');
+            const token = localStorage.getItem('k10_token');
+            if (!token) window.location.href = 'admin.html';
 
-            // Handle Search
+            // Load Suppliers
+            try {
+                const sRes = await fetch(`${API_URL}/suppliers`);
+                const suppliers = await sRes.json();
+                document.getElementById('supplier-select').innerHTML = suppliers.map(s => 
+                    `<option value="${s.id}">${s.name}</option>`
+                ).join('') || '<option>No suppliers found</option>';
+            } catch (e) { console.error("Supplier load failed"); }
+
+            // Search Logic
             const searchInput = document.getElementById('item-search');
             searchInput.addEventListener('input', async (e) => {
                 const query = e.target.value;
@@ -106,25 +158,32 @@
                 );
 
                 const resultsDiv = document.getElementById('search-results');
-                resultsDiv.innerHTML = filtered.map(i => `
-                    <div class="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between items-center" 
-                         onclick="addToBasket(${JSON.stringify(i).replace(/"/g, '&quot;')})">
-                        <div>
-                            <div class="font-bold text-sm text-gray-800">${i.card_name}</div>
-                            <div class="text-[10px] uppercase font-bold text-gray-400">${i.game_title} | ${i.product_type}</div>
+                
+                if (filtered.length === 0) {
+                    resultsDiv.innerHTML = `
+                        <div class="p-4 text-center">
+                            <p class="text-sm text-gray-500 mb-2">Item not in inventory.</p>
+                            <button onclick="openQuickAddModal()" class="bg-blue-600 text-white px-4 py-2 rounded text-xs font-bold">+ Register New Product</button>
                         </div>
-                        <div class="text-xs bg-gray-100 px-2 py-1 rounded">Stock: ${i.in_stock}</div>
-                    </div>
-                `).join('');
+                    `;
+                } else {
+                    resultsDiv.innerHTML = filtered.map(i => `
+                        <div class="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between items-center" 
+                             onclick='addToBasket(${JSON.stringify(i)})'>
+                            <div>
+                                <div class="font-bold text-sm">${i.card_name}</div>
+                                <div class="text-[10px] uppercase font-bold text-gray-400">${i.game_title} | ${i.product_type}</div>
+                            </div>
+                            <div class="text-xs font-bold text-blue-600">Stock: ${i.in_stock}</div>
+                        </div>
+                    `).join('');
+                }
                 resultsDiv.classList.remove('hidden');
             });
         });
 
         function addToBasket(item) {
-            if (basket.find(b => b.inventory_id === item.id)) {
-                alert("Item already in basket!");
-                return;
-            }
+            if (basket.find(b => b.inventory_id === item.id)) return;
 
             basket.push({
                 inventory_id: item.id,
@@ -149,52 +208,79 @@
 
             document.getElementById('item-count').innerText = `${basket.length} Items`;
 
-            tbody.innerHTML = basket.map((item, idx) => `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="p-4">
-                        <div class="font-bold text-gray-800">${item.name}</div>
-                        <div class="flex gap-2 mt-1">
-                            <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">${item.game}</span>
-                            <span class="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-bold uppercase">${item.type}</span>
-                        </div>
-                    </td>
-                    <td class="p-4">
-                        <input type="number" value="${item.qty}" min="1" 
-                               onchange="basket[${idx}].qty = parseInt(this.value)" 
-                               class="w-full p-1 border rounded text-center font-bold">
-                    </td>
-                    <td class="p-4">
-                        <input type="number" step="0.01" value="${item.cost}" 
-                               onchange="basket[${idx}].cost = parseFloat(this.value)" 
-                               class="w-full p-1 border rounded text-right font-mono">
-                    </td>
-                    <td class="p-4 text-right">
-                        <button onclick="basket.splice(${idx}, 1); renderBasket()" class="text-red-400 hover:text-red-600 font-bold text-xl">×</button>
-                    </td>
-                </tr>
-            `).join('');
+            let total = 0;
+            tbody.innerHTML = basket.map((item, idx) => {
+                total += (item.qty * item.cost);
+                return `
+                    <tr class="border-b">
+                        <td class="p-4">
+                            <div class="font-bold text-gray-800">${item.name}</div>
+                            <div class="text-[10px] text-gray-400 uppercase font-bold">${item.game} | ${item.type}</div>
+                        </td>
+                        <td class="p-4">
+                            <input type="number" value="${item.qty}" min="1" 
+                                   onchange="basket[${idx}].qty = parseInt(this.value); renderBasket()" 
+                                   class="w-full p-1 border rounded text-center">
+                        </td>
+                        <td class="p-4">
+                            <input type="number" step="0.01" value="${item.cost}" 
+                                   onchange="basket[${idx}].cost = parseFloat(this.value); renderBasket()" 
+                                   class="w-full p-1 border rounded text-right font-mono">
+                        </td>
+                        <td class="p-4 text-right">
+                            <button onclick="basket.splice(${idx}, 1); renderBasket()" class="text-red-400 font-bold">×</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            document.getElementById('order-total').innerText = `$${total.toFixed(2)}`;
+        }
+
+        // QUICK ADD LOGIC
+        function openQuickAddModal() {
+            document.getElementById('quick-add-modal').classList.remove('hidden');
+            document.getElementById('qa-name').value = document.getElementById('item-search').value;
+        }
+
+        function closeQuickAdd() { document.getElementById('quick-add-modal').classList.add('hidden'); }
+
+        async function submitQuickAdd() {
+            const data = {
+                game_title: document.getElementById('qa-game').value,
+                product_type: document.getElementById('qa-type').value,
+                card_name: document.getElementById('qa-name').value,
+                card_id: document.getElementById('qa-id').value,
+                barcode: document.getElementById('qa-barcode').value,
+                cost_price: document.getElementById('qa-cost').value || 0,
+                price: document.getElementById('qa-price').value || 0,
+                stock_quantity: 0
+            };
+
+            const res = await fetch(`${API_URL}/inventory/add`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (res.ok) {
+                addToBasket(result.product);
+                closeQuickAdd();
+            } else { alert(result.error); }
         }
 
         async function submitPO() {
-            if (basket.length === 0) return alert("Your order is empty!");
-            
-            const data = {
+            if (basket.length === 0) return alert("Order is empty!");
+            const body = {
                 supplier_id: document.getElementById('supplier-select').value,
                 po_number: document.getElementById('po-number').value,
                 items: basket
             };
-
             const res = await fetch(`${API_URL}/purchase-orders`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
             });
-
             if (res.ok) {
-                alert("Purchase Order successfully created!");
+                alert("Order Saved!");
                 window.location.href = 'admin.html';
-            } else {
-                alert("Failed to create order. Check console.");
             }
         }
     </script>
