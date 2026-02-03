@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K10 Admin - Inventory & Intelligence</title>
+    <title>K10 Admin - Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 font-sans">
@@ -16,94 +16,72 @@
                 <input type="password" id="login-pass" placeholder="Password" class="w-full p-2 border rounded">
                 <button id="login-btn" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Login</button>
             </div>
-            <p id="login-error" class="text-red-500 mt-4 text-sm hidden"></p>
         </div>
     </div>
 
     <div id="dashboard-section" class="hidden">
-        <nav class="bg-white shadow-sm mb-8">
-            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-                <h1 class="text-xl font-bold text-gray-800">K10 Manager Portal</h1>
-                <div class="space-x-4">
-                    <a href="admin.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">Inventory</a>
-                    <a href="admin-purchase.html" class="text-gray-600 hover:text-blue-600 font-medium">Purchasing</a>
-                    <a href="admin-suppliers.html" class="text-gray-600 hover:text-blue-600 font-medium">Suppliers</a>
-                    <a href="admin-events.html" class="text-gray-600 hover:text-blue-600 font-medium text-xs md:text-base">Events</a>
-                    <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
-                </div>
+        <nav class="bg-white shadow-sm mb-8 px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">K10 Manager Portal</h1>
+            <div class="space-x-4">
+                <a href="admin.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">Inventory</a>
+                <a href="admin-purchase.html" class="text-gray-600 hover:text-blue-600 font-medium">Purchasing</a>
+                <a href="admin-suppliers.html" class="text-gray-600 hover:text-blue-600 font-medium">Suppliers</a>
+                <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
             </div>
         </nav>
 
         <div class="max-w-7xl mx-auto px-4 pb-12">
             
             <div class="bg-white p-6 rounded-lg shadow-sm mb-8 border-t-4 border-blue-500">
-                <h2 class="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
-                    📊 Stock Pipeline Intelligence
-                </h2>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-50 border-b">
-                            <tr>
-                                <th class="p-3">Product</th>
-                                <th class="p-3 text-center">In Stock</th>
-                                <th class="p-3 text-center">Allocated (Confirmed)</th>
-                                <th class="p-3 text-center">Requested (Pending)</th>
-                                <th class="p-3 text-center">Active POs</th>
-                            </tr>
-                        </thead>
-                        <tbody id="intel-table-body">
-                            </tbody>
-                    </table>
-                </div>
+                <h2 class="text-xl font-bold text-gray-700 mb-4">📊 Stock Pipeline Intelligence</h2>
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="p-3">Product</th>
+                            <th class="p-3 text-center">In Stock</th>
+                            <th class="p-3 text-center">Allocated</th>
+                            <th class="p-3 text-center">Requested</th>
+                            <th class="p-3 text-center">Active POs</th>
+                        </tr>
+                    </thead>
+                    <tbody id="intel-table-body"></tbody>
+                </table>
             </div>
 
             <div class="bg-white p-6 rounded-lg shadow-sm mb-8 border-l-4 border-green-500">
-                <h2 class="text-lg font-semibold text-gray-700 mb-4">Add New Product to System</h2>
+                <h2 class="text-lg font-semibold mb-4 text-gray-700">Add New Product</h2>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <select id="game-title" class="p-2 border rounded bg-gray-50">
                         <option value="One Piece">One Piece TCG</option>
                         <option value="Hololive">Hololive OCG</option>
                         <option value="Digimon">Digimon TCG</option>
-                        <option value="Other">Other</option>
                     </select>
                     <select id="product-type" class="p-2 border rounded bg-gray-50">
                         <option value="Booster Box">Booster Box</option>
                         <option value="Single">Single Card</option>
-                        <option value="Starter Deck">Starter Deck</option>
-                        <option value="Supply">Supply</option>
                     </select>
                     <input type="text" id="barcode" placeholder="Barcode" class="p-2 border rounded">
                     <input type="text" id="card-id" placeholder="Card ID" class="p-2 border rounded">
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
-                    <input type="text" id="card-name" placeholder="Product Name" class="p-2 border rounded col-span-2">
-                    <input type="text" id="set-name" placeholder="Set Name" class="p-2 border rounded">
-                    <input type="number" id="price" placeholder="Sell Price ($)" class="p-2 border rounded">
-                    <input type="number" id="cost-price" placeholder="Cost ($)" class="p-2 border rounded bg-blue-50 border-blue-200">
-                    <input type="number" id="stock" placeholder="Initial Qty" class="p-2 border rounded">
+                    <input type="text" id="card-name" placeholder="Name" class="p-2 border rounded col-span-2">
+                    <input type="number" id="price" placeholder="Sell Price" class="p-2 border rounded">
+                    <input type="number" id="cost-price" placeholder="Cost Price" class="p-2 border rounded bg-blue-50">
+                    <input type="number" id="stock" placeholder="Qty" class="p-2 border rounded">
+                    <button id="add-card-btn" class="bg-green-600 text-white font-bold rounded hover:bg-green-700">Add</button>
                 </div>
-                <button id="add-card-btn" class="mt-4 w-full md:w-auto bg-green-600 text-white px-8 py-2 rounded hover:bg-green-700 font-bold">
-                    + Register Product
-                </button>
             </div>
 
             <div class="bg-white rounded-lg shadow-sm overflow-hidden">
-                <div class="p-4 border-b bg-gray-50 flex flex-col md:flex-row gap-4 justify-between items-center">
-                    <input type="text" id="search-input" placeholder="Search by Name, ID or Barcode..." class="w-full md:w-96 p-2 border rounded">
-                    <div class="flex gap-2">
-                        <select id="filter-game" class="p-2 border rounded"><option value="">All Games</option><option value="Hololive">Hololive</option><option value="One Piece">One Piece</option></select>
-                        <select id="filter-type" class="p-2 border rounded"><option value="">All Types</option><option value="Single">Single</option><option value="Booster Box">Box</option></select>
-                    </div>
+                <div class="p-4 bg-gray-50 border-b">
+                    <input type="text" id="search-input" placeholder="Filter inventory..." class="w-full md:w-96 p-2 border rounded">
                 </div>
-
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-100 text-xs font-bold uppercase text-gray-500 border-b">
+                    <thead class="bg-gray-100 text-xs font-bold uppercase text-gray-500">
                         <tr>
-                            <th class="p-4">Game / Type</th>
                             <th class="p-4">Name</th>
-                            <th class="p-4">Cost vs Sell</th>
-                            <th class="p-4">Live Stock</th>
-                            <th class="p-4">Pipeline</th>
+                            <th class="p-4">Cost/Sell</th>
+                            <th class="p-4">Stock</th>
                             <th class="p-4 text-right">Actions</th>
                         </tr>
                     </thead>
@@ -114,169 +92,105 @@
     </div>
 
     <div id="edit-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-            <h3 class="text-xl font-bold mb-4">Edit Product Pricing & Stock</h3>
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h3 class="text-xl font-bold mb-4">Edit Product</h3>
             <input type="hidden" id="edit-id">
             <div class="space-y-4">
                 <input type="text" id="edit-name" disabled class="bg-gray-100 border rounded w-full py-2 px-3 text-gray-500">
                 <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-xs font-bold text-gray-500">Cost Price ($)</label>
-                        <input type="number" id="edit-cost" step="0.01" class="border rounded w-full py-2 px-3 bg-blue-50">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-500">Sell Price ($)</label>
-                        <input type="number" id="edit-price" step="0.01" class="border rounded w-full py-2 px-3">
-                    </div>
+                    <input type="number" id="edit-cost" step="0.01" placeholder="Cost" class="border rounded p-2 bg-blue-50">
+                    <input type="number" id="edit-price" step="0.01" placeholder="Sell" class="border rounded p-2">
                 </div>
-                <div>
-                    <label class="text-xs font-bold text-gray-500">Stock Qty</label>
-                    <input type="number" id="edit-stock" class="border rounded w-full py-2 px-3">
-                </div>
+                <input type="number" id="edit-stock" placeholder="Stock" class="border rounded p-2 w-full">
                 <div class="flex justify-end space-x-3 pt-4">
-                    <button onclick="closeEditModal()" class="text-gray-600 font-bold px-4">Cancel</button>
-                    <button onclick="saveEdit()" class="bg-blue-600 text-white font-bold py-2 px-6 rounded">Save</button>
+                    <button onclick="closeEditModal()" class="text-gray-600">Cancel</button>
+                    <button onclick="saveEdit()" class="bg-blue-600 text-white px-6 py-2 rounded">Save</button>
                 </div>
             </div>
         </div>
     </div>
-
-    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2"></div>
 
     <script>
         const API_URL = 'https://k10-system.onrender.com/api';
         let globalInventory = [];
 
         document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('k10_token');
-            if (token) showDashboard();
-            
+            if (localStorage.getItem('k10_token')) showDashboard();
             document.getElementById('login-btn').addEventListener('click', handleLogin);
             document.getElementById('logout-btn').addEventListener('click', () => { localStorage.removeItem('k10_token'); location.reload(); });
             document.getElementById('add-card-btn').addEventListener('click', addProduct);
-            
-            // Filters
             document.getElementById('search-input').addEventListener('input', applyFilters);
-            document.getElementById('filter-game').addEventListener('change', applyFilters);
-            document.getElementById('filter-type').addEventListener('change', applyFilters);
         });
 
-        // --- CORE FUNCTIONS ---
         async function handleLogin() {
             const username = document.getElementById('login-user').value;
             const password = document.getElementById('login-pass').value;
-            try {
-                const res = await fetch(`${API_URL}/auth/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await res.json();
-                if (res.ok) { localStorage.setItem('k10_token', data.token); showDashboard(); }
-                else { alert(data.error); }
-            } catch (err) { alert("Connection Error"); }
+            const res = await fetch(`${API_URL}/auth/login`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (res.ok) { localStorage.setItem('k10_token', data.token); showDashboard(); }
+            else { alert(data.error); }
         }
 
         function showDashboard() {
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('dashboard-section').classList.remove('hidden');
             loadInventory();
-            loadStockIntelligence();
         }
 
         async function loadInventory() {
             try {
-                // Using the new intelligence endpoint that includes PO data
-                const response = await fetch(`${API_URL}/inventory/status`);
-                globalInventory = await response.json();
-                applyFilters();
-            } catch (err) { console.error("Load Error:", err); }
+                const res = await fetch(`${API_URL}/inventory/status`);
+                const data = await res.json();
+                
+                // FIXED: Safety check to prevent .filter crash
+                if (Array.isArray(data)) {
+                    globalInventory = data;
+                    applyFilters();
+                    renderIntel(data);
+                } else {
+                    console.error("Backend error:", data);
+                    globalInventory = [];
+                }
+            } catch (e) { console.error("Load failed", e); }
         }
 
-        async function loadStockIntelligence() {
-            const data = globalInventory.length ? globalInventory : (await (await fetch(`${API_URL}/inventory/status`)).json());
-            const filtered = data.filter(i => i.qty_ordered > 0 || i.qty_allocated > 0).slice(0, 5); // Show top 5 incoming
-            
-            document.getElementById('intel-table-body').innerHTML = filtered.length ? filtered.map(item => `
+        function renderIntel(data) {
+            const incoming = data.filter(i => i.qty_ordered > 0 || i.qty_allocated > 0);
+            document.getElementById('intel-table-body').innerHTML = incoming.map(item => `
                 <tr class="border-b">
-                    <td class="p-3">
-                        <div class="font-bold">${item.card_name}</div>
-                        <div class="text-xs text-gray-400">${item.set_name}</div>
-                    </td>
-                    <td class="p-3 text-center font-bold">${item.in_stock}</td>
-                    <td class="p-3 text-center"><span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">${item.qty_allocated} Confirmed</span></td>
-                    <td class="p-3 text-center"><span class="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold">${item.qty_ordered} Requested</span></td>
-                    <td class="p-3 text-center text-blue-600 font-bold">${item.active_po_count}</td>
+                    <td class="p-3 font-bold">${item.card_name}</td>
+                    <td class="p-3 text-center">${item.in_stock}</td>
+                    <td class="p-3 text-center text-green-600 font-bold">${item.qty_allocated}</td>
+                    <td class="p-3 text-center text-yellow-600 font-bold">${item.qty_ordered}</td>
+                    <td class="p-3 text-center text-blue-600">${item.active_po_count}</td>
                 </tr>
-            `).join('') : '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No incoming shipments tracked.</td></tr>';
+            `).join('') || '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No incoming stock.</td></tr>';
         }
 
         function applyFilters() {
             const search = document.getElementById('search-input').value.toLowerCase();
-            const game = document.getElementById('filter-game').value;
-            const type = document.getElementById('filter-type').value;
-
-            const filtered = globalInventory.filter(p => {
-                const matchSearch = p.card_name.toLowerCase().includes(search) || (p.card_id || '').toLowerCase().includes(search);
-                const matchGame = game ? p.game_title === game : true;
-                const matchType = type ? p.product_type === type : true;
-                return matchSearch && matchGame && matchType;
-            });
-            renderTable(filtered);
-        }
-
-        function renderTable(products) {
-            const tableBody = document.getElementById('inventory-table-body');
-            tableBody.innerHTML = products.map(p => `
-                <tr class="border-b hover:bg-gray-50 text-sm">
-                    <td class="p-4">
-                        <div class="text-xs font-bold text-gray-400 uppercase">${p.game_title}</div>
-                        <div class="text-xs">${p.product_type}</div>
-                    </td>
+            const filtered = globalInventory.filter(p => p.card_name.toLowerCase().includes(search));
+            
+            document.getElementById('inventory-table-body').innerHTML = filtered.map(p => `
+                <tr class="border-b hover:bg-gray-50">
                     <td class="p-4">
                         <div class="font-bold text-gray-800">${p.card_name}</div>
-                        <div class="text-xs text-blue-600 font-mono">${p.card_id || '-'}</div>
+                        <div class="text-xs text-gray-400">${p.game_title} - ${p.card_id || '-'}</div>
                     </td>
                     <td class="p-4">
-                        <div class="text-xs text-gray-400">Cost: $${p.cost_price || '0'}</div>
+                        <div class="text-xs text-gray-400">Cost: $${p.cost_price}</div>
                         <div class="font-bold text-green-600">Sell: $${p.price}</div>
                     </td>
-                    <td class="p-4 text-lg font-bold ${p.in_stock < 5 ? 'text-red-500' : 'text-gray-700'}">
-                        ${p.in_stock}
-                    </td>
-                    <td class="p-4">
-                        ${p.qty_allocated > 0 ? `<div class="text-[10px] bg-green-100 text-green-700 px-1 rounded mb-1 w-fit">Allocated: ${p.qty_allocated}</div>` : ''}
-                        ${p.qty_ordered > 0 ? `<div class="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded w-fit">Ordered: ${p.qty_ordered}</div>` : ''}
-                        ${(!p.qty_allocated && !p.qty_ordered) ? '<span class="text-gray-300 text-xs">Stable</span>' : ''}
-                    </td>
+                    <td class="p-4 font-bold text-lg">${p.in_stock}</td>
                     <td class="p-4 text-right">
-                        <button onclick="openEditModal(${p.id})" class="text-blue-600 hover:underline font-bold mr-3">Edit</button>
-                        <button onclick="deleteProduct(${p.id})" class="text-red-400 hover:text-red-600">Delete</button>
+                        <button onclick="openEditModal(${p.id})" class="text-blue-600 font-bold mr-3">Edit</button>
+                        <button onclick="deleteProduct(${p.id})" class="text-red-400">Delete</button>
                     </td>
                 </tr>
             `).join('');
-        }
-
-        // --- ACTION HANDLERS ---
-        async function addProduct() {
-            const data = {
-                game_title: document.getElementById('game-title').value,
-                product_type: document.getElementById('product-type').value,
-                barcode: document.getElementById('barcode').value,
-                card_id: document.getElementById('card-id').value,
-                card_name: document.getElementById('card-name').value,
-                set_name: document.getElementById('set-name').value,
-                price: document.getElementById('price').value,
-                cost_price: document.getElementById('cost-price').value || 0,
-                stock_quantity: document.getElementById('stock').value
-            };
-
-            const res = await fetch(`${API_URL}/inventory/add`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (res.ok) { alert("Product Added!"); loadInventory(); }
         }
 
         function openEditModal(id) {
@@ -284,7 +198,7 @@
             document.getElementById('edit-id').value = p.id;
             document.getElementById('edit-name').value = p.card_name;
             document.getElementById('edit-price').value = p.price;
-            document.getElementById('edit-cost').value = p.cost_price || 0;
+            document.getElementById('edit-cost').value = p.cost_price;
             document.getElementById('edit-stock').value = p.in_stock;
             document.getElementById('edit-modal').classList.remove('hidden');
         }
@@ -292,26 +206,36 @@
         function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden'); }
 
         async function saveEdit() {
-            const id = document.getElementById('edit-id').value;
             const body = {
                 price: document.getElementById('edit-price').value,
                 cost_price: document.getElementById('edit-cost').value,
                 stock_quantity: document.getElementById('edit-stock').value
             };
-            const res = await fetch(`${API_URL}/inventory/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+            await fetch(`${API_URL}/inventory/${document.getElementById('edit-id').value}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
             });
-            if (res.ok) { closeEditModal(); loadInventory(); }
+            closeEditModal(); loadInventory();
         }
 
-        async function deleteProduct(id) {
-            if (!confirm("Are you sure?")) return;
-            await fetch(`${API_URL}/inventory/${id}`, { method: 'DELETE' });
+        async function addProduct() {
+            const data = {
+                game_title: document.getElementById('game-title').value,
+                product_type: document.getElementById('product-type').value,
+                card_name: document.getElementById('card-name').value,
+                price: document.getElementById('price').value,
+                cost_price: document.getElementById('cost-price').value,
+                stock_quantity: document.getElementById('stock').value
+            };
+            await fetch(`${API_URL}/inventory/add`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
             loadInventory();
         }
 
+        async function deleteProduct(id) {
+            if (confirm("Delete product?")) {
+                await fetch(`${API_URL}/inventory/${id}`, { method: 'DELETE' });
+                loadInventory();
+            }
+        }
     </script>
 </body>
 </html>
