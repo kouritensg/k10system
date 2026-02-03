@@ -52,10 +52,9 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ==========================================
-// INVENTORY & INTELLIGENCE
+// INVENTORY
 // ==========================================
 
-// FIXED: Comprehensive GROUP BY for strict MySQL environments
 app.get('/api/inventory/status', async (req, res) => {
     try {
         // Simpler query to prevent 500 errors
@@ -80,13 +79,26 @@ app.get('/api/inventory/status', async (req, res) => {
 app.post('/api/inventory/add', async (req, res) => {
   const { barcode, game_title, product_type, card_id, card_name, set_name, price, cost_price, stock_quantity } = req.body;
   try {
-    await db.execute(
+    const [result] = await db.execute(
       `INSERT INTO inventory (barcode, game_title, product_type, card_id, card_name, set_name, price, cost_price, stock_quantity) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [barcode || null, game_title, product_type, card_id || null, card_name, set_name || null, price, cost_price || 0, stock_quantity]
+      [barcode || null, game_title, product_type, card_id || null, card_name, set_name || null, price || 0, cost_price || 0, stock_quantity || 0]
     );
-    res.status(201).json({ message: 'Added!' });
-  } catch (error) { res.status(500).json({ error: error.message }); }
+
+    // Fetch the newly created product to send back to the frontend
+    const [newProduct] = await db.execute('SELECT * FROM inventory WHERE id = ?', [result.insertId]);
+    
+    res.status(201).json({ 
+        message: 'Product registered!', 
+        product: {
+            ...newProduct[0],
+            in_stock: newProduct[0].stock_quantity // Map for frontend consistency
+        }
+    });
+  } catch (error) { 
+    console.error("Quick Add Error:", error.message);
+    res.status(500).json({ error: error.message }); 
+  }
 });
 
 app.put('/api/inventory/:id', async (req, res) => {
