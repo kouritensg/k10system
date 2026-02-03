@@ -140,22 +140,27 @@
             loadInventory();
         }
 
-        async function loadInventory() {
-            try {
-                const res = await fetch(`${API_URL}/inventory/status`);
-                const data = await res.json();
-                
-                // FIXED: Safety check to prevent .filter crash
-                if (Array.isArray(data)) {
-                    globalInventory = data;
-                    applyFilters();
-                    renderIntel(data);
-                } else {
-                    console.error("Backend error:", data);
-                    globalInventory = [];
-                }
-            } catch (e) { console.error("Load failed", e); }
+   async function loadInventory() {
+    try {
+        const res = await fetch(`${API_URL}/inventory/status`);
+        const data = await res.json();
+        
+        if (!res.ok) {
+            // This will tell you EXACTLY why the server is mad
+            console.error("Server Error Details:", data.message);
+            alert("Backend Error: " + (data.message || "Unknown Error"));
+            return;
         }
+
+        if (Array.isArray(data)) {
+            globalInventory = data;
+            applyFilters();
+            renderIntel(data);
+        }
+    } catch (e) { 
+        console.error("Load failed:", e); 
+    }
+}
 
         function renderIntel(data) {
             const incoming = data.filter(i => i.qty_ordered > 0 || i.qty_allocated > 0);
