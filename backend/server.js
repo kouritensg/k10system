@@ -303,6 +303,67 @@ app.delete('/api/customers/:id', async (req, res) => {
         res.status(500).json({ error: 'Cannot delete customer. They may have active orders or event history.' });
     }
 });
+
+// ==========================================
+// CUSTOMER SALES / POS SYSTEM
+// ==========================================
+
+app.post('/api/sales', async (req, res) => {
+    const { customer_id, order_type, payment_method, items } = req.body;
+    
+    if (!items || items.length === 0) return res.status(400).json({ error: "No items in cart" });
+
+    const conn = await db.getConnection();
+    try {
+        await conn.beginTransaction();
+
+        // 1. Calculate Total
+        const total = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
+
+        // 2. Create Order Header
+        const [orderResult] = await conn.execute(
+            `INSERT INTO customer_orders (customer_id, order_type, status, total_amount, payment_method) 
+             VALUES (?, ?, ?, ?, ?)`,
+            [customer_id, order_type, 'Paid', total, payment_method]
+        );
+        const orderId = orderResult.insertId;
+
+        // 3. Process Items
+        for (const item of items) {
+            // A. Add to order items table
+            await conn.execute(
+                `INSERT INTO customer_order_items (order_id, inventory_id, quantity, unit_price) 
+                 VALUES (?, ?, ?, ?)`,
+                [orderId, item.id, item.qty, item.price]
+            );
+
+            // B. IF 'In-Stock' Purchase -> DEDUCT STOCK
+            if (order_type === 'In-Stock') {
+                const [check] = await conn.execute('SELECT stock_quantity FROM inventory WHERE id = ?', [item.id]);
+                
+                if (check.length === 0 || check[0].stock_quantity < item.qty) {
+                    throw new Error(`Not enough stock for item ID: ${item.id}`);
+                }
+
+                await conn.execute(
+                    'UPDATE inventory SET stock_quantity = stock_quantity - ? WHERE id = ?', 
+                    [item.qty, item.id]
+                );
+            }
+            // If 'Preorder', we DO NOT deduct stock yet.
+        }
+
+        await conn.commit();
+        res.status(201).json({ message: 'Order recorded!', order_id: orderId });
+
+    } catch (error) {
+        await conn.rollback();
+        console.error("Sales Error:", error);
+        res.status(500).json({ error: error.message });
+    } finally {
+        conn.release();
+    }
+});
 // --- KEEP ALIVE ---
 setInterval(async () => { try { await db.execute('SELECT 1'); } catch(e){} }, 300000);
 
