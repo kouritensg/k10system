@@ -92,12 +92,11 @@ app.post('/api/inventory/add', async (req, res) => {
       [barcode || null, game_title, product_type, card_id || null, card_name, price || 0, cost_price || 0, stock_quantity || 0, packs_per_box || 1, boxes_per_case || 1]
     );
 
-    // NEW: Fetch the newly created product to send back to the frontend
     const [newProduct] = await db.execute('SELECT * FROM inventory WHERE id = ?', [result.insertId]);
     
     res.status(201).json({ 
         message: 'Product registered!', 
-        product: newProduct[0] // Frontend needs this to add to basket
+        product: newProduct[0] 
     });
   } catch (error) { 
     res.status(500).json({ error: error.message }); 
@@ -113,7 +112,58 @@ app.put('/api/inventory/:id', async (req, res) => {
 });
 
 // ==========================================
-// 4. SALES & PREORDERS (WITH DEPOSITS)
+// 4. PURCHASING MODULE (NEW ORDER & HISTORY)
+// ==========================================
+
+// Create a New Purchase Order
+app.post('/api/purchase-orders', async (req, res) => {
+    const { supplier_id, po_number, items } = req.body;
+    const conn = await db.getConnection();
+    
+    try {
+        await conn.beginTransaction();
+        const finalPONumber = po_number || `PO-${Date.now()}`;
+
+        const [po] = await conn.execute(
+            'INSERT INTO purchase_orders (supplier_id, po_number, status) VALUES (?,?,?)', 
+            [supplier_id, finalPONumber, 'Ordered']
+        );
+
+        for (const i of items) {
+            await conn.execute(
+                'INSERT INTO po_items (po_id, inventory_id, ordered_qty, unit_cost) VALUES (?,?,?,?)', 
+                [po.insertId, i.inventory_id, i.qty, i.cost]
+            );
+        }
+
+        await conn.commit();
+        res.status(201).json({ message: 'PO Created', po_number: finalPONumber });
+    } catch (e) { 
+        await conn.rollback(); 
+        res.status(500).json({ error: 'Failed to create PO: ' + e.message }); 
+    } finally { conn.release(); }
+});
+
+// Get Purchase Order History
+app.get('/api/purchase-orders', async (req, res) => {
+    const { limit } = req.query;
+    try {
+        const [rows] = await db.execute(`
+            SELECT po.*, 
+                   COALESCE(s.name, 'Unknown Supplier') as supplier_name, 
+                   (SELECT COUNT(*) FROM po_items WHERE po_id = po.id) as total_items
+            FROM purchase_orders po 
+            LEFT JOIN suppliers s ON po.supplier_id = s.id 
+            ORDER BY po.order_date DESC 
+            LIMIT ?`, 
+            [parseInt(limit) || 20]
+        );
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: 'Failed to fetch history' }); }
+});
+
+// ==========================================
+// 5. SALES & PREORDERS (WITH DEPOSITS)
 // ==========================================
 
 app.post('/api/sales', async (req, res) => {
