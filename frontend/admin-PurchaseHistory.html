@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Purchase History</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <nav class="bg-white shadow-sm mb-8 px-4 py-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-gray-800">📜 Purchase History (Distributors)</h1>
+        <div class="space-x-4">
+            <a href="admin.html" class="text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
+            <a href="admin-purchase.html" class="text-gray-600 hover:text-blue-600 font-medium">New Order</a>
+            <a href="admin-PurchaseHistory.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">History</a>
+            <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4">
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-6 border-l-4 border-blue-600">
+            <div class="flex flex-col md:flex-row justify-between items-end gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-800 mb-2">Filter Options</h2>
+                    <div class="flex flex-wrap gap-2 items-end">
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 block">Start Date</label>
+                            <input type="date" id="start-date" class="p-2 border rounded text-sm">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 block">End Date</label>
+                            <input type="date" id="end-date" class="p-2 border rounded text-sm">
+                        </div>
+                        <div class="flex gap-1">
+                            <button onclick="setDateRange('2025')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded text-xs font-bold">2025 (Last Year)</button>
+                            <button onclick="setDateRange('2026')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded text-xs font-bold">2026 (This Year)</button>
+                            <button onclick="resetFilters()" class="text-red-500 hover:underline px-3 py-2 text-xs font-bold">Clear</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="w-full md:w-auto text-right">
+                    <label class="text-xs font-bold text-gray-500 block mb-1">Total Spent in Period</label>
+                    <div id="period-total" class="text-3xl font-bold text-gray-800">$0.00</div>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 mt-4 pt-4 border-t">
+                <input type="text" id="search-input" placeholder="Search PO # or Supplier..." class="p-2 border rounded w-full md:w-64">
+                <select id="status-filter" class="p-2 border rounded bg-white">
+                    <option value="">All Statuses</option>
+                    <option value="Ordered">Ordered</option>
+                    <option value="Invoiced">Invoiced</option>
+                    <option value="Received">Received</option>
+                </select>
+                <button onclick="loadOrders()" class="bg-blue-600 text-white px-6 rounded font-bold hover:bg-blue-700">Filter</button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[500px] mb-12">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50 border-b text-xs uppercase font-bold text-gray-500">
+                    <tr>
+                        <th class="p-4">PO Number</th>
+                        <th class="p-4">Date</th>
+                        <th class="p-4">Supplier</th>
+                        <th class="p-4 text-center">Items</th>
+                        <th class="p-4">Total Cost</th>
+                        <th class="p-4">Status</th>
+                        <th class="p-4 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="history-table-body"></tbody>
+            </table>
+            <div id="loading" class="p-12 text-center text-gray-500 hidden">Loading records...</div>
+            <div id="empty-state" class="p-12 text-center text-gray-400 hidden">No records found for this period.</div>
+        </div>
+    </div>
+
+    <div id="detail-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[90vh]">
+            <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-800" id="modal-title">...</h3>
+                    <p class="text-sm text-gray-500" id="modal-subtitle">...</p>
+                </div>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <div class="p-0 overflow-y-auto flex-grow">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-100 text-gray-500 font-bold">
+                        <tr>
+                            <th class="p-4">Product</th>
+                            <th class="p-4 text-center">Ordered</th>
+                            <th class="p-4 text-center">Allocated</th>
+                            <th class="p-4 text-right">Unit Cost</th>
+                            <th class="p-4 text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-items"></tbody>
+                </table>
+            </div>
+            <div class="p-6 border-t bg-gray-50 flex justify-end">
+                <button onclick="closeModal()" class="bg-white border border-gray-300 text-gray-700 font-bold py-2 px-6 rounded">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('k10_token');
+            if (!token) window.location.href = 'admin.html';
+            
+            // Default to "This Year"
+            setDateRange('2026');
+            loadOrders();
+
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                localStorage.removeItem('k10_token');
+                window.location.href = 'admin.html';
+            });
+        });
+
+        function setDateRange(year) {
+            document.getElementById('start-date').value = `${year}-01-01`;
+            document.getElementById('end-date').value = `${year}-12-31`;
+            loadOrders();
+        }
+
+        function resetFilters() {
+            document.getElementById('start-date').value = '';
+            document.getElementById('end-date').value = '';
+            document.getElementById('search-input').value = '';
+            document.getElementById('status-filter').value = '';
+            loadOrders();
+        }
+
+        async function loadOrders() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            const search = document.getElementById('search-input').value;
+            const status = document.getElementById('status-filter').value;
+            
+            const tbody = document.getElementById('history-table-body');
+            const loading = document.getElementById('loading');
+            const empty = document.getElementById('empty-state');
+            
+            tbody.innerHTML = '';
+            loading.classList.remove('hidden');
+            empty.classList.add('hidden');
+
+            try {
+                // Construct URL with Query Params
+                const params = new URLSearchParams({
+                    limit: 1000, // Fetch up to 1000 for accounting
+                    search,
+                    status,
+                    startDate,
+                    endDate
+                });
+
+                const res = await fetch(`${API_URL}/purchase-orders?${params}`);
+                const orders = await res.json();
+                
+                loading.classList.add('hidden');
+
+                if (orders.length === 0) {
+                    empty.classList.remove('hidden');
+                    document.getElementById('period-total').innerText = '$0.00';
+                    return;
+                }
+
+                let grandTotal = 0;
+
+                tbody.innerHTML = orders.map(po => {
+                    const cost = parseFloat(po.total_cost || 0);
+                    grandTotal += cost;
+                    
+                    return `
+                    <tr class="border-b hover:bg-gray-50 transition">
+                        <td class="p-4 font-mono font-bold text-blue-600">${po.po_number}</td>
+                        <td class="p-4 text-sm text-gray-500">${new Date(po.order_date || po.created_at).toLocaleDateString()}</td>
+                        <td class="p-4 font-medium text-gray-700">${po.supplier_name}</td>
+                        <td class="p-4 text-center text-gray-500">${po.total_items}</td>
+                        <td class="p-4 font-bold text-gray-800">$${cost.toFixed(2)}</td>
+                        <td class="p-4">
+                            <span class="px-2 py-1 rounded-full text-xs font-bold uppercase ${getStatusClass(po.status)}">
+                                ${po.status}
+                            </span>
+                        </td>
+                        <td class="p-4 text-right">
+                            <button onclick="viewDetails(${po.id}, '${po.po_number}', '${po.supplier_name}')" 
+                                    class="text-blue-600 hover:text-blue-800 font-bold text-sm">View Items</button>
+                        </td>
+                    </tr>
+                    `;
+                }).join('');
+
+                document.getElementById('period-total').innerText = `$${grandTotal.toFixed(2)}`;
+
+            } catch (err) {
+                console.error(err);
+                loading.innerText = "Error loading data.";
+            }
+        }
+
+        async function viewDetails(id, poNum, supplier) {
+            document.getElementById('modal-title').innerText = poNum;
+            document.getElementById('modal-subtitle').innerText = supplier;
+            document.getElementById('detail-modal').classList.remove('hidden');
+            document.getElementById('modal-items').innerHTML = '<tr><td colspan="5" class="p-4 text-center">Loading...</td></tr>';
+
+            try {
+                const res = await fetch(`${API_URL}/purchase-orders/${id}`);
+                const items = await res.json();
+                
+                document.getElementById('modal-items').innerHTML = items.map(i => `
+                    <tr class="border-b">
+                        <td class="p-4 font-medium">
+                            ${i.card_name}
+                            <div class="text-xs text-gray-400">${i.set_name || ''}</div>
+                        </td>
+                        <td class="p-4 text-center font-bold">${i.ordered_qty}</td>
+                        <td class="p-4 text-center ${i.allocated_qty < i.ordered_qty ? 'text-red-500' : 'text-green-600'}">
+                            ${i.allocated_qty}
+                        </td>
+                        <td class="p-4 text-right font-mono text-gray-500">$${i.unit_cost}</td>
+                        <td class="p-4 text-right font-bold">$${(i.allocated_qty * i.unit_cost).toFixed(2)}</td>
+                    </tr>
+                `).join('');
+            } catch (err) { console.error(err); }
+        }
+
+        function closeModal() { document.getElementById('detail-modal').classList.add('hidden'); }
+        function getStatusClass(s) {
+            if (s === 'Ordered') return 'bg-yellow-100 text-yellow-700';
+            if (s === 'Received') return 'bg-green-100 text-green-700';
+            return 'bg-blue-100 text-blue-700';
+        }
+    </script>
+</body>
+</html>
