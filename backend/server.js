@@ -343,6 +343,62 @@ app.delete('/api/customers/:id', async (req, res) => {
     }
 });
 
+// ==========================================
+// UPDATED PURCHASING ROUTES
+// ==========================================
+
+// 1. Get Purchase Order History (Including Invoice Data)
+app.get('/api/purchase-orders', async (req, res) => {
+    try {
+        const [rows] = await db.execute(`
+            SELECT 
+                po.id, 
+                po.po_number, 
+                po.status, 
+                po.order_date,
+                po.payment_status,
+                po.total_cost,
+                po.paid_amount,
+                po.invoice_no,
+                po.payment_date,
+                COALESCE(s.name, 'Unknown Supplier') as supplier_name,
+                -- Calculated value from items (for reference)
+                (SELECT SUM(poi.ordered_qty * poi.unit_cost) FROM po_items poi WHERE poi.po_id = po.id) as original_value
+            FROM purchase_orders po 
+            LEFT JOIN suppliers s ON po.supplier_id = s.id 
+            ORDER BY po.order_date DESC`
+        );
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// 2. New Route: Record Payment & Invoice
+app.put('/api/purchase-orders/:id/payment', async (req, res) => {
+    const { invoice_no, payment_date, amount_paid, final_total_cost } = req.body;
+    try {
+        // Update the PO header with actual financial data
+        await db.execute(
+            `UPDATE purchase_orders 
+             SET invoice_no = ?, 
+                 payment_date = ?, 
+                 paid_amount = paid_amount + ?, 
+                 total_cost = ?,
+                 payment_status = CASE WHEN (paid_amount + ?) >= ? THEN 'Fully Paid' ELSE 'Partial' END
+             WHERE id = ?`,
+            [
+                invoice_no || null, 
+                payment_date || null, 
+                parseFloat(amount_paid) || 0, 
+                parseFloat(final_total_cost), 
+                parseFloat(amount_paid) || 0, 
+                parseFloat(final_total_cost), 
+                req.params.id
+            ]
+        );
+        res.json({ message: 'Payment recorded successfully' });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 // --- KEEP ALIVE ---
 setInterval(async () => { try { await db.execute('SELECT 1'); } catch(e){} }, 300000);
 
