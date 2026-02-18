@@ -26,9 +26,9 @@
 
     <div class="bg-blue-600 text-white py-12">
         <div class="max-w-7xl mx-auto px-4 text-center">
-            <h2 class="text-4xl font-extrabold mb-4">Sometexts</h2>
+            <h2 class="text-4xl font-extrabold mb-4">Welcome to K10</h2>
             <p class="text-blue-100 text-lg max-w-2xl mx-auto">
-               Moretexts
+               Your premier destination for Trading Card Games and community tournaments.
             </p>
         </div>
     </div>
@@ -42,11 +42,8 @@
                     Upcoming Tournaments
                 </h2>
             </div>
-            
             <div id="loading-events" class="text-gray-500 italic">Loading schedule...</div>
-            
-            <div id="events-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                </div>
+            <div id="events-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
         </section>
 
         <section id="shop-section">
@@ -61,8 +58,7 @@
             </div>
 
             <div id="game-list-view" class="hidden">
-                <div id="game-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    </div>
+                <div id="game-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
             </div>
 
             <div id="product-list-view" class="hidden">
@@ -72,9 +68,7 @@
                     </button>
                     <h3 id="selected-game-title" class="text-2xl font-bold text-gray-800 border-l-4 border-blue-500 pl-3"></h3>
                 </div>
-
-                <div id="product-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    </div>
+                <div id="product-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
             </div>
         </section>
 
@@ -83,11 +77,9 @@
     <footer class="bg-gray-800 text-gray-400 py-8 mt-12">
         <div class="max-w-7xl mx-auto px-4 text-center">
             <p>&copy; 2026 K10 Card Shop System. All rights reserved.</p>
-            <p class="text-xs mt-2 text-gray-600"></p>
         </div>
     </footer>
 
-    <!-- Join Event Modal -->
     <div id="join-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
             <h3 class="text-xl font-bold mb-4 text-gray-800">Join Tournament</h3>
@@ -106,46 +98,16 @@
             </div>
 
             <div class="flex justify-end space-x-3">
-                <button onclick="closeJoinModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded transition">
-                    Cancel
-                </button>
-                <button onclick="submitJoin()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition shadow-md">
-                    Confirm Registration
-                </button>
+                <button onclick="closeJoinModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded transition">Cancel</button>
+                <button onclick="submitJoin()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition shadow-md">Confirm Registration</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2"></div>
 
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
-
-        // --- TOAST SYSTEM ---
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-
-            const colors = type === 'success' ? 'bg-green-600' : 'bg-red-600';
-            const icon = type === 'success' ? '✅' : '❌';
-
-            toast.className = `${colors} text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-3 transform transition-all duration-300 translate-y-2 opacity-0`;
-            toast.innerHTML = `<span class="font-bold text-lg">${icon}</span><span class="font-medium">${message}</span>`;
-
-            container.appendChild(toast);
-
-            // Animate In
-            requestAnimationFrame(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            });
-
-            // Remove after 3s
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-2');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        }
 
         // State Management
         let allProducts = [];
@@ -154,7 +116,6 @@
         // DOM Elements
         const eventsGrid = document.getElementById('events-grid');
         const loadingEvents = document.getElementById('loading-events');
-        
         const loadingInventory = document.getElementById('loading-inventory');
         const gameListView = document.getElementById('game-list-view');
         const productListView = document.getElementById('product-list-view');
@@ -163,127 +124,87 @@
         const selectedGameTitle = document.getElementById('selected-game-title');
         const backBtn = document.getElementById('back-btn');
 
-        // --- INIT ---
         document.addEventListener('DOMContentLoaded', () => {
             fetchEvents();
             fetchInventory();
             backBtn.addEventListener('click', showGameList);
         });
 
-        // ==========================================
+        // TOAST SYSTEM
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = type === 'success' ? 'bg-green-600' : 'bg-red-600';
+            const icon = type === 'success' ? '✅' : '❌';
+            toast.className = `${colors} text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-3 transform transition-all duration-300 translate-y-2 opacity-0`;
+            toast.innerHTML = `<span class="font-bold text-lg">${icon}</span><span class="font-medium">${message}</span>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
         // 1. EVENT SYSTEM
-        // ==========================================
         async function fetchEvents() {
             try {
                 const res = await fetch(`${API_URL}/events`);
                 const events = await res.json();
-                
                 loadingEvents.classList.add('hidden');
-
                 if(events.length === 0) {
-                    eventsGrid.innerHTML = `
-                        <div class="col-span-full bg-white p-6 rounded-lg text-center text-gray-500 border border-dashed border-gray-300">
-                            No upcoming tournaments scheduled. Check back later!
-                        </div>`;
+                    eventsGrid.innerHTML = `<div class="col-span-full bg-white p-6 rounded-lg text-center text-gray-500 border border-dashed">No upcoming tournaments.</div>`;
                     return;
                 }
-
                 eventsGrid.innerHTML = events.map(e => {
                     const date = new Date(e.event_date);
                     const isFull = e.current_players >= e.max_players;
-                    
                     return `
                     <div class="hover-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
-                        <div class="bg-gray-50 px-6 py-3 border-b border-gray-100 flex justify-between items-center">
+                        <div class="bg-gray-50 px-6 py-3 border-b flex justify-between items-center">
                             <span class="text-xs font-bold text-blue-600 uppercase tracking-wider">${e.game_title}</span>
-                            <span class="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded border">
-                                ${date.toLocaleDateString()} @ ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                            </span>
+                            <span class="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded border">${date.toLocaleDateString()}</span>
                         </div>
                         <div class="p-6 flex-grow">
                             <h3 class="text-xl font-bold text-gray-800 mb-2">${e.title}</h3>
-                            <div class="flex items-center text-sm text-gray-600 space-x-4 mb-4">
-                                <span class="flex items-center">💰 $${e.entry_fee}</span>
-                                <span class="flex items-center ${isFull ? 'text-red-500 font-bold' : ''}">
-                                    👥 ${e.current_players}/${e.max_players} Players
-                                </span>
-                            </div>
+                            <div class="text-sm text-gray-600 flex gap-4"><span>💰 $${e.entry_fee}</span><span>👥 ${e.current_players}/${e.max_players}</span></div>
                         </div>
                         <div class="px-6 pb-6">
-                            ${isFull 
-                                ? `<button disabled class="w-full bg-gray-100 text-gray-400 font-bold py-2 rounded-lg cursor-not-allowed">Event Full</button>`
-                                : `<button onclick="joinEvent(${e.id}, '${e.title}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition shadow-md hover:shadow-lg">Join Tournament</button>`
-                            }
+                            ${isFull ? `<button disabled class="w-full bg-gray-100 text-gray-400 font-bold py-2 rounded-lg">Event Full</button>` : `<button onclick="joinEvent(${e.id}, '${e.title}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition shadow-md">Join</button>`}
                         </div>
-                    </div>
-                `}).join('');
-            } catch (err) {
-                console.error(err);
-                loadingEvents.innerHTML = `<span class="text-red-500">Failed to load events. Backend might be sleeping.</span>`;
-            }
+                    </div>`;
+                }).join('');
+            } catch (err) { loadingEvents.innerHTML = `<span class="text-red-500">Failed to load events.</span>`; }
         }
 
         function joinEvent(eventId, title) {
             document.getElementById('join-event-id').value = eventId;
             document.getElementById('join-event-title').innerText = `Registering for: ${title}`;
-            document.getElementById('join-name').value = '';
-            document.getElementById('join-contact').value = '';
             document.getElementById('join-modal').classList.remove('hidden');
         }
 
-        function closeJoinModal() {
-            document.getElementById('join-modal').classList.add('hidden');
-        }
+        function closeJoinModal() { document.getElementById('join-modal').classList.add('hidden'); }
 
         async function submitJoin() {
-            const eventId = document.getElementById('join-event-id').value;
-            const name = document.getElementById('join-name').value;
-            const contact = document.getElementById('join-contact').value;
-
-            if(!name || !contact) {
-                showToast("Name and Contact Info are required.", "error");
-                return;
-            }
-
+            const payload = { event_id: document.getElementById('join-event-id').value, player_name: document.getElementById('join-name').value, contact_info: document.getElementById('join-contact').value };
+            if(!payload.player_name || !payload.contact_info) return showToast("Required fields missing.", "error");
             try {
-                const res = await fetch(`${API_URL}/events/join`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ event_id: eventId, player_name: name, contact_info: contact })
-                });
-                
+                const res = await fetch(`${API_URL}/events/join`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 const data = await res.json();
-                
-                if(res.ok) {
-                    showToast(data.message, "success");
-                    closeJoinModal();
-                    fetchEvents(); // Refresh to update player count
-                } else {
-                    showToast(data.error, "error");
-                }
-            } catch (err) {
-                showToast("Connection error. Please try again.", "error");
-            }
+                if(res.ok) { showToast(data.message); closeJoinModal(); fetchEvents(); } else { showToast(data.error, "error"); }
+            } catch (err) { showToast("Connection error.", "error"); }
         }
 
-        // ==========================================
-        // 2. INVENTORY SYSTEM
-        // ==========================================
+        // 2. INVENTORY SYSTEM (FIXED FOR RELATIONAL DATA)
         async function fetchInventory() {
             try {
-                const res = await fetch(`${API_URL}/inventory`);
-                if (!res.ok) throw new Error('Failed to fetch');
+                const res = await fetch(`${API_URL}/inventory`); // Uses updated backend route with LEFT JOIN
                 allProducts = await res.json();
-                
                 processData(allProducts);
                 renderGameList();
-                
                 loadingInventory.classList.add('hidden');
                 showGameList();
-            } catch (err) {
-                console.error(err);
-                loadingInventory.innerHTML = `<p class="text-red-500">System is waking up... please refresh in 30 seconds.</p>`;
-            }
+            } catch (err) { loadingInventory.innerHTML = `<p class="text-red-500">Failed to load inventory.</p>`; }
         }
 
         function processData(products) {
@@ -295,10 +216,7 @@
             });
         }
 
-        function showGameList() {
-            productListView.classList.add('hidden');
-            gameListView.classList.remove('hidden');
-        }
+        function showGameList() { productListView.classList.add('hidden'); gameListView.classList.remove('hidden'); }
 
         function showProductList(gameTitle) {
             gameListView.classList.add('hidden');
@@ -309,17 +227,11 @@
 
         function renderGameList() {
             gameGrid.innerHTML = Object.keys(games).map(title => `
-                <div class="hover-card bg-white p-6 rounded-xl shadow-sm border border-gray-200 cursor-pointer flex flex-col items-center justify-center h-48 group"
-                     onclick="showProductList('${title}')">
-                    <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-3xl mb-4 group-hover:bg-blue-100 transition">
-                        ${getGameIcon(title)}
-                    </div>
+                <div class="hover-card bg-white p-6 rounded-xl shadow-sm border border-gray-200 cursor-pointer flex flex-col items-center justify-center h-48 group" onclick="showProductList('${title}')">
+                    <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-3xl mb-4 group-hover:bg-blue-100 transition">${getGameIcon(title)}</div>
                     <h3 class="text-xl font-bold text-gray-800 text-center">${title}</h3>
                     <p class="text-gray-500 text-sm mt-1">${games[title].length} Items</p>
-                </div>
-            `).join('');
-            
-            window.showProductList = showProductList; // Expose to HTML
+                </div>`).join('');
         }
 
         function renderProductList(gameTitle) {
@@ -329,32 +241,24 @@
                     <div class="p-5 flex-grow">
                         <div class="flex justify-between items-start mb-3">
                             <span class="text-[10px] font-bold tracking-wider text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded">
-                                ${p.product_type}
+                                ${p.category_name || 'Product'}
                             </span>
                             ${p.rarity ? `<span class="text-[10px] font-bold text-purple-600 border border-purple-200 px-2 py-1 rounded">${p.rarity}</span>` : ''}
                         </div>
-
                         <h3 class="font-bold text-gray-800 text-lg leading-tight mb-1">${p.card_name}</h3>
-                        ${p.set_name ? `<p class="text-xs text-gray-500 mb-3">${p.set_name}</p>` : ''}
-                        
-                        ${p.barcode ? `<p class="text-xs font-mono text-gray-400">#${p.barcode}</p>` : ''}
-                        ${p.card_id ? `<p class="text-xs font-mono text-gray-400">ID: ${p.card_id}</p>` : ''}
+                        <p class="text-xs font-mono text-gray-400">ID: ${p.card_id || '-'}</p>
                     </div>
-
                     <div class="px-5 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
-                        <span class="text-xl font-bold text-green-700">$${p.price}</span>
+                        <span class="text-xl font-bold text-green-700">$${parseFloat(p.price).toFixed(2)}</span>
                         <div class="text-right">
                              <span class="block text-xs font-bold ${p.stock_quantity > 0 ? 'text-gray-700' : 'text-red-500'}">
                                 ${p.stock_quantity > 0 ? 'In Stock' : 'Sold Out'}
                             </span>
-                            ${p.stock_quantity > 0 && p.stock_quantity < 5 ? `<span class="text-[10px] text-red-500 font-medium">Only ${p.stock_quantity} left!</span>` : ''}
                         </div>
                     </div>
-                </div>
-            `).join('');
+                </div>`).join('');
         }
 
-        // Helper for icons
         function getGameIcon(title) {
             if(title.includes('One Piece')) return '🏴‍☠️';
             if(title.includes('Hololive')) return '🎤';
