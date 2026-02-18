@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>K10 Admin - Categories</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-4xl mx-auto px-4 mt-8 pb-12">
+        <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-indigo-600 mb-8 flex justify-between items-center">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800">Product Categories</h2>
+                <p class="text-xs text-gray-400 mt-1 uppercase font-bold">Manage Inventory Types</p>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="new-cat-name" placeholder="e.g. Graded Cards" class="p-2 border rounded outline-none focus:ring-2 focus:ring-indigo-500">
+                <button onclick="addCategory()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded shadow transition">
+                    + Add Type
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-gray-50 border-b text-[10px] font-bold text-gray-400 uppercase">
+                    <tr>
+                        <th class="p-4 w-20">ID</th>
+                        <th class="p-4">Category Name</th>
+                        <th class="p-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="category-table"></tbody>
+            </table>
+            <div id="loading" class="p-12 text-center text-gray-500">Loading categories...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+
+        document.addEventListener('DOMContentLoaded', loadCategories);
+
+        async function loadCategories() {
+            const res = await fetch(`${API_URL}/categories`);
+            const data = await res.json();
+            document.getElementById('loading').classList.add('hidden');
+            
+            document.getElementById('category-table').innerHTML = data.map(c => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-4 font-mono text-indigo-600 font-bold">#${c.id}</td>
+                    <td class="p-4 font-bold text-gray-700">${c.name}</td>
+                    <td class="p-4 text-right">
+                        <button onclick="deleteCategory(${c.id})" class="text-red-400 hover:text-red-600 font-bold text-xs">Delete</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        async function addCategory() {
+            const name = document.getElementById('new-cat-name').value;
+            if(!name) return;
+            const res = await fetch(`${API_URL}/categories`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if(res.ok) { document.getElementById('new-cat-name').value = ''; loadCategories(); }
+        }
+
+        async function deleteCategory(id) {
+            if(!confirm("Delete this type?")) return;
+            const res = await fetch(`${API_URL}/categories/${id}`, { method: 'DELETE' });
+            if(res.ok) loadCategories();
+            else alert("Error: Category might still be used by items in your inventory.");
+        }
+    </script>
+</body>
+</html>
