@@ -13,10 +13,11 @@
     <div class="max-w-7xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
         
         <div class="space-y-6">
+            
             <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
-                <h2 class="text-lg font-bold mb-4 text-gray-700">1. Customer & Type</h2>
+                <h2 class="text-lg font-bold mb-4 text-gray-700">1. Order Type</h2>
                 
-                <div class="flex bg-gray-100 p-1 rounded-lg mb-6">
+                <div class="flex bg-gray-100 p-1 rounded-lg mb-4">
                     <button onclick="setOrderType('In-Stock')" id="btn-instock" class="flex-1 py-2 rounded-md text-sm font-bold shadow bg-white text-blue-600 transition">
                         📦 In-Stock Buy
                     </button>
@@ -24,45 +25,78 @@
                         ⏳ Preorder
                     </button>
                 </div>
+                <p id="mode-desc" class="text-xs text-gray-400 italic">Deducts from inventory immediately.</p>
+            </div>
 
-                <div class="relative mb-4">
-                    <label class="text-xs font-bold text-gray-400 uppercase">Customer</label>
-                    <input type="text" id="cust-search" placeholder="Search Name / Mobile..." class="w-full p-2 border rounded mt-1">
-                    <div id="cust-results" class="absolute z-10 w-full bg-white shadow-lg border rounded hidden"></div>
-                    <input type="hidden" id="selected-cust-id">
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h2 class="text-lg font-bold mb-4 text-gray-700">2. Customer</h2>
+                
+                <div class="relative mb-4" id="cust-search-container">
+                    <input type="text" id="cust-search" placeholder="Search Name or Mobile..." 
+                           class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                    <div id="cust-results" class="absolute z-20 w-full bg-white shadow-xl border rounded mt-1 hidden max-h-48 overflow-y-auto"></div>
                 </div>
 
-                <div id="cust-card" class="hidden bg-blue-50 p-4 rounded border border-blue-100">
-                    <div class="font-bold text-blue-800" id="card-name"></div>
-                    <div class="text-xs text-blue-600" id="card-info"></div>
-                    <button onclick="clearCustomer()" class="text-xs text-red-500 underline mt-2">Change Customer</button>
+                <div id="cust-card" class="hidden bg-blue-50 p-4 rounded border border-blue-100 relative">
+                    <div class="font-bold text-blue-800" id="card-name">Customer Name</div>
+                    <div class="text-xs text-blue-600 mb-1" id="card-info">Contact Info</div>
+                    <span id="cust-points-badge" class="bg-blue-200 text-blue-800 text-[10px] px-2 py-0.5 rounded-full font-bold">0 Pts</span>
+                    
+                    <button onclick="clearCustomer()" class="absolute top-2 right-2 text-red-400 hover:text-red-600 font-bold text-xs">
+                        Change
+                    </button>
+                    <input type="hidden" id="selected-cust-id">
                 </div>
             </div>
 
             <div class="bg-white p-6 rounded-lg shadow-sm">
                 <h2 class="text-lg font-bold mb-4 text-gray-700">3. Payment</h2>
-                <select id="payment-method" class="w-full p-3 border rounded bg-gray-50 font-bold">
-                    <option value="Cash">💵 Cash</option>
-                    <option value="PayNow">📱 PayNow / QR</option>
-                    <option value="Credit Card">💳 Credit Card</option>
-                    <option value="Store Credit">🏦 Store Credit</option>
-                </select>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Payment Method</label>
+                        <select id="payment-method" class="w-full p-2 border rounded bg-gray-50 font-bold text-gray-700">
+                            <option value="Cash">💵 Cash</option>
+                            <option value="PayNow">📱 PayNow / QR</option>
+                            <option value="Credit Card">💳 Credit Card</option>
+                            <option value="Store Credit">🏦 Store Credit</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Payment Status</label>
+                        <select id="payment-status-select" onchange="toggleDepositInput()" class="w-full p-2 border rounded bg-blue-50 font-bold text-blue-900">
+                            <option value="Paid">✅ Full Payment (Immediate)</option>
+                            <option value="Partial">⚠️ Deposit / Partial</option>
+                            <option value="Pending">⏳ Pay Later (Zero Down)</option>
+                        </select>
+                    </div>
+
+                    <div id="deposit-box" class="hidden animate-fade-in">
+                        <label class="text-xs font-bold text-gray-500 uppercase">Deposit Amount ($)</label>
+                        <input type="number" id="deposit-amount" placeholder="0.00" 
+                               class="w-full p-2 border-2 border-yellow-400 rounded bg-yellow-50 font-bold text-lg text-gray-800">
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white p-6 rounded-lg shadow-sm min-h-[600px] flex flex-col">
-                <h2 class="text-lg font-bold mb-4 text-gray-700">2. Add Items</h2>
+                <h2 class="text-lg font-bold mb-4 text-gray-700">4. Add Items</h2>
                 
                 <div class="relative mb-6">
-                    <input type="text" id="prod-search" placeholder="Scan Barcode or Type Product Name..." 
-                           class="w-full p-4 text-lg border-2 border-blue-100 rounded-lg focus:border-blue-500 outline-none">
-                    <div id="prod-results" class="absolute z-10 w-full bg-white shadow-xl border rounded mt-1 hidden max-h-60 overflow-y-auto"></div>
+                    <div class="flex items-center border-2 border-blue-100 rounded-lg overflow-hidden focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                        <span class="pl-4 text-gray-400">🔍</span>
+                        <input type="text" id="prod-search" placeholder="Scan Barcode or Type Product Name..." 
+                               class="w-full p-4 outline-none text-lg">
+                    </div>
+                    <div id="prod-results" class="absolute z-20 w-full bg-white shadow-xl border rounded mt-1 hidden max-h-60 overflow-y-auto"></div>
                 </div>
 
-                <div class="flex-grow overflow-y-auto border rounded-lg">
+                <div class="flex-grow overflow-y-auto border rounded-lg bg-gray-50">
                     <table class="w-full text-left">
-                        <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <thead class="bg-gray-100 text-xs text-gray-500 uppercase border-b sticky top-0">
                             <tr>
                                 <th class="p-4">Product</th>
                                 <th class="p-4 w-24">Price</th>
@@ -71,17 +105,23 @@
                                 <th class="p-4 w-10"></th>
                             </tr>
                         </thead>
-                        <tbody id="cart-body"></tbody>
+                        <tbody id="cart-body" class="bg-white"></tbody>
                     </table>
-                    <div id="empty-cart" class="p-12 text-center text-gray-400">Cart is empty. Scan items to begin.</div>
+                    
+                    <div id="empty-cart" class="p-12 text-center text-gray-400 flex flex-col items-center justify-center h-48">
+                        <span class="text-4xl mb-2">🛒</span>
+                        <p>Cart is empty. Scan items to begin.</p>
+                    </div>
                 </div>
 
                 <div class="border-t pt-6 mt-4 flex justify-between items-end">
-                    <div class="text-gray-500 text-sm" id="item-count">0 Items</div>
+                    <div class="text-gray-500 font-bold text-sm" id="item-count">0 Items</div>
                     <div class="text-right">
-                        <div class="text-3xl font-bold text-gray-800" id="grand-total">$0.00</div>
-                        <button onclick="submitOrder()" class="mt-4 bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-3 px-8 rounded shadow-lg transition transform hover:-translate-y-1">
-                            Confirm Order
+                        <div class="text-xs text-gray-400 uppercase font-bold mb-1">Grand Total</div>
+                        <div class="text-4xl font-bold text-gray-800 mb-4" id="grand-total">$0.00</div>
+                        
+                        <button onclick="submitOrder()" class="bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-3 px-10 rounded shadow-lg transition transform hover:-translate-y-1 flex items-center gap-2 float-right">
+                            <span>✅</span> Confirm Order
                         </button>
                     </div>
                 </div>
@@ -94,51 +134,74 @@
         let currentType = 'In-Stock';
         let cart = [];
 
-        // --- 1. SETUP ---
+        // --- 1. INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', () => {
             const token = localStorage.getItem('k10_token');
             if (!token) window.location.href = 'admin.html';
 
-            // Search Listeners
             setupCustomerSearch();
             setupProductSearch();
+            
+            // Focus on customer search by default
+            document.getElementById('cust-search').focus();
         });
 
+        // --- 2. MODE TOGGLE ---
         function setOrderType(type) {
             currentType = type;
             const btnStock = document.getElementById('btn-instock');
             const btnPre = document.getElementById('btn-preorder');
+            const desc = document.getElementById('mode-desc');
 
             if (type === 'In-Stock') {
-                btnStock.className = "flex-1 py-2 rounded-md text-sm font-bold shadow bg-white text-blue-600 transition";
+                btnStock.className = "flex-1 py-2 rounded-md text-sm font-bold shadow bg-white text-blue-600 transition ring-2 ring-blue-100";
                 btnPre.className = "flex-1 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition";
+                desc.innerText = "Deducts from inventory immediately.";
+                desc.className = "text-xs text-gray-400 italic mt-2";
             } else {
-                btnPre.className = "flex-1 py-2 rounded-md text-sm font-bold shadow bg-white text-purple-600 transition";
+                btnPre.className = "flex-1 py-2 rounded-md text-sm font-bold shadow bg-white text-purple-600 transition ring-2 ring-purple-100";
                 btnStock.className = "flex-1 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition";
+                desc.innerText = "Reserves items. Does NOT deduct active stock.";
+                desc.className = "text-xs text-purple-500 font-bold italic mt-2";
             }
-            
-            // Clear cart when switching modes to prevent confusion? 
-            // Optional: cart = []; renderCart();
         }
 
-        // --- 2. CUSTOMER LOGIC ---
+        // --- 3. CUSTOMER LOGIC ---
         function setupCustomerSearch() {
             const input = document.getElementById('cust-search');
-            input.addEventListener('input', async (e) => {
-                const q = e.target.value;
-                if (q.length < 2) return;
-                
-                const res = await fetch(`${API_URL}/customers?search=${q}`);
-                const data = await res.json();
-                
-                const div = document.getElementById('cust-results');
-                div.innerHTML = data.map(c => `
-                    <div class="p-3 hover:bg-blue-50 cursor-pointer border-b" onclick='selectCustomer(${JSON.stringify(c)})'>
-                        <div class="font-bold">${c.name}</div>
-                        <div class="text-xs text-gray-500">${c.mobile_number || c.email}</div>
-                    </div>
-                `).join('');
-                div.classList.remove('hidden');
+            let debounce;
+            
+            input.addEventListener('input', (e) => {
+                clearTimeout(debounce);
+                debounce = setTimeout(async () => {
+                    const q = e.target.value;
+                    if (q.length < 2) {
+                        document.getElementById('cust-results').classList.add('hidden');
+                        return;
+                    }
+                    
+                    try {
+                        const res = await fetch(`${API_URL}/customers?search=${q}`);
+                        const data = await res.json();
+                        
+                        const div = document.getElementById('cust-results');
+                        if(data.length === 0) {
+                            div.innerHTML = '<div class="p-3 text-sm text-gray-400">No customers found.</div>';
+                        } else {
+                            div.innerHTML = data.map(c => `
+                                <div class="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between items-center" 
+                                     onclick='selectCustomer(${JSON.stringify(c)})'>
+                                    <div>
+                                        <div class="font-bold text-gray-800">${c.name}</div>
+                                        <div class="text-xs text-gray-500">${c.mobile_number || c.email}</div>
+                                    </div>
+                                    <div class="text-xs font-bold text-blue-600">${c.loyalty_points || 0} pts</div>
+                                </div>
+                            `).join('');
+                        }
+                        div.classList.remove('hidden');
+                    } catch(e) { console.error(e); }
+                }, 300);
             });
         }
 
@@ -146,22 +209,25 @@
             document.getElementById('selected-cust-id').value = c.id;
             document.getElementById('card-name').innerText = c.name;
             document.getElementById('card-info').innerText = c.mobile_number || c.email;
+            document.getElementById('cust-points-badge').innerText = `${c.loyalty_points || 0} Pts`;
             
-            document.getElementById('cust-search').classList.add('hidden');
-            document.getElementById('cust-results').classList.add('hidden');
+            document.getElementById('cust-search-container').classList.add('hidden');
             document.getElementById('cust-card').classList.remove('hidden');
+            document.getElementById('cust-results').classList.add('hidden');
         }
 
         function clearCustomer() {
             document.getElementById('selected-cust-id').value = '';
             document.getElementById('cust-search').value = '';
-            document.getElementById('cust-search').classList.remove('hidden');
+            document.getElementById('cust-search-container').classList.remove('hidden');
             document.getElementById('cust-card').classList.add('hidden');
+            document.getElementById('cust-search').focus();
         }
 
-        // --- 3. PRODUCT LOGIC ---
+        // --- 4. PRODUCT LOGIC ---
         function setupProductSearch() {
             const input = document.getElementById('prod-search');
+            
             input.addEventListener('input', async (e) => {
                 const q = e.target.value;
                 if (q.length < 2) {
@@ -169,61 +235,83 @@
                     return;
                 }
 
-                const res = await fetch(`${API_URL}/inventory/status`); // Or a specific search endpoint
+                const res = await fetch(`${API_URL}/inventory/status`);
                 const items = await res.json();
-                const filtered = items.filter(i => i.card_name.toLowerCase().includes(q.toLowerCase()) || i.barcode === q);
+                
+                // Smart Filter: Name OR Barcode OR ID
+                const filtered = items.filter(i => 
+                    i.card_name.toLowerCase().includes(q.toLowerCase()) || 
+                    (i.barcode && i.barcode === q) ||
+                    (i.card_id && i.card_id.toLowerCase().includes(q.toLowerCase()))
+                );
 
                 const div = document.getElementById('prod-results');
-                div.innerHTML = filtered.map(i => `
-                    <div class="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between" onclick='addToCart(${JSON.stringify(i)})'>
-                        <div>
-                            <div class="font-bold">${i.card_name}</div>
-                            <div class="text-xs text-gray-500">${i.game_title} | ${i.set_name || ''}</div>
+                if (filtered.length === 0) {
+                     div.innerHTML = '<div class="p-3 text-sm text-gray-400">No products found.</div>';
+                } else {
+                    div.innerHTML = filtered.map(i => `
+                        <div class="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between items-center" 
+                             onclick='addToCart(${JSON.stringify(i)})'>
+                            <div>
+                                <div class="font-bold text-gray-800">${i.card_name}</div>
+                                <div class="text-xs text-gray-500 font-bold uppercase">${i.game_title} • ${i.product_type}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-bold text-green-600">$${i.price}</div>
+                                <div class="text-xs ${i.in_stock > 0 ? 'text-gray-500' : 'text-red-500 font-bold'}">
+                                    Stock: ${i.in_stock}
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-right">
-                            <div class="font-bold text-green-600">$${i.price}</div>
-                            <div class="text-xs ${i.in_stock > 0 ? 'text-gray-500' : 'text-red-500'}">Stock: ${i.in_stock}</div>
-                        </div>
-                    </div>
-                `).join('');
+                    `).join('');
+                }
                 div.classList.remove('hidden');
             });
         }
 
         function addToCart(item) {
-            // Stock Check for "In-Stock" Mode
+            // Logic: Prevent adding out-of-stock items ONLY if mode is 'In-Stock'
             if (currentType === 'In-Stock' && item.in_stock <= 0) {
-                alert("This item is out of stock!");
+                alert(`⚠️ "${item.card_name}" is out of stock! Switch to 'Preorder' mode if you want to sell it anyway.`);
                 return;
             }
 
             const existing = cart.find(x => x.id === item.id);
             if (existing) {
                 if (currentType === 'In-Stock' && existing.qty + 1 > item.in_stock) {
-                    alert("Not enough stock!");
+                    alert("Not enough stock remaining!");
                     return;
                 }
                 existing.qty++;
             } else {
-                cart.push({ id: item.id, name: item.card_name, price: item.price, qty: 1, max: item.in_stock });
+                cart.push({ 
+                    id: item.id, 
+                    name: item.card_name, 
+                    price: parseFloat(item.price), 
+                    qty: 1, 
+                    max: item.in_stock 
+                });
             }
             
             document.getElementById('prod-search').value = '';
             document.getElementById('prod-results').classList.add('hidden');
+            document.getElementById('prod-search').focus(); // Keep focus for rapid scanning
             renderCart();
         }
 
         function renderCart() {
             const tbody = document.getElementById('cart-body');
+            const empty = document.getElementById('empty-cart');
             
             if (cart.length === 0) {
-                document.getElementById('empty-cart').classList.remove('hidden');
+                empty.classList.remove('hidden');
                 tbody.innerHTML = '';
                 document.getElementById('grand-total').innerText = '$0.00';
+                document.getElementById('item-count').innerText = '0 Items';
                 return;
             }
             
-            document.getElementById('empty-cart').classList.add('hidden');
+            empty.classList.add('hidden');
             let total = 0;
             let count = 0;
 
@@ -233,18 +321,20 @@
                 count += item.qty;
 
                 return `
-                <tr class="border-b">
-                    <td class="p-4 font-bold text-gray-700">${item.name}</td>
-                    <td class="p-4 text-gray-500">$${item.price}</td>
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-4 font-bold text-gray-700 text-sm">
+                        ${item.name}
+                    </td>
+                    <td class="p-4 text-gray-500">$${item.price.toFixed(2)}</td>
                     <td class="p-4 text-center">
-                        <input type="number" min="1" max="${currentType === 'In-Stock' ? item.max : 999}" 
+                        <input type="number" min="1" 
                                value="${item.qty}" 
-                               class="w-16 border rounded text-center font-bold"
+                               class="w-16 border rounded text-center font-bold focus:ring-2 focus:ring-blue-500 outline-none"
                                onchange="updateQty(${idx}, this.value)">
                     </td>
                     <td class="p-4 text-right font-bold text-gray-800">$${subtotal.toFixed(2)}</td>
                     <td class="p-4 text-right">
-                        <button onclick="removeFromCart(${idx})" class="text-red-400 hover:text-red-600 font-bold">×</button>
+                        <button onclick="removeFromCart(${idx})" class="text-red-400 hover:text-red-600 font-bold text-lg">×</button>
                     </td>
                 </tr>
                 `;
@@ -256,12 +346,12 @@
 
         function updateQty(idx, val) {
             const qty = parseInt(val);
-            if (qty < 1) return;
+            if (isNaN(qty) || qty < 1) return;
             
-            // Re-check stock limit
+            // Stock Limit Check
             if (currentType === 'In-Stock' && qty > cart[idx].max) {
-                alert(`Only ${cart[idx].max} available!`);
-                renderCart(); // Reset input
+                alert(`Only ${cart[idx].max} units available in stock.`);
+                renderCart(); // Reset to previous valid state
                 return;
             }
             cart[idx].qty = qty;
@@ -273,17 +363,49 @@
             renderCart();
         }
 
+        // --- 5. PAYMENT LOGIC ---
+        function toggleDepositInput() {
+            const status = document.getElementById('payment-status-select').value;
+            const box = document.getElementById('deposit-box');
+            const input = document.getElementById('deposit-amount');
+            
+            if (status === 'Partial') {
+                box.classList.remove('hidden');
+                input.focus();
+            } else {
+                box.classList.add('hidden');
+                input.value = '';
+            }
+        }
+
         async function submitOrder() {
             const custId = document.getElementById('selected-cust-id').value;
-            if (!custId) return alert("Please select a customer.");
-            if (cart.length === 0) return alert("Cart is empty.");
+            if (!custId) return alert("❌ Please select a customer first.");
+            if (cart.length === 0) return alert("❌ Cart is empty.");
+
+            // Get Payment Status
+            const payStatus = document.getElementById('payment-status-select').value;
+            let deposit = 0;
+
+            if (payStatus === 'Partial') {
+                deposit = document.getElementById('deposit-amount').value;
+                if(!deposit || deposit <= 0) return alert("❌ Please enter a valid deposit amount.");
+            }
 
             const payload = {
                 customer_id: custId,
                 order_type: currentType,
                 payment_method: document.getElementById('payment-method').value,
-                items: cart
+                items: cart,
+                custom_status: payStatus,
+                deposit_amount: deposit
             };
+
+            // UI Feedback
+            const btn = document.querySelector('button[onclick="submitOrder()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Processing...';
+            btn.disabled = true;
 
             try {
                 const res = await fetch(`${API_URL}/sales`, {
@@ -295,15 +417,27 @@
                 const result = await res.json();
                 
                 if (res.ok) {
-                    alert("Order Successful!");
+                    alert("✅ Order Successful!");
+                    
+                    // Reset Logic
                     cart = [];
                     renderCart();
-                    // Optional: Reset customer?
+                    
+                    // Reset Payment Section
+                    document.getElementById('payment-status-select').value = 'Paid';
+                    toggleDepositInput();
+                    
+                    // Optional: Keep customer selected for speed? 
+                    // Or clearCustomer(); depending on preference.
+                    
                 } else {
-                    alert("Error: " + result.error);
+                    alert("❌ Error: " + result.error);
                 }
             } catch (err) {
-                alert("Connection failed.");
+                alert("❌ Network Error. Check connection.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
     </script>
