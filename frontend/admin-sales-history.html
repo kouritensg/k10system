@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Sales History</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-7xl mx-auto px-4 mt-8 pb-12">
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-green-500 mb-8 flex justify-between items-end">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800">💰 Sales History (Cash Flow)</h2>
+                <p class="text-gray-500 text-sm">Track actual money received from Sales and Preorder Deposits.</p>
+            </div>
+            <div class="text-right">
+                <div class="text-xs font-bold text-gray-400 uppercase">Total Cash Collected</div>
+                <div id="total-cash" class="text-3xl font-bold text-green-600">$0.00</div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[500px]">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50 border-b text-xs uppercase font-bold text-gray-500">
+                    <tr>
+                        <th class="p-4">Date</th>
+                        <th class="p-4">Order ID</th>
+                        <th class="p-4">Customer</th>
+                        <th class="p-4">Type</th>
+                        <th class="p-4 text-right">Order Value</th>
+                        <th class="p-4 text-right">Cash Collected</th>
+                        <th class="p-4 text-center">Payment Mode</th>
+                    </tr>
+                </thead>
+                <tbody id="sales-table"></tbody>
+            </table>
+            <div id="loading" class="p-12 text-center text-gray-500">Loading sales data...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('k10_token')) window.location.href = 'admin.html';
+            loadSales();
+        });
+
+        async function loadSales() {
+            const tbody = document.getElementById('sales-table');
+            const loading = document.getElementById('loading');
+            
+            try {
+                // You can add Date pickers here later if needed
+                const res = await fetch(`${API_URL}/sales/history`);
+                const sales = await res.json();
+                
+                loading.classList.add('hidden');
+                
+                let totalCollected = 0;
+
+                tbody.innerHTML = sales.map(s => {
+                    // Logic: If Preorder, 'Cash Collected' is the Deposit amount.
+                    // If In-Stock, 'Cash Collected' is the Total amount.
+                    // HOWEVER: Our database stores 'deposit_amount' for In-Stock as full amount too (based on my previous code).
+                    // So we can simply rely on `deposit_amount` as "Money Paid So Far".
+                    
+                    const collected = parseFloat(s.deposit_amount || 0);
+                    const total = parseFloat(s.total_amount || 0);
+                    
+                    totalCollected += collected;
+
+                    return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-4 text-sm text-gray-500">${new Date(s.order_date).toLocaleDateString()}</td>
+                        <td class="p-4 font-mono text-xs text-blue-600">#${s.id}</td>
+                        <td class="p-4 font-bold text-gray-800">${s.customer_name}</td>
+                        <td class="p-4">
+                            <span class="px-2 py-1 rounded text-xs font-bold uppercase 
+                                ${s.order_type === 'Preorder' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
+                                ${s.order_type}
+                            </span>
+                        </td>
+                        <td class="p-4 text-right text-gray-400">$${total.toFixed(2)}</td>
+                        <td class="p-4 text-right font-bold text-green-700">$${collected.toFixed(2)}</td>
+                        <td class="p-4 text-center text-xs font-bold text-gray-600">${s.payment_method}</td>
+                    </tr>
+                    `;
+                }).join('');
+
+                document.getElementById('total-cash').innerText = `$${totalCollected.toFixed(2)}`;
+
+            } catch (err) { loading.innerText = "Error loading history."; }
+        }
+    </script>
+</body>
+</html>
