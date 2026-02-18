@@ -364,6 +364,55 @@ app.post('/api/sales', async (req, res) => {
         conn.release();
     }
 });
+
+
+// ==========================================
+// Customer ORDER HISTORY & Customer PREORDER MANAGEMENT
+// ==========================================
+
+// 1. Get ALL Active Preorders (For the Dashboard)
+app.get('/api/sales/preorders', async (req, res) => {
+    try {
+        const [rows] = await db.execute(`
+            SELECT o.id, o.order_date, c.name as customer_name, c.mobile_number, 
+                   o.total_amount, o.status,
+                   GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items_summary
+            FROM customer_orders o
+            JOIN customers c ON o.customer_id = c.id
+            JOIN customer_order_items oi ON o.id = oi.order_id
+            JOIN inventory i ON oi.inventory_id = i.id
+            WHERE o.order_type = 'Preorder' AND o.status != 'Fulfilled'
+            GROUP BY o.id
+            ORDER BY o.order_date ASC
+        `);
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: 'Failed to fetch preorders' }); }
+});
+
+// 2. Get Specific Customer's History (For Customer Page)
+app.get('/api/customers/:id/history', async (req, res) => {
+    try {
+        const [orders] = await db.execute(`
+            SELECT o.id, o.order_date, o.order_type, o.status, o.total_amount,
+                   GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items
+            FROM customer_orders o
+            JOIN customer_order_items oi ON o.id = oi.order_id
+            JOIN inventory i ON oi.inventory_id = i.id
+            WHERE o.customer_id = ?
+            GROUP BY o.id
+            ORDER BY o.order_date DESC
+        `, [req.params.id]);
+        res.json(orders);
+    } catch (error) { res.status(500).json({ error: 'Failed to fetch history' }); }
+});
+
+// 3. Mark Preorder as Fulfilled (When stock arrives)
+app.put('/api/sales/:id/fulfill', async (req, res) => {
+    try {
+        await db.execute("UPDATE customer_orders SET status = 'Fulfilled' WHERE id = ?", [req.params.id]);
+        res.json({ message: 'Order Fulfilled' });
+    } catch (error) { res.status(500).json({ error: 'Update failed' }); }
+});
 // --- KEEP ALIVE ---
 setInterval(async () => { try { await db.execute('SELECT 1'); } catch(e){} }, 300000);
 
