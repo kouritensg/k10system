@@ -307,9 +307,9 @@ app.delete('/api/customers/:id', async (req, res) => {
 // ==========================================
 // CUSTOMER SALES / POS SYSTEM
 // ==========================================
-
 app.post('/api/sales', async (req, res) => {
-    const { customer_id, order_type, payment_method, items } = req.body;
+    // added custom_status and deposit_amount to the input
+    const { customer_id, order_type, payment_method, items, custom_status, deposit_amount } = req.body;
     
     if (!items || items.length === 0) return res.status(400).json({ error: "No items in cart" });
 
@@ -317,40 +317,44 @@ app.post('/api/sales', async (req, res) => {
     try {
         await conn.beginTransaction();
 
-        // 1. Calculate Total
+        // 1. Calculate Grand Total
         const total = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
 
-        // 2. Create Order Header
+        // 2. Determine Final Status
+        // If the user manually sent a status (like 'Pending' or 'Partial'), use it.
+        // Otherwise, default to 'Paid' for normal sales.
+        let finalStatus = custom_status || 'Paid';
+        let finalDeposit = parseFloat(deposit_amount || 0);
+
+        // Logic check: If they paid the full amount, mark as Paid
+        if (finalDeposit >= total) {
+            finalStatus = 'Paid';
+            finalDeposit = total;
+        }
+
+        // 3. Create Order Header
         const [orderResult] = await conn.execute(
-            `INSERT INTO customer_orders (customer_id, order_type, status, total_amount, payment_method) 
-             VALUES (?, ?, ?, ?, ?)`,
-            [customer_id, order_type, 'Paid', total, payment_method]
+            `INSERT INTO customer_orders (customer_id, order_type, status, total_amount, deposit_amount, payment_method) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [customer_id, order_type, finalStatus, total, finalDeposit, payment_method]
         );
         const orderId = orderResult.insertId;
 
-        // 3. Process Items
+        // 4. Process Items
         for (const item of items) {
-            // A. Add to order items table
             await conn.execute(
                 `INSERT INTO customer_order_items (order_id, inventory_id, quantity, unit_price) 
                  VALUES (?, ?, ?, ?)`,
                 [orderId, item.id, item.qty, item.price]
             );
 
-            // B. IF 'In-Stock' Purchase -> DEDUCT STOCK
+            // ONLY deduct stock if it is a "In-Stock" purchase
             if (order_type === 'In-Stock') {
-                const [check] = await conn.execute('SELECT stock_quantity FROM inventory WHERE id = ?', [item.id]);
-                
-                if (check.length === 0 || check[0].stock_quantity < item.qty) {
-                    throw new Error(`Not enough stock for item ID: ${item.id}`);
-                }
-
                 await conn.execute(
                     'UPDATE inventory SET stock_quantity = stock_quantity - ? WHERE id = ?', 
                     [item.qty, item.id]
                 );
             }
-            // If 'Preorder', we DO NOT deduct stock yet.
         }
 
         await conn.commit();
@@ -358,13 +362,11 @@ app.post('/api/sales', async (req, res) => {
 
     } catch (error) {
         await conn.rollback();
-        console.error("Sales Error:", error);
         res.status(500).json({ error: error.message });
     } finally {
         conn.release();
     }
 });
-
 
 // ==========================================
 // Customer ORDER HISTORY & Customer PREORDER MANAGEMENT
