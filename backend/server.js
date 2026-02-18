@@ -153,21 +153,37 @@ app.get('/api/purchase-orders', async (req, res) => {
                 po.po_number, 
                 po.status, 
                 po.order_date,
+                po.paid_amount,
                 COALESCE(s.name, 'Unknown Supplier') as supplier_name,
-                -- This subquery fetches the product names from the inventory table
+                -- Calculate Total Value of the Order
+                (SELECT SUM(poi.ordered_qty * poi.unit_cost) FROM po_items poi WHERE poi.po_id = po.id) as total_value,
+                -- Summary for display
                 (SELECT GROUP_CONCAT(CONCAT(i.card_name, ' (x', poi.ordered_qty, ')') SEPARATOR ', ')
-                 FROM po_items poi
-                 JOIN inventory i ON poi.inventory_id = i.id
+                 FROM po_items poi JOIN inventory i ON poi.inventory_id = i.id
                  WHERE poi.po_id = po.id) as items_summary
             FROM purchase_orders po 
             LEFT JOIN suppliers s ON po.supplier_id = s.id 
-            ORDER BY po.order_date DESC 
-            LIMIT 20`
+            ORDER BY po.order_date DESC`
         );
         res.json(rows);
-    } catch (error) { 
-        res.status(500).json({ error: 'Database error: ' + error.message }); 
-    }
+    } catch (error) { res.status(500).json({ error: 'Database error: ' + error.message }); }
+});
+
+//Route to receive stock (Delivery)
+app.put('/api/purchase-orders/:id/receive', async (req, res) => {
+    const { items } = req.body; // Array of { po_item_id, inventory_id, qty_received }
+    const conn = await db.getConnection();
+    try {
+        await conn.beginTransaction();
+        for (let item of items) {
+            // 1. Update received count in PO
+            await conn.execute('UPDATE po_items SET received_qty = received_qty + ? WHERE id = ?', [item.qty_received, item.po_item_id]);
+            // 2. Add to actual Inventory stock
+            await conn.execute('UPDATE inventory SET stock_quantity = stock_quantity + ? WHERE id = ?', [item.qty_received, item.inventory_id]);
+        }
+        await conn.commit();
+        res.json({ message: "Stock Updated" });
+    } catch (e) { await conn.rollback(); res.status(500).json({ error: e.message }); } finally { conn.release(); }
 });
 
 // Get Specific PO Details
