@@ -146,20 +146,28 @@ app.post('/api/purchase-orders', async (req, res) => {
 
 // Get Purchase Order History
 app.get('/api/purchase-orders', async (req, res) => {
-    const { limit } = req.query;
     try {
         const [rows] = await db.execute(`
-            SELECT po.*, 
-                   COALESCE(s.name, 'Unknown Supplier') as supplier_name, 
-                   (SELECT COUNT(*) FROM po_items WHERE po_id = po.id) as total_items
+            SELECT 
+                po.id, 
+                po.po_number, 
+                po.status, 
+                po.order_date,
+                COALESCE(s.name, 'Unknown Supplier') as supplier_name,
+                -- This subquery fetches the product names from the inventory table
+                (SELECT GROUP_CONCAT(CONCAT(i.card_name, ' (x', poi.ordered_qty, ')') SEPARATOR ', ')
+                 FROM po_items poi
+                 JOIN inventory i ON poi.inventory_id = i.id
+                 WHERE poi.po_id = po.id) as items_summary
             FROM purchase_orders po 
             LEFT JOIN suppliers s ON po.supplier_id = s.id 
             ORDER BY po.order_date DESC 
-            LIMIT ?`, 
-            [parseInt(limit) || 20]
+            LIMIT 20`
         );
         res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Failed to fetch history' }); }
+    } catch (error) { 
+        res.status(500).json({ error: 'Database error: ' + error.message }); 
+    }
 });
 
 // ==========================================
