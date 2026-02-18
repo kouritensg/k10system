@@ -7,20 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 font-sans">
-
-    <nav class="bg-white shadow-sm mb-8">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-xl font-bold text-gray-800">K10 Manager Portal</h1>
-            <div class="space-x-4">
-                <a href="admin.html" class="text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
-                <a href="admin-events.html" class="text-gray-600 hover:text-blue-600 font-medium">Events</a>
-                <a href="admin-suppliers.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">Suppliers</a>
-                <a href="admin-purchase.html" class="text-gray-600 hover:text-blue-600 font-medium">Purchasing</a>
-                <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
-            </div>
-        </div>
-    </nav>
-
     <div class="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
         
         <div class="bg-white p-6 rounded-lg shadow-sm h-fit">
@@ -69,7 +55,7 @@
             </div>
         </div>
     </div>
-
+<script src="admin-navbar.js"></script>
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
 
