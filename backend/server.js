@@ -262,6 +262,35 @@ app.put('/api/sales/:id/payment', async (req, res) => {
     } catch (e) { await conn.rollback(); res.status(500).json({ error: e.message }); } finally { conn.release(); }
 });
 
+// ==========================================
+// CATEGORY MANAGEMENT
+// ==========================================
+
+// Get all categories
+app.get('/api/categories', async (req, res) => {
+    try {
+        const [rows] = await db.execute('SELECT * FROM categories ORDER BY name ASC');
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: 'Failed to fetch categories' }); }
+});
+
+// Add a new category
+app.post('/api/categories', async (req, res) => {
+    const { name } = req.body;
+    try {
+        const [result] = await db.execute('INSERT INTO categories (name) VALUES (?)', [name]);
+        res.status(201).json({ id: result.insertId, message: 'Category added' });
+    } catch (error) { res.status(500).json({ error: 'Category already exists or DB error' }); }
+});
+
+// Delete a category (Only if not linked to products)
+app.delete('/api/categories/:id', async (req, res) => {
+    try {
+        await db.execute('DELETE FROM categories WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Category deleted' });
+    } catch (error) { res.status(500).json({ error: 'Cannot delete: Category is still linked to inventory items.' }); }
+});
+
 // --- KEEP ALIVE ---
 setInterval(async () => { try { await db.execute('SELECT 1'); } catch(e){} }, 300000);
 
