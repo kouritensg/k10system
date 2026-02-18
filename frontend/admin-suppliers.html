@@ -2,116 +2,155 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K10 Admin - Suppliers</title>
+    <title>K10 Admin - Supplier Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 font-sans">
-    <div class="max-w-6xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
-        
-        <div class="bg-white p-6 rounded-lg shadow-sm h-fit">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Add New Supplier</h2>
-            <form id="supplier-form" class="space-y-4">
-                <div>
-                    <label class="text-xs font-bold text-gray-500 uppercase">Supplier Name *</label>
-                    <input type="text" id="name" required class="w-full p-2 border rounded mt-1">
-                </div>
-                <div>
-                    <label class="text-xs font-bold text-gray-500 uppercase">Contact Person</label>
-                    <input type="text" id="contact" class="w-full p-2 border rounded mt-1">
-                </div>
-                <div>
-                    <label class="text-xs font-bold text-gray-500 uppercase">Email</label>
-                    <input type="email" id="email" class="w-full p-2 border rounded mt-1">
-                </div>
-                <div>
-                    <label class="text-xs font-bold text-gray-500 uppercase">Payment Terms</label>
-                    <select id="terms" class="w-full p-2 border rounded mt-1 bg-gray-50">
-                        <option value="COD">COD (Cash on Delivery)</option>
-                        <option value="Net 7">Net 7 Days</option>
-                        <option value="Net 30">Net 30 Days</option>
-                        <option value="Prepaid">Prepaid</option>
-                    </select>
-                </div>
-                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700 transition">
-                    Save Supplier
-                </button>
-            </form>
+
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-4xl mx-auto px-4 mt-8 pb-12">
+        <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-600 mb-8 flex justify-between items-center">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800">Distributors / Suppliers</h2>
+                <p class="text-xs text-gray-500 mt-1">Manage external vendors and check Database IDs.</p>
+            </div>
+            <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow transition">
+                + Add New Supplier
+            </button>
         </div>
 
-        <div class="md:col-span-2">
-            <div class="bg-white rounded-lg shadow-sm overflow-hidden">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-gray-50 border-b">
-                        <tr>
-                            <th class="p-4 text-xs font-bold text-gray-500 uppercase">Supplier</th>
-                            <th class="p-4 text-xs font-bold text-gray-500 uppercase">Contact</th>
-                            <th class="p-4 text-xs font-bold text-gray-500 uppercase">Terms</th>
-                            <th class="p-4 text-xs font-bold text-gray-500 uppercase">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="supplier-table"></tbody>
-                </table>
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[400px]">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50 border-b text-xs font-bold text-gray-400 uppercase">
+                    <tr>
+                        <th class="p-4 w-20">ID</th>
+                        <th class="p-4">Supplier Name</th>
+                        <th class="p-4">Contact/Email</th>
+                        <th class="p-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="supplier-table">
+                    </tbody>
+            </table>
+            <div id="loading" class="p-12 text-center text-gray-500">Loading suppliers...</div>
+        </div>
+    </div>
+
+    <div id="sup-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-96">
+            <h3 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Add Supplier</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Distributor Name</label>
+                    <input type="text" id="sup-name" placeholder="e.g. Maxsoft" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Contact Information</label>
+                    <input type="text" id="sup-contact" placeholder="Email or Phone" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6">
+                <button onclick="closeModal()" class="text-gray-500 font-bold px-4 hover:bg-gray-100 rounded py-2">Cancel</button>
+                <button onclick="saveSupplier()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded shadow-md transition">
+                    Save Supplier
+                </button>
             </div>
         </div>
     </div>
-<script src="admin-navbar.js"></script>
+
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
 
-        document.addEventListener('DOMContentLoaded', loadSuppliers);
-
-        // Load Suppliers
-        async function loadSuppliers() {
-            const res = await fetch(`${API_URL}/suppliers`);
-            const suppliers = await res.json();
-            const tbody = document.getElementById('supplier-table');
-            
-            tbody.innerHTML = suppliers.map(s => `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="p-4">
-                        <div class="font-bold text-gray-800">${s.name}</div>
-                        <div class="text-xs text-gray-400">${s.email || 'No email'}</div>
-                    </td>
-                    <td class="p-4 text-sm text-gray-600">${s.contact_person || '-'}</td>
-                    <td class="p-4 text-sm font-medium text-blue-600">${s.payment_terms}</td>
-                    <td class="p-4">
-                        <button onclick="deleteSupplier(${s.id})" class="text-red-500 hover:text-red-700 text-sm font-bold">Delete</button>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        // Add Supplier
-        document.getElementById('supplier-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = {
-                name: document.getElementById('name').value,
-                contact_person: document.getElementById('contact').value,
-                email: document.getElementById('email').value,
-                payment_terms: document.getElementById('terms').value
-            };
-
-            const res = await fetch(`${API_URL}/suppliers`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-
-            if (res.ok) {
-                document.getElementById('supplier-form').reset();
-                loadSuppliers();
-            } else {
-                alert("Failed to add supplier.");
-            }
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('k10_token');
+            if (!token) window.location.href = 'admin.html';
+            loadSuppliers();
         });
 
-        // Delete Supplier
+        async function loadSuppliers() {
+            const tbody = document.getElementById('supplier-table');
+            const loading = document.getElementById('loading');
+            
+            tbody.innerHTML = '';
+            loading.classList.remove('hidden');
+
+            try {
+                const res = await fetch(`${API_URL}/suppliers`);
+                const data = await res.json();
+                
+                loading.classList.add('hidden');
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="p-12 text-center text-gray-400 italic">No suppliers found.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.map(s => `
+                    <tr class="border-b hover:bg-gray-50 transition">
+                        <td class="p-4 font-mono text-sm text-blue-600 font-bold">#${s.id}</td>
+                        <td class="p-4 font-bold text-gray-800">${s.name}</td>
+                        <td class="p-4 text-gray-500 text-sm">${s.contact_info || '<span class="text-gray-300 italic">No info</span>'}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="deleteSupplier(${s.id})" class="text-red-400 hover:text-red-600 font-bold text-xs transition">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                loading.innerText = "Error loading data.";
+            }
+        }
+
+        async function saveSupplier() {
+            const name = document.getElementById('sup-name').value;
+            const contact_info = document.getElementById('sup-contact').value;
+            
+            if(!name) return alert("Please enter a supplier name.");
+
+            try {
+                const res = await fetch(`${API_URL}/suppliers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, contact_info })
+                });
+
+                if(res.ok) { 
+                    alert("Supplier Added!");
+                    closeModal(); 
+                    loadSuppliers(); 
+                } else {
+                    const error = await res.json();
+                    alert("Error: " + error.error);
+                }
+            } catch(e) {
+                alert("Connection failed.");
+            }
+        }
+
+        function openModal() {
+            document.getElementById('sup-name').value = '';
+            document.getElementById('sup-contact').value = '';
+            document.getElementById('sup-modal').classList.remove('hidden');
+            document.getElementById('sup-name').focus();
+        }
+
+        function closeModal() {
+            document.getElementById('sup-modal').classList.add('hidden');
+        }
+        
         async function deleteSupplier(id) {
-            if (!confirm("Are you sure? This will fail if the supplier has orders.")) return;
-            const res = await fetch(`${API_URL}/suppliers/${id}`, { method: 'DELETE' });
-            if (res.ok) loadSuppliers();
-            else alert("Error: Could not delete.");
+            if(confirm("Are you sure? This may break existing Purchase Orders linked to this ID.")) {
+                try {
+                    const res = await fetch(`${API_URL}/suppliers/${id}`, { method: 'DELETE' });
+                    if(res.ok) {
+                        loadSuppliers();
+                    } else {
+                        alert("Could not delete. Check if this supplier is used in PO History.");
+                    }
+                } catch(e) { alert("Error deleting."); }
+            }
         }
     </script>
 </body>
