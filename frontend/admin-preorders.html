@@ -63,27 +63,46 @@
                     return;
                 }
 
-                tbody.innerHTML = orders.map(o => `
-                    <tr class="border-b hover:bg-gray-50 transition">
-                        <td class="p-4 text-sm text-gray-500">${new Date(o.order_date).toLocaleDateString()}</td>
-                        <td class="p-4">
-                            <div class="font-bold text-gray-800">${o.customer_name}</div>
-                            <div class="text-xs text-gray-400">${o.mobile_number || 'No Contact'}</div>
-                        </td>
-                        <td class="p-4 text-sm text-purple-700 font-medium">${o.items_summary}</td>
-                        <td class="p-4 font-bold text-gray-800">$${o.total_amount}</td>
-                        <td class="p-4">
-                            <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold uppercase">
-                                ${o.status}
-                            </span>
-                        </td>
-                        <td class="p-4 text-right">
-                            <button onclick="markFulfilled(${o.id})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm">
-                                ✅ Mark Fulfilled
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
+              tbody.innerHTML = orders.map(o => {
+    // Calculate Balance Remaining
+    const deposit = parseFloat(o.deposit_amount || 0);
+    const total = parseFloat(o.total_amount || 0);
+    const balance = total - deposit;
+    
+    // Style logic: If balance is 0, show green. If balance > 0, show red/warning.
+    const paymentDisplay = balance <= 0 
+        ? `<div class="text-green-600 font-bold">Fully Paid ($${total})</div>`
+        : `<div>
+             <span class="text-gray-800 font-bold">$${deposit} Paid</span>
+             <div class="text-xs text-red-500 font-semibold">Owe: $${balance.toFixed(2)}</div>
+           </div>`;
+
+    return `
+    <tr class="border-b hover:bg-gray-50 transition">
+        <td class="p-4 text-sm text-gray-500">${new Date(o.order_date).toLocaleDateString()}</td>
+        <td class="p-4">
+            <div class="font-bold text-gray-800">${o.customer_name}</div>
+            <div class="text-xs text-gray-400">${o.mobile_number || 'No Contact'}</div>
+        </td>
+        <td class="p-4 text-sm text-purple-700 font-medium">${o.items_summary}</td>
+        
+        <td class="p-4">
+            ${paymentDisplay}
+        </td>
+
+        <td class="p-4">
+            <span class="px-2 py-1 rounded text-xs font-bold uppercase ${o.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'}">
+                ${o.status}
+            </span>
+        </td>
+        <td class="p-4 text-right">
+            <button onclick="markFulfilled(${o.id})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm">
+                ✅ Mark Fulfilled
+            </button>
+        </td>
+    </tr>
+    `;
+}).join('');
             } catch (err) { loading.innerText = "Error loading data."; }
         }
 
