@@ -11,21 +11,16 @@
     <script src="admin-navbar.js"></script>
 
     <div class="max-w-[95%] mx-auto px-4 mt-8 pb-12">
-        
         <div class="flex flex-col lg:flex-row gap-8">
             
             <div class="w-full lg:w-1/4 space-y-6">
-                
                 <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-600 sticky top-24">
                     <h2 class="text-lg font-bold text-gray-800 mb-4">🔍 Filter Inventory</h2>
-                    
                     <div class="space-y-4">
                         <div>
                             <label class="text-xs font-bold text-gray-500 uppercase">Search</label>
-                            <input type="text" id="filter-search" placeholder="Name, Barcode, or ID..." 
-                                   class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                            <input type="text" id="filter-search" placeholder="Name, Barcode, or ID..." class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
                         </div>
-
                         <div>
                             <label class="text-xs font-bold text-gray-500 uppercase">Game Title</label>
                             <select id="filter-game" class="w-full p-2 border rounded bg-gray-50">
@@ -34,19 +29,12 @@
                                 <option value="Pokemon">Pokemon</option>
                                 <option value="Hololive">Hololive</option>
                                 <option value="Digimon">Digimon</option>
-                                <option value="Dragon Ball">Dragon Ball FW</option>
+                                <option value="Dragon Ball">Dragon Ball</option>
                                 <option value="Union Arena">Union Arena</option>
-                                <option value="Magic">Magic: The Gathering</option>
-                                <option value="Yugioh">Yu-Gi-Oh!</option>
-                                <option value="Lorcana">Lorcana</option>
-                                <option value="Vanguard">Cardfight!! Vanguard</option>
-                                <option value="Weiss Schwarz">Weiss Schwarz</option>
-                                <option value="Shadowverse">Shadowverse</option>
-                                <option value="Accessories">Accessories (General)</option>
+                                <option value="Accessories">Accessories</option>
                                 <option value="Other">Other</option>
                             </select>
                         </div>
-
                         <div>
                             <label class="text-xs font-bold text-gray-500 uppercase">Product Category</label>
                             <select id="filter-type" class="w-full p-2 border rounded bg-gray-50">
@@ -54,22 +42,9 @@
                                 <option value="Booster Box">Booster Box</option>
                                 <option value="Booster Pack">Booster Pack</option>
                                 <option value="Single">Single Card</option>
-                                <option value="Starter Deck">Starter Deck</option>
                                 <option value="Sleeves">Sleeves</option>
                                 <option value="Deck Box">Deck Box</option>
-                                <option value="Playmat">Playmat</option>
-                                <option value="Dice">Dice / Counters</option>
-                                <option value="Binder">Binder / Storage</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="text-xs font-bold text-gray-500 uppercase">Stock Status</label>
-                            <select id="filter-stock" class="w-full p-2 border rounded bg-gray-50">
-                                <option value="">Any Stock Level</option>
-                                <option value="Low">⚠️ Low Stock (< 5)</option>
-                                <option value="Out">❌ Out of Stock (0)</option>
-                                <option value="In">✅ In Stock (> 0)</option>
+                                <option value="Other">Other</option>
                             </select>
                         </div>
                     </div>
@@ -101,12 +76,12 @@
                             </div>
                             <div>
                                 <label class="text-[10px] font-bold text-gray-400 uppercase">Category</label>
-                                <select id="add-type" class="w-full p-2 border rounded text-sm">
+                                <select id="add-type" onchange="toggleConfigFields()" class="w-full p-2 border rounded text-sm">
                                     <option value="Booster Box">Booster Box</option>
+                                    <option value="Booster Pack">Booster Pack</option>
                                     <option value="Single">Single Card</option>
                                     <option value="Sleeves">Sleeves</option>
                                     <option value="Deck Box">Deck Box</option>
-                                    <option value="Dice">Dice</option>
                                     <option value="Other">Other</option>
                                 </select>
                             </div>
@@ -119,6 +94,23 @@
                                 <input type="text" id="add-id" placeholder="OP01-001" class="w-full p-2 border rounded text-sm">
                             </div>
                         </div>
+
+                        <div id="ratio-config" class="hidden bg-yellow-50 p-3 rounded mb-4 border border-yellow-200">
+                            <h4 class="text-xs font-bold text-yellow-700 uppercase mb-2">⚙️ Unit Configuration</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-500">Packs per Box</label>
+                                    <input type="number" id="add-ppb" value="24" class="w-full p-1 border rounded text-sm">
+                                    <div class="text-[9px] text-gray-400">e.g. 24 for One Piece</div>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] font-bold text-gray-500">Boxes per Case</label>
+                                    <input type="number" id="add-bpc" value="12" class="w-full p-1 border rounded text-sm">
+                                    <div class="text-[9px] text-gray-400">e.g. 12 per Case</div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label class="text-[10px] font-bold text-gray-400 uppercase">Product Name *</label>
@@ -134,8 +126,8 @@
                                     <input type="number" id="add-price" class="w-full p-2 border rounded text-sm">
                                 </div>
                                 <div>
-                                    <label class="text-[10px] font-bold text-gray-400 uppercase">Qty</label>
-                                    <input type="number" id="add-stock" class="w-full p-2 border rounded text-sm font-bold">
+                                    <label class="text-[10px] font-bold text-gray-400 uppercase">Total Packs</label>
+                                    <input type="number" id="add-stock" placeholder="Total Qty" class="w-full p-2 border rounded text-sm font-bold">
                                 </div>
                             </div>
                         </div>
@@ -158,57 +150,17 @@
                             <thead class="bg-white border-b text-xs uppercase font-bold text-gray-400">
                                 <tr>
                                     <th class="p-4">Product Details</th>
-                                    <th class="p-4">Category</th>
+                                    <th class="p-4">Type</th>
                                     <th class="p-4 text-right">Price</th>
-                                    <th class="p-4 text-center">Stock</th>
+                                    <th class="p-4">Stock Breakdown</th>
                                     <th class="p-4 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="inventory-table-body"></tbody>
                         </table>
                     </div>
-                    
                     <div id="loading" class="p-12 text-center text-gray-500">Loading inventory...</div>
                     <div id="empty-state" class="p-12 text-center text-gray-400 hidden">No items match your filters.</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="edit-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[70]">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <div class="flex justify-between items-center mb-4 border-b pb-2">
-                <h3 class="text-xl font-bold text-gray-800">Edit Product</h3>
-                <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-            </div>
-            
-            <input type="hidden" id="edit-id">
-            
-            <div class="space-y-4">
-                <div>
-                    <label class="text-xs font-bold text-gray-500 uppercase">Product Name</label>
-                    <input type="text" id="edit-name" disabled class="bg-gray-100 border rounded w-full py-2 px-3 text-gray-600 mt-1">
-                </div>
-                
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-xs font-bold text-gray-500 uppercase">Cost Price ($)</label>
-                        <input type="number" id="edit-cost" step="0.01" class="border rounded p-2 w-full mt-1 bg-blue-50 focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-500 uppercase">Sell Price ($)</label>
-                        <input type="number" id="edit-price" step="0.01" class="border rounded p-2 w-full mt-1 focus:ring-2 focus:ring-blue-500">
-                    </div>
-                </div>
-                
-                <div>
-                    <label class="text-xs font-bold text-gray-500 uppercase">Current Stock</label>
-                    <input type="number" id="edit-stock" class="border rounded p-2 w-full mt-1 font-bold text-lg text-center focus:ring-2 focus:ring-blue-500">
-                </div>
-                
-                <div class="flex justify-end space-x-3 pt-4 mt-4">
-                    <button onclick="closeEditModal()" class="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">Cancel</button>
-                    <button onclick="saveEdit()" class="px-6 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 shadow-md transition">Save Changes</button>
                 </div>
             </div>
         </div>
@@ -224,21 +176,29 @@
             
             loadInventory();
             
-            // Event Listeners for Filters
             document.getElementById('filter-search').addEventListener('keyup', applyFilters);
             document.getElementById('filter-game').addEventListener('change', applyFilters);
             document.getElementById('filter-type').addEventListener('change', applyFilters);
-            document.getElementById('filter-stock').addEventListener('change', applyFilters);
         });
 
-        // --- CORE FUNCTIONS ---
+        // --- 1. TOGGLE CONFIG FIELDS ---
+        function toggleConfigFields() {
+            const type = document.getElementById('add-type').value;
+            const configDiv = document.getElementById('ratio-config');
+            
+            // Show config if it's a Box or Pack
+            if (type === 'Booster Box' || type === 'Booster Pack') {
+                configDiv.classList.remove('hidden');
+            } else {
+                configDiv.classList.add('hidden');
+            }
+        }
+
+        // --- 2. LOAD & RENDER ---
         async function loadInventory() {
             const loading = document.getElementById('loading');
-            const tbody = document.getElementById('inventory-table-body');
-            
             loading.classList.remove('hidden');
-            tbody.innerHTML = '';
-
+            
             try {
                 const res = await fetch(`${API_URL}/inventory/status`);
                 const data = await res.json();
@@ -248,38 +208,19 @@
                     applyFilters();
                 }
                 loading.classList.add('hidden');
-            } catch (e) { 
-                console.error("Load failed:", e);
-                loading.innerText = "Error loading inventory. Check connection.";
-            }
+            } catch (e) { loading.innerText = "Error loading data."; }
         }
 
         function applyFilters() {
             const search = document.getElementById('filter-search').value.toLowerCase();
             const game = document.getElementById('filter-game').value;
             const type = document.getElementById('filter-type').value;
-            const stock = document.getElementById('filter-stock').value;
 
             const filtered = globalInventory.filter(p => {
-                // 1. Search
-                const matchSearch = !search || 
-                    p.card_name.toLowerCase().includes(search) || 
-                    (p.card_id && p.card_id.toLowerCase().includes(search)) ||
-                    (p.barcode && p.barcode.includes(search));
-                
-                // 2. Game
+                const matchSearch = !search || p.card_name.toLowerCase().includes(search);
                 const matchGame = !game || p.game_title === game;
-                
-                // 3. Type
                 const matchType = !type || p.product_type === type;
-                
-                // 4. Stock
-                let matchStock = true;
-                if (stock === 'Out') matchStock = p.in_stock <= 0;
-                if (stock === 'Low') matchStock = p.in_stock > 0 && p.in_stock < 5;
-                if (stock === 'In') matchStock = p.in_stock > 0;
-
-                return matchSearch && matchGame && matchType && matchStock;
+                return matchSearch && matchGame && matchType;
             });
             
             renderTable(filtered);
@@ -288,7 +229,7 @@
         function renderTable(items) {
             const tbody = document.getElementById('inventory-table-body');
             const empty = document.getElementById('empty-state');
-            document.getElementById('result-count').innerText = `${items.length} Items Found`;
+            document.getElementById('result-count').innerText = `${items.length} Items`;
 
             if (items.length === 0) {
                 tbody.innerHTML = '';
@@ -297,68 +238,81 @@
             }
 
             empty.classList.add('hidden');
-            tbody.innerHTML = items.map(p => `
-                <tr class="border-b hover:bg-gray-50 transition group">
+            tbody.innerHTML = items.map(p => {
+                // --- SMART CONVERSION LOGIC ---
+                let stockDisplay = `<span class="font-bold text-gray-800">${p.stock_quantity}</span>`;
+                
+                // Only do math if it's a Box/Pack AND we have ratios
+                if ((p.product_type === 'Booster Box' || p.product_type === 'Booster Pack') && p.packs_per_box > 1) {
+                    const totalPacks = p.stock_quantity;
+                    const ppb = p.packs_per_box;
+                    const bpc = p.boxes_per_case || 1; // Default to 1 if missing
+                    
+                    const fullBoxes = Math.floor(totalPacks / ppb);
+                    const leftOverPacks = totalPacks % ppb;
+                    
+                    const fullCases = Math.floor(fullBoxes / bpc);
+                    const leftOverBoxes = fullBoxes % bpc;
+
+                    stockDisplay = `
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-gray-800">${totalPacks} Packs Total</span>
+                            <span class="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded mt-1 border border-blue-100">
+                                📦 ${fullCases} Case, ${leftOverBoxes} Box, ${leftOverPacks} Pack
+                            </span>
+                        </div>
+                    `;
+                }
+
+                return `
+                <tr class="border-b hover:bg-gray-50 transition">
                     <td class="p-4">
                         <div class="font-bold text-gray-800 text-sm">${p.card_name}</div>
-                        <div class="text-xs text-gray-400 font-mono mt-1">
-                            ${p.card_id ? `ID: ${p.card_id}` : ''} 
-                            ${p.barcode ? `| Bar: ${p.barcode}` : ''}
-                        </div>
+                        <div class="text-[10px] text-gray-400 font-mono mt-0.5">ID: ${p.card_id || '-'}</div>
                     </td>
                     <td class="p-4">
-                        <div class="flex flex-col items-start gap-1">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-gray-100 text-gray-600 border border-gray-200">
-                                ${p.game_title}
-                            </span>
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${getTypeColor(p.product_type)}">
-                                ${p.product_type}
-                            </span>
-                        </div>
+                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-gray-100 text-gray-600">
+                            ${p.game_title}
+                        </span>
+                    </td>
+                    <td class="p-4 text-right font-bold text-gray-700">$${parseFloat(p.price).toFixed(2)}</td>
+                    <td class="p-4">
+                        ${stockDisplay}
                     </td>
                     <td class="p-4 text-right">
-                        <div class="font-bold text-gray-800">$${parseFloat(p.price).toFixed(2)}</div>
-                        <div class="text-[10px] text-gray-400">Cost: $${parseFloat(p.cost_price || 0).toFixed(2)}</div>
-                    </td>
-                    <td class="p-4 text-center">
-                        <div class="font-bold text-lg ${p.in_stock > 0 ? 'text-gray-800' : 'text-red-500'}">
-                            ${p.in_stock}
-                        </div>
-                    </td>
-                    <td class="p-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="openEditModal(${p.id})" class="text-blue-600 hover:text-blue-800 font-bold mr-3 text-sm">Edit</button>
-                        <button onclick="deleteProduct(${p.id})" class="text-red-400 hover:text-red-600 font-bold text-sm">Delete</button>
+                        <button onclick="deleteProduct(${p.id})" class="text-red-400 hover:text-red-600 font-bold text-xs">Delete</button>
                     </td>
                 </tr>
-            `).join('');
+                `;
+            }).join('');
         }
 
-        // --- HELPER: Colors for Tags ---
-        function getTypeColor(type) {
-            if (type.includes('Box')) return 'bg-purple-100 text-purple-700';
-            if (type.includes('Single')) return 'bg-blue-100 text-blue-700';
-            if (type.includes('Sleeve') || type.includes('Dice') || type.includes('Deck Box')) return 'bg-orange-100 text-orange-700';
-            return 'bg-green-100 text-green-700';
-        }
-
-        // --- ADD PRODUCT LOGIC ---
         function toggleAddForm() {
-            const form = document.getElementById('add-product-form');
-            form.classList.toggle('hidden');
+            document.getElementById('add-product-form').classList.toggle('hidden');
         }
 
         async function addProduct() {
+            // Get Ratios (Default to 1 if hidden or empty)
+            let ppb = 1, bpc = 1;
+            const type = document.getElementById('add-type').value;
+            if (type === 'Booster Box' || type === 'Booster Pack') {
+                ppb = document.getElementById('add-ppb').value || 1;
+                bpc = document.getElementById('add-bpc').value || 1;
+            }
+
             const data = {
                 game_title: document.getElementById('add-game').value,
-                product_type: document.getElementById('add-type').value,
+                product_type: type,
                 card_name: document.getElementById('add-name').value,
                 price: document.getElementById('add-price').value,
                 cost_price: document.getElementById('add-cost').value,
                 stock_quantity: document.getElementById('add-stock').value,
                 barcode: document.getElementById('add-barcode').value,
-                card_id: document.getElementById('add-id').value
+                card_id: document.getElementById('add-id').value,
+                packs_per_box: ppb, // Send to backend
+                boxes_per_case: bpc // Send to backend
             };
-            
+
             if (!data.card_name) return alert("Product Name is required");
 
             try {
@@ -367,52 +321,16 @@
                     headers: { 'Content-Type': 'application/json' }, 
                     body: JSON.stringify(data) 
                 });
-                
                 if (res.ok) {
                     alert("Product Added!");
-                    // Clear Key Inputs
                     document.getElementById('add-name').value = '';
-                    document.getElementById('add-barcode').value = '';
-                    document.getElementById('add-id').value = '';
                     loadInventory(); 
-                } else {
-                    alert("Failed to add product.");
                 }
             } catch (e) { alert("Connection Error"); }
         }
 
-        // --- EDIT / DELETE LOGIC ---
-        function openEditModal(id) {
-            const p = globalInventory.find(x => x.id === id);
-            document.getElementById('edit-id').value = p.id;
-            document.getElementById('edit-name').value = p.card_name;
-            document.getElementById('edit-price').value = p.price;
-            document.getElementById('edit-cost').value = p.cost_price;
-            document.getElementById('edit-stock').value = p.in_stock;
-            document.getElementById('edit-modal').classList.remove('hidden');
-        }
-
-        function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden'); }
-
-        async function saveEdit() {
-            const body = {
-                price: document.getElementById('edit-price').value,
-                cost_price: document.getElementById('edit-cost').value,
-                stock_quantity: document.getElementById('edit-stock').value
-            };
-            try {
-                await fetch(`${API_URL}/inventory/${document.getElementById('edit-id').value}`, {
-                    method: 'PUT', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify(body)
-                });
-                closeEditModal(); 
-                loadInventory();
-            } catch (e) { alert("Update failed"); }
-        }
-
         async function deleteProduct(id) {
-            if (confirm("Are you sure you want to delete this product?")) {
+            if(confirm("Delete item?")) {
                 await fetch(`${API_URL}/inventory/${id}`, { method: 'DELETE' });
                 loadInventory();
             }
