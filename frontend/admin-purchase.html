@@ -18,42 +18,62 @@
                 <h2 class="text-lg font-bold mb-4">1. Order Details</h2>
                 <div class="space-y-4">
                     <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Purchase ID (Auto-Generated)</label>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">PO Number</label>
                         <input type="text" id="po-number" placeholder="Leave blank for auto-gen" 
-                               class="w-full p-2 border rounded bg-gray-50 font-mono text-blue-600 font-bold mt-1 outline-none focus:ring-1 focus:ring-blue-500">
+                               class="w-full p-2 border rounded bg-gray-50 font-mono text-blue-600 font-bold mt-1 outline-none">
                     </div>
                     <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Distributor / Supplier</label>
-                        <select id="supplier-select" class="w-full p-2 border rounded mt-1 bg-white border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-700">
-                            <option value="">Loading suppliers...</option>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Supplier</label>
+                        <select id="supplier-select" class="w-full p-2 border rounded mt-1 font-bold text-gray-700 outline-none">
+                            <option value="">Loading...</option>
                         </select>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white p-6 rounded-lg shadow-sm">
-                <h2 class="text-lg font-bold mb-4">2. Add Products</h2>
-                <div class="relative">
-                    <div class="flex items-center border-2 border-blue-100 rounded-lg overflow-hidden focus-within:border-blue-500 transition-all bg-white">
-                        <span class="pl-3">🔍</span>
-                        <input type="text" id="item-search" placeholder="Search card or box name..." 
-                               class="w-full p-3 outline-none text-sm">
+            <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-green-600">
+                <h2 class="text-lg font-bold mb-4">2. Financial Recording</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Payment Strategy</label>
+                        <select id="po-payment-status" onchange="toggleFinancialInputs()" class="w-full p-2 border rounded mt-1 font-bold text-gray-700">
+                            <option value="Pending Invoice">Preorder (Pay on Invoice)</option>
+                            <option value="Partial Deposit">Partial Deposit</option>
+                            <option value="Fully Paid">Immediate Full Payment</option>
+                        </select>
                     </div>
                     
+                    <div id="deposit-input-group" class="hidden">
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Deposit Amount ($)</label>
+                        <input type="number" id="po-deposit" step="0.01" oninput="updateSpendDisplay()" 
+                               class="w-full p-2 border rounded bg-yellow-50 font-bold text-orange-700 outline-none">
+                    </div>
+
+                    <div class="pt-2 border-t flex justify-between items-center">
+                        <span class="text-xs font-bold text-gray-500 uppercase">Actual Money Out:</span>
+                        <span id="actual-spend" class="text-xl font-bold text-red-600">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h2 class="text-lg font-bold mb-4">3. Add Products</h2>
+                <div class="relative">
+                    <input type="text" id="item-search" placeholder="Search card or box name..." 
+                           class="w-full p-3 border-2 border-blue-50 rounded-lg outline-none focus:border-blue-500 transition-all text-sm">
                     <div id="search-results" class="absolute top-full left-0 w-full bg-white shadow-2xl border rounded-b-lg z-50 max-h-80 overflow-y-auto hidden"></div>
                 </div>
-                <p class="text-[10px] text-gray-400 mt-2 italic font-medium">Search results will show Game and Type details.</p>
             </div>
         </div>
 
         <div class="lg:col-span-2">
-            <div class="bg-white rounded-lg shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden flex flex-col min-h-[600px]">
                 <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
-                    <h2 class="text-lg font-bold">3. Items in this Order</h2>
-                    <span id="item-count" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">0 Items</span>
+                    <h2 class="text-lg font-bold">4. Items in this Order</h2>
+                    <span id="item-count" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase">0 Items</span>
                 </div>
                 
-                <div class="flex-grow">
+                <div class="flex-grow overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead class="bg-white border-b text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                             <tr>
@@ -65,19 +85,15 @@
                         </thead>
                         <tbody id="po-items-table"></tbody>
                     </table>
-
-                    <div id="empty-state" class="p-24 text-center text-gray-400">
-                        <div class="text-4xl mb-2 opacity-20">📦</div>
-                        <p class="font-medium">Search for items on the left to add them to your order.</p>
-                    </div>
+                    <div id="empty-state" class="p-24 text-center text-gray-300 italic">No items added to order.</div>
                 </div>
 
                 <div class="p-6 bg-gray-50 border-t flex flex-col items-end">
                     <div class="mb-4 text-right">
-                        <span class="text-xs font-bold text-gray-400 uppercase block mb-1">Estimated Total Cost</span>
+                        <span class="text-xs font-bold text-gray-400 uppercase block mb-1">Total Order Value</span>
                         <span id="order-total" class="text-3xl font-bold text-blue-600">$0.00</span>
                     </div>
-                    <button onclick="submitPO()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-lg hover:bg-blue-700 shadow-lg transition-all transform active:scale-[0.98]">
+                    <button onclick="submitPO()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-lg hover:bg-blue-700 shadow-lg transition-all active:scale-[0.98]">
                         Finalize & Save Purchase Order
                     </button>
                 </div>
@@ -85,81 +101,17 @@
         </div>
     </div>
 
-    <div class="max-w-7xl mx-auto px-4 pb-24">
-        <div class="bg-white rounded-lg shadow-sm overflow-hidden border-t-4 border-gray-800">
-            <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
-                <h2 class="text-lg font-bold">Recent Purchase Orders (History)</h2>
-                <button onclick="loadPurchaseHistory()" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh List</button>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-white border-b text-[10px] uppercase font-bold text-gray-400 tracking-widest">
-                        <tr>
-                            <th class="p-4">PO Number</th>
-                            <th class="p-4">Supplier</th>
-                            <th class="p-4">Items Summary</th>
-                            <th class="p-4 text-center">Status</th>
-                            <th class="p-4 text-right">Date Created</th>
-                        </tr>
-                    </thead>
-                    <tbody id="po-history-table"></tbody>
-                </table>
-            </div>
-            <div id="history-empty" class="p-12 text-center text-gray-400 hidden italic">
-                No purchase history found.
-            </div>
-        </div>
-    </div>
-
     <div id="quick-add-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[100]">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-lg mx-4 p-8">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-lg p-8">
             <h3 class="text-xl font-bold mb-6 text-blue-600 border-b pb-2">Register New Product</h3>
-            
             <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Game</label>
-                    <select id="qa-game" class="w-full p-2 border rounded bg-gray-50 text-sm">
-                        <option value="One Piece">One Piece</option>
-                        <option value="Pokemon">Pokemon</option>
-                        <option value="Hololive">Hololive</option>
-                        <option value="Digimon">Digimon</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Type</label>
-                    <select id="qa-type" class="w-full p-2 border rounded bg-gray-50 text-sm">
-                        <option value="Booster Box">Booster Box</option>
-                        <option value="Single">Single Card</option>
-                        <option value="Starter Deck">Starter Deck</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
+                <input type="text" id="qa-name" placeholder="Product Name" class="col-span-2 w-full p-2 border rounded font-bold">
+                <input type="text" id="qa-id" placeholder="ID (e.g. OP05)" class="p-2 border rounded">
+                <input type="number" id="qa-cost" placeholder="Cost ($)" class="p-2 border rounded bg-blue-50">
             </div>
-
-            <div class="space-y-4">
-                <input type="text" id="qa-name" placeholder="Full Product Name" class="w-full p-2 border rounded font-bold">
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="text" id="qa-id" placeholder="Set/Card ID" class="w-full p-2 border rounded text-sm">
-                    <input type="text" id="qa-barcode" placeholder="Barcode" class="w-full p-2 border rounded text-sm">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Unit Cost ($)</label>
-                        <input type="number" id="qa-cost" step="0.01" class="w-full p-2 border rounded bg-blue-50 font-bold">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Retail Sell ($)</label>
-                        <input type="number" id="qa-price" step="0.01" class="w-full p-2 border rounded font-bold">
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex justify-end space-x-3 mt-8">
-                <button onclick="closeQuickAdd()" class="text-gray-400 font-bold px-4 hover:bg-gray-100 rounded">Cancel</button>
-                <button onclick="submitQuickAdd()" class="bg-green-600 text-white font-bold px-6 py-2 rounded shadow-md hover:bg-green-700">
-                    Register & Add to Order
-                </button>
+            <div class="flex justify-end gap-3 mt-4">
+                <button onclick="closeQuickAdd()" class="text-gray-400 font-bold px-4">Cancel</button>
+                <button onclick="submitQuickAdd()" class="bg-green-600 text-white font-bold px-6 py-2 rounded">Add to Order</button>
             </div>
         </div>
     </div>
@@ -168,78 +120,59 @@
         const API_URL = 'https://k10system.onrender.com/api';
         let basket = [];
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            const token = localStorage.getItem('k10_token');
-            if (!token) window.location.href = 'admin.html';
-            
+        document.addEventListener('DOMContentLoaded', () => {
             loadSuppliers();
-            loadPurchaseHistory();
             setupSearch();
         });
 
         async function loadSuppliers() {
-            try {
-                const res = await fetch(`${API_URL}/suppliers`);
-                const data = await res.json();
-                const select = document.getElementById('supplier-select');
-                if (data.length > 0) {
-                    select.innerHTML = data.map(s => `<option value="${s.id}">${s.name} (#${s.id})</option>`).join('');
-                } else {
-                    select.innerHTML = '<option value="">No suppliers found</option>';
-                }
-            } catch (e) { console.error("Supplier load failed"); }
+            const res = await fetch(`${API_URL}/suppliers`);
+            const data = await res.json();
+            document.getElementById('supplier-select').innerHTML = data.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        }
+
+        function toggleFinancialInputs() {
+            const status = document.getElementById('po-payment-status').value;
+            document.getElementById('deposit-input-group').classList.toggle('hidden', status !== 'Partial Deposit');
+            updateSpendDisplay();
+        }
+
+        function updateSpendDisplay() {
+            const status = document.getElementById('po-payment-status').value;
+            const deposit = parseFloat(document.getElementById('po-deposit').value) || 0;
+            const total = basket.reduce((sum, item) => sum + (item.qty * item.cost), 0);
+            
+            let spend = 0;
+            if (status === 'Fully Paid') spend = total;
+            if (status === 'Partial Deposit') spend = deposit;
+            
+            document.getElementById('order-total').innerText = `$${total.toFixed(2)}`;
+            document.getElementById('actual-spend').innerText = `$${spend.toFixed(2)}`;
         }
 
         function setupSearch() {
-            const searchInput = document.getElementById('item-search');
-            searchInput.addEventListener('input', async (e) => {
+            const input = document.getElementById('item-search');
+            input.addEventListener('input', async (e) => {
                 const query = e.target.value;
-                if (query.length < 2) {
-                    document.getElementById('search-results').classList.add('hidden');
-                    return;
-                }
-
-                try {
-                    const res = await fetch(`${API_URL}/inventory/status`);
-                    const items = await res.json();
-                    const filtered = items.filter(i => 
-                        i.card_name.toLowerCase().includes(query.toLowerCase()) || 
-                        (i.card_id && i.card_id.toLowerCase().includes(query.toLowerCase()))
-                    );
-
-                    const resultsDiv = document.getElementById('search-results');
-                    if (filtered.length === 0) {
-                        resultsDiv.innerHTML = `
-                            <div class="p-6 text-center">
-                                <p class="text-xs text-gray-500 mb-3 uppercase font-bold">Not in inventory</p>
-                                <button onclick="openQuickAddModal()" class="bg-blue-600 text-white px-4 py-2 rounded text-xs font-bold shadow-md">+ Register New Product</button>
-                            </div>`;
-                    } else {
-                        resultsDiv.innerHTML = filtered.map(i => `
-                            <div class="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between items-center transition" 
-                                 onclick='addToBasket(${JSON.stringify(i)})'>
-                                <div>
-                                    <div class="font-bold text-sm text-gray-800">${i.card_name}</div>
-                                    <div class="text-[9px] uppercase font-bold text-gray-400">${i.game_title} | ${i.product_type}</div>
-                                </div>
-                                <div class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">Stock: ${i.stock_quantity}</div>
-                            </div>`).join('');
-                    }
-                    resultsDiv.classList.remove('hidden');
-                } catch (e) { console.error("Search failed"); }
+                if (query.length < 2) return document.getElementById('search-results').classList.add('hidden');
+                
+                const res = await fetch(`${API_URL}/inventory/status`);
+                const items = await res.json();
+                const filtered = items.filter(i => i.card_name.toLowerCase().includes(query.toLowerCase()));
+                
+                const resultsDiv = document.getElementById('search-results');
+                resultsDiv.innerHTML = filtered.map(i => `
+                    <div class="p-3 hover:bg-blue-50 cursor-pointer border-b" onclick='addToBasket(${JSON.stringify(i)})'>
+                        <div class="font-bold text-sm">${i.card_name}</div>
+                        <div class="text-[10px] text-gray-400 uppercase">${i.game_title}</div>
+                    </div>`).join('') || `<div class="p-4 text-center"><button onclick="openQuickAddModal()" class="text-blue-600 font-bold">+ Quick Add</button></div>`;
+                resultsDiv.classList.remove('hidden');
             });
         }
 
         function addToBasket(item) {
             if (basket.find(b => b.inventory_id === item.id)) return;
-            basket.push({
-                inventory_id: item.id,
-                name: item.card_name,
-                game: item.game_title,
-                type: item.product_type,
-                cost: parseFloat(item.cost_price || 0),
-                qty: 1
-            });
+            basket.push({ inventory_id: item.id, name: item.card_name, cost: parseFloat(item.cost_price || 0), qty: 1 });
             renderBasket();
             document.getElementById('search-results').classList.add('hidden');
             document.getElementById('item-search').value = '';
@@ -247,137 +180,42 @@
 
         function renderBasket() {
             const tbody = document.getElementById('po-items-table');
-            const emptyState = document.getElementById('empty-state');
-            if (basket.length > 0) emptyState.classList.add('hidden');
-            else emptyState.classList.remove('hidden');
-
+            document.getElementById('empty-state').classList.toggle('hidden', basket.length > 0);
             document.getElementById('item-count').innerText = `${basket.length} Items`;
-            let total = 0;
-            tbody.innerHTML = basket.map((item, idx) => {
-                total += (item.qty * item.cost);
-                return `
-                    <tr class="border-b group hover:bg-gray-50">
-                        <td class="p-4">
-                            <div class="font-bold text-gray-800 text-sm">${item.name}</div>
-                            <div class="text-[9px] text-gray-400 uppercase font-bold">${item.game} | ${item.type}</div>
-                        </td>
-                        <td class="p-4">
-                            <input type="number" value="${item.qty}" min="1" 
-                                   onchange="basket[${idx}].qty = parseInt(this.value) || 1; renderBasket()" 
-                                   class="w-full p-1 border rounded text-center font-bold text-sm">
-                        </td>
-                        <td class="p-4">
-                            <input type="number" step="0.01" value="${item.cost.toFixed(2)}" 
-                                   onchange="basket[${idx}].cost = parseFloat(this.value) || 0; renderBasket()" 
-                                   class="w-full p-1 border rounded text-right font-mono font-bold text-gray-700 bg-blue-50 border-blue-100">
-                        </td>
-                        <td class="p-4 text-right">
-                            <button onclick="basket.splice(${idx}, 1); renderBasket()" class="text-red-300 hover:text-red-600 font-bold">×</button>
-                        </td>
-                    </tr>`;
-            }).join('');
-            document.getElementById('order-total').innerText = `$${total.toFixed(2)}`;
-        }
-
-        async function submitQuickAdd() {
-            const data = {
-                game_title: document.getElementById('qa-game').value,
-                product_type: document.getElementById('qa-type').value,
-                card_name: document.getElementById('qa-name').value,
-                card_id: document.getElementById('qa-id').value,
-                barcode: document.getElementById('qa-barcode').value,
-                cost_price: parseFloat(document.getElementById('qa-cost').value) || 0,
-                price: parseFloat(document.getElementById('qa-price').value) || 0,
-                stock_quantity: 0,
-                packs_per_box: 1, boxes_per_case: 1
-            };
-            try {
-                const res = await fetch(`${API_URL}/inventory/add`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                const result = await res.json();
-                if (res.ok && result.product) {
-                    addToBasket(result.product);
-                    closeQuickAdd();
-                } else { alert("Error: " + result.error); }
-            } catch (e) { alert("Failed to connect."); }
+            
+            tbody.innerHTML = basket.map((item, idx) => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-4 font-bold text-sm">${item.name}</td>
+                    <td class="p-4"><input type="number" value="${item.qty}" min="1" onchange="basket[${idx}].qty = parseInt(this.value); renderBasket()" class="w-16 border rounded text-center"></td>
+                    <td class="p-4"><input type="number" step="0.01" value="${item.cost.toFixed(2)}" onchange="basket[${idx}].cost = parseFloat(this.value); renderBasket()" class="w-full border rounded text-right p-1 font-mono"></td>
+                    <td class="p-4 text-red-500 cursor-pointer" onclick="basket.splice(${idx}, 1); renderBasket()">×</td>
+                </tr>`).join('');
+            updateSpendDisplay();
         }
 
         async function submitPO() {
-            const supplierId = document.getElementById('supplier-select').value;
-            if (!supplierId) return alert("Please select a Distributor.");
-            if (basket.length === 0) return alert("Order is empty!");
-
-            const btn = document.querySelector('button[onclick="submitPO()"]');
-            btn.disabled = true;
-            btn.innerText = "Processing...";
+            if (basket.length === 0) return alert("Basket is empty!");
+            const total = basket.reduce((sum, item) => sum + (item.qty * item.cost), 0);
+            const status = document.getElementById('po-payment-status').value;
+            const deposit = parseFloat(document.getElementById('po-deposit').value) || 0;
 
             const payload = {
-                supplier_id: parseInt(supplierId),
+                supplier_id: document.getElementById('supplier-select').value,
                 po_number: document.getElementById('po-number').value,
+                payment_status: status,
+                total_cost: total,
+                deposit_paid: deposit,
+                paid_amount: status === 'Fully Paid' ? total : (status === 'Partial Deposit' ? deposit : 0),
                 items: basket.map(i => ({ inventory_id: i.inventory_id, qty: i.qty, cost: i.cost }))
             };
 
-            try {
-                const res = await fetch(`${API_URL}/purchase-orders`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await res.json();
-                if (res.ok) {
-                    alert("Order Saved: " + result.po_number);
-                    basket = [];
-                    renderBasket();
-                    loadPurchaseHistory();
-                } else { alert("Error: " + result.error); }
-            } catch (e) { alert("Failed to connect."); }
-            finally { 
-                btn.disabled = false;
-                btn.innerText = "Finalize & Save Purchase Order";
-            }
+            const res = await fetch(`${API_URL}/purchase-orders`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) { alert("PO Saved!"); location.reload(); }
         }
 
-        async function loadPurchaseHistory() {
-            const tbody = document.getElementById('po-history-table');
-            const emptyState = document.getElementById('history-empty');
-            try {
-                const res = await fetch(`${API_URL}/purchase-orders?limit=10`);
-                const orders = await res.json();
-                
-                if (!orders || !Array.isArray(orders) || orders.length === 0) {
-                    emptyState.classList.remove('hidden');
-                    tbody.innerHTML = '';
-                    return;
-                }
-
-                emptyState.classList.add('hidden');
-                tbody.innerHTML = orders.map(po => `
-                    <tr class="border-b hover:bg-gray-50 text-xs">
-                        <td class="p-4 font-mono font-bold text-blue-600">#${po.po_number}</td>
-                        <td class="p-4 font-bold text-gray-700">${po.supplier_name}</td>
-                        <td class="p-4">
-                            <div class="text-gray-800 font-medium">${po.items_summary || 'N/A'}</div>
-                        </td>
-                        <td class="p-4 text-center">
-                            <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${getStatusClass(po.status)}">
-                                ${po.status}
-                            </span>
-                        </td>
-                        <td class="p-4 text-right text-gray-400">
-                            ${new Date(po.order_date).toLocaleDateString()}
-                        </td>
-                    </tr>`).join('');
-            } catch (err) { console.error("History Render Error:", err); }
-        }
-
-        function getStatusClass(status) {
-            switch(status) {
-                case 'Ordered': return 'bg-yellow-100 text-yellow-700';
-                case 'Received': return 'bg-green-100 text-green-700';
-                default: return 'bg-gray-100 text-gray-500';
-            }
-        }
         function openQuickAddModal() { document.getElementById('quick-add-modal').classList.remove('hidden'); }
         function closeQuickAdd() { document.getElementById('quick-add-modal').classList.add('hidden'); }
     </script>
