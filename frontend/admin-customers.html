@@ -8,17 +8,7 @@
 </head>
 <body class="bg-gray-100 font-sans">
 
-    <nav class="bg-white shadow-sm mb-8 px-4 py-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-gray-800">👥 Customer Database</h1>
-        <div class="space-x-4">
-            <a href="admin.html" class="text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
-            <a href="admin-orders.html" class="text-gray-600 hover:text-blue-600 font-medium">Orders</a>
-            <a href="admin-customers.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">Customers</a>
-            <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
-        </div>
-    </nav>
-
-    <div class="max-w-7xl mx-auto px-4">
+    <div class="max-w-7xl mx-auto px-4 mt-8 pb-12">
         
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
             <div class="relative w-full md:w-96">
@@ -26,8 +16,8 @@
                        class="w-full p-2 pl-10 border rounded shadow-sm focus:ring-2 focus:ring-blue-500 outline-none">
                 <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
             </div>
-            <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow-md flex items-center gap-2">
-                <span>+</span> Add Customer
+            <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow-md flex items-center gap-2 transition">
+                <span>+</span> Add New Customer
             </button>
         </div>
 
@@ -36,10 +26,10 @@
                 <thead class="bg-gray-50 border-b text-xs uppercase font-bold text-gray-500">
                     <tr>
                         <th class="p-4">ID</th>
-                        <th class="p-4">Customer Details</th>
+                        <th class="p-4">Name / Status</th>
                         <th class="p-4">Contact Info</th>
                         <th class="p-4">Game IDs</th>
-                        <th class="p-4 text-center">Status</th>
+                        <th class="p-4 text-center">Loyalty Pts</th>
                         <th class="p-4 text-right">Actions</th>
                     </tr>
                 </thead>
@@ -52,11 +42,10 @@
     </div>
 
     <div id="customer-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6">
-            <div class="flex justify-between items-center mb-6 border-b pb-4">
-                <h3 class="text-xl font-bold text-gray-800" id="modal-title">Add New Customer</h3>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-            </div>
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6 relative">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            
+            <h3 class="text-xl font-bold text-gray-800 mb-6 border-b pb-2" id="modal-title">Add New Customer</h3>
             
             <form id="customer-form" class="space-y-4">
                 <input type="hidden" id="cust-id"> <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -86,8 +75,8 @@
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
-                        <select id="cust-status" class="w-full p-2 border rounded">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Account Status</label>
+                        <select id="cust-status" class="w-full p-2 border rounded bg-gray-50">
                             <option value="Active">Active</option>
                             <option value="Inactive">Inactive</option>
                             <option value="Banned">Banned</option>
@@ -96,17 +85,19 @@
 
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Loyalty Points</label>
-                        <input type="number" id="cust-points" value="0" class="w-full p-2 border rounded">
+                        <input type="number" id="cust-points" value="0" class="w-full p-2 border rounded text-center font-bold text-blue-600">
                     </div>
                 </div>
 
                 <div class="flex justify-end gap-3 mt-8 pt-4 border-t">
                     <button type="button" onclick="closeModal()" class="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">Cancel</button>
-                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 shadow-md">Save Customer</button>
+                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 shadow-md transition">Save Customer</button>
                 </div>
             </form>
         </div>
     </div>
+
+    <script src="admin-navbar.js"></script>
 
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
@@ -117,22 +108,17 @@
             
             loadCustomers();
             
-            // Search Debounce
+            // Search Debounce (Wait 300ms before searching)
             let timeout;
             document.getElementById('search-input').addEventListener('input', (e) => {
                 clearTimeout(timeout);
                 timeout = setTimeout(() => loadCustomers(e.target.value), 300);
             });
 
-            // Handle Form Submit (Add or Edit)
+            // Handle Form Submit
             document.getElementById('customer-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 await saveCustomer();
-            });
-            
-            document.getElementById('logout-btn').addEventListener('click', () => {
-                localStorage.removeItem('k10_token');
-                window.location.href = 'admin.html';
             });
         });
 
@@ -160,26 +146,27 @@
                     <tr class="border-b hover:bg-gray-50 transition">
                         <td class="p-4 font-mono text-xs text-gray-400">#${c.id}</td>
                         <td class="p-4">
-                            <div class="font-bold text-gray-800">${c.name}</div>
-                            <div class="text-xs text-blue-600 font-bold">Points: ${c.loyalty_points || 0}</div>
+                            <div class="font-bold text-gray-800 text-lg">${c.name}</div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase 
+                                ${c.status === 'Active' ? 'bg-green-100 text-green-700' : 
+                                  c.status === 'Inactive' ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-600'}">
+                                ${c.status}
+                            </span>
                         </td>
                         <td class="p-4 text-sm text-gray-600">
                             <div>📧 ${c.email || '<span class="text-gray-300">-</span>'}</div>
                             <div class="mt-1">📱 ${c.mobile_number || '<span class="text-gray-300">-</span>'}</div>
                         </td>
                         <td class="p-4 text-xs">
-                            ${c.bandai_id ? `<div class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded inline-block mb-1">Bandai: ${c.bandai_id}</div><br>` : ''}
-                            ${c.bushiroad_id ? `<div class="bg-red-100 text-red-800 px-2 py-1 rounded inline-block">Bushi: ${c.bushiroad_id}</div>` : ''}
+                            ${c.bandai_id ? `<div class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded inline-block mb-1 font-bold">Bandai: ${c.bandai_id}</div><br>` : ''}
+                            ${c.bushiroad_id ? `<div class="bg-red-100 text-red-800 px-2 py-1 rounded inline-block font-bold">Bushi: ${c.bushiroad_id}</div>` : ''}
                         </td>
-                        <td class="p-4 text-center">
-                            <span class="px-2 py-1 rounded-full text-xs font-bold uppercase 
-                                ${c.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">
-                                ${c.status}
-                            </span>
+                        <td class="p-4 text-center font-bold text-blue-600 text-lg">
+                            ${c.loyalty_points || 0}
                         </td>
                         <td class="p-4 text-right">
-                            <button onclick='openEditModal(${JSON.stringify(c)})' class="text-blue-600 hover:underline font-bold text-sm mr-3">Edit</button>
-                            <button onclick="deleteCustomer(${c.id})" class="text-red-400 hover:text-red-600 text-sm">Delete</button>
+                            <button onclick='openEditModal(${JSON.stringify(c)})' class="text-blue-600 hover:text-blue-800 font-bold text-sm mr-4">Edit</button>
+                            <button onclick="deleteCustomer(${c.id})" class="text-red-400 hover:text-red-600 text-sm font-bold">Delete</button>
                         </td>
                     </tr>
                 `).join('');
@@ -193,12 +180,13 @@
         function openModal() {
             document.getElementById('modal-title').innerText = "Add New Customer";
             document.getElementById('customer-form').reset();
-            document.getElementById('cust-id').value = ''; // Ensure ID is empty
+            document.getElementById('cust-id').value = ''; 
+            document.getElementById('cust-status').value = 'Active'; 
             document.getElementById('customer-modal').classList.remove('hidden');
         }
 
         function openEditModal(customer) {
-            document.getElementById('modal-title').innerText = "Edit Customer";
+            document.getElementById('modal-title').innerText = `Edit: ${customer.name}`;
             document.getElementById('cust-id').value = customer.id;
             document.getElementById('cust-name').value = customer.name;
             document.getElementById('cust-email').value = customer.email;
@@ -240,7 +228,7 @@
                 const result = await res.json();
                 
                 if (res.ok) {
-                    alert("Saved Successfully!");
+                    alert("Customer Saved!");
                     closeModal();
                     loadCustomers();
                 } else {
@@ -253,7 +241,6 @@
 
         async function deleteCustomer(id) {
             if (!confirm("Are you sure? This cannot be undone.")) return;
-            
             try {
                 const res = await fetch(`${API_URL}/customers/${id}`, { method: 'DELETE' });
                 if (res.ok) loadCustomers();
