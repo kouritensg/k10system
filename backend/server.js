@@ -68,15 +68,24 @@ app.get('/api/inventory/status', async (req, res) => {
 
 // Quick Add Product (Returns object immediately)
 app.post('/api/inventory/add', async (req, res) => {
-  const { barcode, game_title, product_type, card_id, card_name, set_name, price, cost_price, stock_quantity } = req.body;
+  const { 
+    barcode, game_title, product_type, card_id, card_name, set_name, 
+    price, cost_price, stock_quantity,
+    packs_per_box, boxes_per_case  // <--- NEW FIELDS
+  } = req.body;
+
   try {
     const [result] = await db.execute(
-      `INSERT INTO inventory (barcode, game_title, product_type, card_id, card_name, set_name, price, cost_price, stock_quantity) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [barcode || null, game_title, product_type, card_id || null, card_name, set_name || null, price || 0, cost_price || 0, stock_quantity || 0]
+      `INSERT INTO inventory 
+      (barcode, game_title, product_type, card_id, card_name, set_name, price, cost_price, stock_quantity, packs_per_box, boxes_per_case) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        barcode || null, game_title, product_type, card_id || null, card_name, set_name || null, 
+        price || 0, cost_price || 0, stock_quantity || 0,
+        packs_per_box || 1, boxes_per_case || 1 // Save ratios (Default to 1)
+      ]
     );
-    const [newProduct] = await db.execute('SELECT * FROM inventory WHERE id = ?', [result.insertId]);
-    res.status(201).json({ message: 'Product registered!', product: { ...newProduct[0], in_stock: newProduct[0].stock_quantity } });
+    res.status(201).json({ message: 'Product registered!' });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
