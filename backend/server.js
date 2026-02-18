@@ -159,19 +159,48 @@ app.delete('/api/inventory/:id', async (req, res) => {
 app.post('/api/purchase-orders', async (req, res) => {
     const { supplier_id, po_number, items, payment_status, total_cost, deposit_paid, paid_amount } = req.body;
     const conn = await db.getConnection();
+    
     try {
         await conn.beginTransaction();
+        
+        // Use current date if none provided
+        const orderDate = new Date().toISOString().slice(0, 10); 
         const finalPONumber = po_number || `PO-${Date.now()}`;
+
+        // UPDATED: Matches your current DB structure
         const [po] = await conn.execute(
-            `INSERT INTO purchase_orders (supplier_id, po_number, status, payment_status, total_cost, deposit_paid, paid_amount) VALUES (?, ?, ?, ?, ?, ?, ?)`, 
-            [supplier_id, finalPONumber, 'Ordered', payment_status, total_cost, deposit_paid, paid_amount]
+            `INSERT INTO purchase_orders 
+            (supplier_id, po_number, order_date, status, payment_status, total_cost, deposit_paid, paid_amount) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, 
+            [
+                supplier_id, 
+                finalPONumber, 
+                orderDate, 
+                'Ordered', 
+                payment_status || 'Pending', 
+                total_cost || 0, 
+                deposit_paid || 0, 
+                paid_amount || 0
+            ]
         );
+
+        // Insert items into po_items
         for (const i of items) {
-            await conn.execute('INSERT INTO po_items (po_id, inventory_id, ordered_qty, unit_cost) VALUES (?, ?, ?, ?)', [po.insertId, i.inventory_id, i.qty, i.cost]);
+            await conn.execute(
+                'INSERT INTO po_items (po_id, inventory_id, ordered_qty, unit_cost) VALUES (?, ?, ?, ?)', 
+                [po.insertId, i.inventory_id, i.qty, i.cost]
+            );
         }
+
         await conn.commit();
-        res.status(201).json({ message: 'PO Created' });
-    } catch (e) { await conn.rollback(); res.status(500).json({ error: e.message }); } finally { conn.release(); }
+        res.status(201).json({ message: 'PO Created', po_number: finalPONumber });
+    } catch (e) { 
+        await conn.rollback(); 
+        console.error("PO Error:", e.message); // This will show the exact DB error in your Render logs
+        res.status(500).json({ error: e.message }); 
+    } finally { 
+        conn.release(); 
+    }
 });
 
 app.get('/api/purchase-orders', async (req, res) => {
