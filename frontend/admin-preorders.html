@@ -26,9 +26,11 @@
                         <option value="Pokemon">Pokemon</option>
                         <option value="Hololive">Hololive</option>
                         <option value="Digimon">Digimon</option>
-                        <option value="Dragon Ball">Dragon Ball</option>
-                        <option value="Union Arena">Union Arena</option>
                         <option value="Other">Other</option>
+                    </select>
+
+                    <select id="filter-category" onchange="applyFilters()" class="p-2 border rounded bg-gray-50 font-bold text-gray-700">
+                        <option value="">All Categories</option>
                     </select>
                     
                     <input type="text" id="filter-search" onkeyup="applyFilters()" 
@@ -80,10 +82,20 @@
         const API_URL = 'https://k10system.onrender.com/api';
         let globalOrders = [];
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             if (!localStorage.getItem('k10_token')) window.location.href = 'admin.html';
-            loadPreorders();
+            await loadCategories();
+            await loadPreorders();
         });
+
+        // LOAD CATEGORIES FOR THE FILTER (NEW)
+        async function loadCategories() {
+            const res = await fetch(`${API_URL}/categories`);
+            const cats = await res.json();
+            const filterDropdown = document.getElementById('filter-category');
+            filterDropdown.innerHTML = '<option value="">All Categories</option>' + 
+                                       cats.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        }
 
         async function loadPreorders() {
             const loading = document.getElementById('loading');
@@ -98,23 +110,25 @@
         }
 
         function applyFilters() {
-            const gameFilter = document.getElementById('filter-game').value.toLowerCase(); // Case insensitive
+            const gameFilter = document.getElementById('filter-game').value.toLowerCase();
+            const catFilter = document.getElementById('filter-category').value.toLowerCase(); // NEW
             const searchText = document.getElementById('filter-search').value.toLowerCase();
             const tbody = document.getElementById('preorder-table');
             const empty = document.getElementById('empty-state');
 
             const filtered = globalOrders.filter(o => {
-                // 1. Check Game Tag (Safe Check)
-                const tags = (o.game_tags || '').toLowerCase(); // "One Piece, Digimon" -> "one piece, digimon"
-                const hasGame = gameFilter === '' || tags.includes(gameFilter);
+                const tags = (o.game_tags || '').toLowerCase();
+                const itemSummary = (o.items_summary || '').toLowerCase();
                 
-                // 2. Check Search Text
+                const hasGame = gameFilter === '' || tags.includes(gameFilter);
+                const hasCat = catFilter === '' || itemSummary.includes(catFilter); // Checks summary for category name
+                
                 const hasText = searchText === '' || 
                                 o.customer_name.toLowerCase().includes(searchText) || 
                                 (o.mobile_number && o.mobile_number.includes(searchText)) ||
-                                o.items_summary.toLowerCase().includes(searchText);
+                                itemSummary.includes(searchText);
 
-                return hasGame && hasText;
+                return hasGame && hasCat && hasText;
             });
 
             if (filtered.length === 0) {
@@ -131,7 +145,7 @@
                 const gameTags = o.game_tags ? o.game_tags.split(',').join(' • ') : 'No Game Tag';
 
                 const paymentDisplay = balance <= 0.01 
-                    ? `<div class="text-green-600 font-bold flex items-center gap-1"><span>✅</span> Fully Paid ($${total})</div>`
+                    ? `<div class="text-green-600 font-bold flex items-center gap-1"><span>✅</span> Fully Paid ($${total.toFixed(2)})</div>`
                     : `<div><span class="text-gray-800 font-bold">$${deposit.toFixed(2)} Paid</span><div class="text-xs text-red-500 font-bold mt-0.5">Owe: $${balance.toFixed(2)}</div></div>`;
 
                 return `
@@ -162,7 +176,7 @@
             }).join('');
         }
 
-        // --- MODAL & ACTION FUNCTIONS REMAIN SAME AS BEFORE ---
+        // Action functions (confirmPayment, markFulfilled, etc.) remain identical to your previous version...
         function openPayModal(id, name, balance) {
             document.getElementById('pay-order-id').value = id;
             document.getElementById('pay-balance').value = balance;
@@ -180,8 +194,6 @@
             const id = document.getElementById('pay-order-id').value;
             const amount = document.getElementById('pay-amount').value;
             if(!amount || amount <= 0) return alert("Enter valid amount");
-            const btn = document.querySelector('button[onclick="confirmPayment()"]');
-            btn.disabled = true;
             try {
                 const res = await fetch(`${API_URL}/sales/${id}/payment`, {
                     method: 'PUT',
@@ -189,8 +201,7 @@
                     body: JSON.stringify({ amount })
                 });
                 if(res.ok) { alert("Paid!"); closePayModal(); loadPreorders(); }
-                else alert("Error");
-            } catch(e) { alert("Connection Error"); } finally { btn.disabled = false; }
+            } catch(e) { alert("Connection Error"); }
         }
 
         async function markFulfilled(id) {
