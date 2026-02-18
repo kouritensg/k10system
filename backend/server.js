@@ -272,6 +272,77 @@ app.put('/api/sales/:id/payment', async (req, res) => {
     } catch (e) { await conn.rollback(); res.status(500).json({ error: e.message }); } finally { conn.release(); }
 });
 
+
+// ==========================================
+// CUSTOMER MANAGEMENT
+// ==========================================
+
+// Get all customers (with optional search)
+app.get('/api/customers', async (req, res) => {
+    const { search } = req.query;
+    try {
+        let query = 'SELECT * FROM customers';
+        let params = [];
+        
+        if (search) {
+            query += ' WHERE name LIKE ? OR email LIKE ? OR mobile_number LIKE ? OR bandai_id LIKE ? OR bushiroad_id LIKE ?';
+            const searchVal = `%${search}%`;
+            params = [searchVal, searchVal, searchVal, searchVal, searchVal];
+        }
+        
+        query += ' ORDER BY name ASC';
+        const [rows] = await db.execute(query, params);
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch customers' });
+    }
+});
+
+// Add new customer
+app.post('/api/customers', async (req, res) => {
+    const { name, email, mobile_number, bandai_id, bushiroad_id } = req.body;
+    try {
+        const [result] = await db.execute(
+            `INSERT INTO customers (name, email, mobile_number, bandai_id, bushiroad_id, status, loyalty_points) 
+             VALUES (?, ?, ?, ?, ?, 'Active', 0)`,
+            [name, email || null, mobile_number || null, bandai_id || null, bushiroad_id || null]
+        );
+        res.status(201).json({ id: result.insertId, message: 'Customer created' });
+    } catch (error) {
+        res.status(500).json({ error: 'Database error or duplicate entry' });
+    }
+});
+
+// Get detailed purchase history for a specific customer
+app.get('/api/customers/:id/history', async (req, res) => {
+    try {
+        const [rows] = await db.execute(`
+            SELECT o.*, 
+                   GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items
+            FROM customer_orders o
+            JOIN customer_order_items oi ON o.id = oi.order_id
+            JOIN inventory i ON oi.inventory_id = i.id
+            WHERE o.customer_id = ?
+            GROUP BY o.id
+            ORDER BY o.order_date DESC`, 
+            [req.params.id]
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch history' });
+    }
+});
+
+// Delete customer
+app.delete('/api/customers/:id', async (req, res) => {
+    try {
+        await db.execute('DELETE FROM customers WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Customer deleted' });
+    } catch (error) {
+        res.status(500).json({ error: 'Cannot delete: Customer has existing orders.' });
+    }
+});
+
 // --- KEEP ALIVE ---
 setInterval(async () => { try { await db.execute('SELECT 1'); } catch(e){} }, 300000);
 
