@@ -86,13 +86,22 @@ app.get('/api/inventory/status', async (req, res) => {
 app.post('/api/inventory/add', async (req, res) => {
   const { barcode, game_title, product_type, card_id, card_name, price, cost_price, stock_quantity, packs_per_box, boxes_per_case } = req.body;
   try {
-    await db.execute(
+    const [result] = await db.execute(
       `INSERT INTO inventory (barcode, game_title, product_type, card_id, card_name, price, cost_price, stock_quantity, packs_per_box, boxes_per_case) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [barcode || null, game_title, product_type, card_id || null, card_name, price || 0, cost_price || 0, stock_quantity || 0, packs_per_box || 1, boxes_per_case || 1]
     );
-    res.status(201).json({ message: 'Product registered!' });
-  } catch (error) { res.status(500).json({ error: error.message }); }
+
+    // NEW: Fetch the newly created product to send back to the frontend
+    const [newProduct] = await db.execute('SELECT * FROM inventory WHERE id = ?', [result.insertId]);
+    
+    res.status(201).json({ 
+        message: 'Product registered!', 
+        product: newProduct[0] // Frontend needs this to add to basket
+    });
+  } catch (error) { 
+    res.status(500).json({ error: error.message }); 
+  }
 });
 
 app.put('/api/inventory/:id', async (req, res) => {
