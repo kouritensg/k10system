@@ -6,21 +6,21 @@
     <title>K10 Admin - Purchase Orders</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 font-sans">
+<body class="bg-gray-100 font-sans text-gray-800">
 
     <script src="admin-navbar.js"></script>
 
-    <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
+    <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12 mt-8">
         
         <div class="lg:col-span-1 space-y-6">
             
             <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
-                <h2 class="text-lg font-bold mb-4 text-gray-700">1. Order Details</h2>
+                <h2 class="text-lg font-bold mb-4">1. Order Details</h2>
                 <div class="space-y-4">
                     <div>
                         <label class="text-[10px] font-bold text-gray-400 uppercase">Purchase ID (Auto-Generated)</label>
                         <input type="text" id="po-number" placeholder="Leave blank for auto-gen" 
-                               class="w-full p-2 border rounded bg-gray-50 font-mono text-blue-600 font-bold mt-1 outline-none">
+                               class="w-full p-2 border rounded bg-gray-50 font-mono text-blue-600 font-bold mt-1 outline-none focus:ring-1 focus:ring-blue-500">
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-gray-400 uppercase">Distributor / Supplier</label>
@@ -32,24 +32,24 @@
             </div>
 
             <div class="bg-white p-6 rounded-lg shadow-sm">
-                <h2 class="text-lg font-bold mb-4 text-gray-700">2. Add Products</h2>
+                <h2 class="text-lg font-bold mb-4">2. Add Products</h2>
                 <div class="relative">
-                    <div class="flex items-center border-2 border-blue-100 rounded-lg overflow-hidden focus-within:border-blue-500 transition-all">
-                        <span class="pl-3 text-gray-400">🔍</span>
+                    <div class="flex items-center border-2 border-blue-100 rounded-lg overflow-hidden focus-within:border-blue-500 transition-all bg-white">
+                        <span class="pl-3">🔍</span>
                         <input type="text" id="item-search" placeholder="Search card or box name..." 
                                class="w-full p-3 outline-none text-sm">
                     </div>
                     
                     <div id="search-results" class="absolute top-full left-0 w-full bg-white shadow-2xl border rounded-b-lg z-50 max-h-80 overflow-y-auto hidden"></div>
                 </div>
-                <p class="text-[10px] text-gray-400 mt-2 italic">Item not found? You can register it instantly.</p>
+                <p class="text-[10px] text-gray-400 mt-2 italic font-medium">Search results will show Game and Type details.</p>
             </div>
         </div>
 
         <div class="lg:col-span-2">
             <div class="bg-white rounded-lg shadow-sm overflow-hidden flex flex-col min-h-[500px]">
                 <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-gray-700">3. Items in this Order</h2>
+                    <h2 class="text-lg font-bold">3. Items in this Order</h2>
                     <span id="item-count" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">0 Items</span>
                 </div>
                 
@@ -67,8 +67,8 @@
                     </table>
 
                     <div id="empty-state" class="p-24 text-center text-gray-400">
-                        <div class="text-4xl mb-2">📦</div>
-                        <p>Search for items on the left to build your order.</p>
+                        <div class="text-4xl mb-2 opacity-20">📦</div>
+                        <p class="font-medium">Search for items on the left to add them to your order.</p>
                     </div>
                 </div>
 
@@ -88,17 +88,17 @@
     <div class="max-w-7xl mx-auto px-4 pb-24">
         <div class="bg-white rounded-lg shadow-sm overflow-hidden border-t-4 border-gray-800">
             <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
-                <h2 class="text-lg font-bold text-gray-700">Recent Purchase Orders (History)</h2>
+                <h2 class="text-lg font-bold">Recent Purchase Orders (History)</h2>
                 <button onclick="loadPurchaseHistory()" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh List</button>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-white border-b text-[10px] uppercase font-bold text-gray-400">
+                    <thead class="bg-white border-b text-[10px] uppercase font-bold text-gray-400 tracking-widest">
                         <tr>
                             <th class="p-4">PO Number</th>
                             <th class="p-4">Supplier</th>
-                            <th class="p-4 text-center">Items</th>
-                            <th class="p-4">Status</th>
+                            <th class="p-4">Items Summary</th>
+                            <th class="p-4 text-center">Status</th>
                             <th class="p-4 text-right">Date Created</th>
                         </tr>
                     </thead>
@@ -117,7 +117,7 @@
             
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Game Title</label>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Game</label>
                     <select id="qa-game" class="w-full p-2 border rounded bg-gray-50 text-sm">
                         <option value="One Piece">One Piece</option>
                         <option value="Pokemon">Pokemon</option>
@@ -127,34 +127,22 @@
                     </select>
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Product Category</label>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Type</label>
                     <select id="qa-type" class="w-full p-2 border rounded bg-gray-50 text-sm">
                         <option value="Booster Box">Booster Box</option>
-                        <option value="Booster Pack">Booster Pack</option>
                         <option value="Single">Single Card</option>
                         <option value="Starter Deck">Starter Deck</option>
-                        <option value="Accessories">Accessories</option>
+                        <option value="Other">Other</option>
                     </select>
                 </div>
             </div>
 
             <div class="space-y-4">
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Product Name</label>
-                    <input type="text" id="qa-name" placeholder="Full Name" class="w-full p-2 border rounded font-bold">
-                </div>
-                
+                <input type="text" id="qa-name" placeholder="Full Product Name" class="w-full p-2 border rounded font-bold">
                 <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Set/Card ID</label>
-                        <input type="text" id="qa-id" placeholder="OP01-001" class="w-full p-2 border rounded text-sm">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Barcode</label>
-                        <input type="text" id="qa-barcode" class="w-full p-2 border rounded text-sm">
-                    </div>
+                    <input type="text" id="qa-id" placeholder="Set/Card ID" class="w-full p-2 border rounded text-sm">
+                    <input type="text" id="qa-barcode" placeholder="Barcode" class="w-full p-2 border rounded text-sm">
                 </div>
-
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="text-[10px] font-bold text-gray-400 uppercase">Unit Cost ($)</label>
@@ -168,8 +156,8 @@
             </div>
 
             <div class="flex justify-end space-x-3 mt-8">
-                <button onclick="closeQuickAdd()" class="text-gray-400 font-bold px-4 hover:bg-gray-50 rounded">Cancel</button>
-                <button onclick="submitQuickAdd()" class="bg-green-600 text-white font-bold px-6 py-2 rounded shadow-md hover:bg-green-700 transition-all">
+                <button onclick="closeQuickAdd()" class="text-gray-400 font-bold px-4 hover:bg-gray-100 rounded">Cancel</button>
+                <button onclick="submitQuickAdd()" class="bg-green-600 text-white font-bold px-6 py-2 rounded shadow-md hover:bg-green-700">
                     Register & Add to Order
                 </button>
             </div>
@@ -181,15 +169,11 @@
         let basket = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
-            if (!localStorage.getItem('k10_token')) window.location.href = 'admin.html';
+            const token = localStorage.getItem('k10_token');
+            if (!token) window.location.href = 'admin.html';
             
-            // 1. Load Suppliers
             loadSuppliers();
-
-            // 2. Load History
             loadPurchaseHistory();
-
-            // 3. Setup Search Logic
             setupSearch();
         });
 
@@ -198,11 +182,10 @@
                 const res = await fetch(`${API_URL}/suppliers`);
                 const data = await res.json();
                 const select = document.getElementById('supplier-select');
-                
                 if (data.length > 0) {
-                    select.innerHTML = data.map(s => `<option value="${s.id}">${s.name} (ID: #${s.id})</option>`).join('');
+                    select.innerHTML = data.map(s => `<option value="${s.id}">${s.name} (#${s.id})</option>`).join('');
                 } else {
-                    select.innerHTML = '<option value="">Register a Supplier first!</option>';
+                    select.innerHTML = '<option value="">No suppliers found</option>';
                 }
             } catch (e) { console.error("Supplier load failed"); }
         }
@@ -228,7 +211,7 @@
                     if (filtered.length === 0) {
                         resultsDiv.innerHTML = `
                             <div class="p-6 text-center">
-                                <p class="text-xs text-gray-500 mb-3 font-bold uppercase">" ${query} " not in inventory</p>
+                                <p class="text-xs text-gray-500 mb-3 uppercase font-bold">Not in inventory</p>
                                 <button onclick="openQuickAddModal()" class="bg-blue-600 text-white px-4 py-2 rounded text-xs font-bold shadow-md">+ Register New Product</button>
                             </div>`;
                     } else {
@@ -237,7 +220,7 @@
                                  onclick='addToBasket(${JSON.stringify(i)})'>
                                 <div>
                                     <div class="font-bold text-sm text-gray-800">${i.card_name}</div>
-                                    <div class="text-[9px] uppercase font-bold text-gray-400 tracking-wider">${i.game_title} • ${i.product_type}</div>
+                                    <div class="text-[9px] uppercase font-bold text-gray-400">${i.game_title} | ${i.product_type}</div>
                                 </div>
                                 <div class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">Stock: ${i.stock_quantity}</div>
                             </div>`).join('');
@@ -247,11 +230,8 @@
             });
         }
 
-        // --- BASKET LOGIC ---
         function addToBasket(item) {
-            // Check if already in basket
             if (basket.find(b => b.inventory_id === item.id)) return;
-
             basket.push({
                 inventory_id: item.id,
                 name: item.card_name,
@@ -260,7 +240,6 @@
                 cost: parseFloat(item.cost_price || 0),
                 qty: 1
             });
-
             renderBasket();
             document.getElementById('search-results').classList.add('hidden');
             document.getElementById('item-search').value = '';
@@ -269,12 +248,10 @@
         function renderBasket() {
             const tbody = document.getElementById('po-items-table');
             const emptyState = document.getElementById('empty-state');
-            
             if (basket.length > 0) emptyState.classList.add('hidden');
             else emptyState.classList.remove('hidden');
 
             document.getElementById('item-count').innerText = `${basket.length} Items`;
-
             let total = 0;
             tbody.innerHTML = basket.map((item, idx) => {
                 total += (item.qty * item.cost);
@@ -295,20 +272,12 @@
                                    class="w-full p-1 border rounded text-right font-mono font-bold text-gray-700 bg-blue-50 border-blue-100">
                         </td>
                         <td class="p-4 text-right">
-                            <button onclick="basket.splice(${idx}, 1); renderBasket()" class="text-red-300 hover:text-red-600 font-bold transition">×</button>
+                            <button onclick="basket.splice(${idx}, 1); renderBasket()" class="text-red-300 hover:text-red-600 font-bold">×</button>
                         </td>
                     </tr>`;
             }).join('');
             document.getElementById('order-total').innerText = `$${total.toFixed(2)}`;
         }
-
-        // --- QUICK ADD LOGIC ---
-        function openQuickAddModal() {
-            document.getElementById('quick-add-modal').classList.remove('hidden');
-            document.getElementById('qa-name').value = document.getElementById('item-search').value;
-        }
-
-        function closeQuickAdd() { document.getElementById('quick-add-modal').classList.add('hidden'); }
 
         async function submitQuickAdd() {
             const data = {
@@ -320,81 +289,63 @@
                 cost_price: parseFloat(document.getElementById('qa-cost').value) || 0,
                 price: parseFloat(document.getElementById('qa-price').value) || 0,
                 stock_quantity: 0,
-                packs_per_box: 1,
-                boxes_per_case: 1
+                packs_per_box: 1, boxes_per_case: 1
             };
-
-            if(!data.card_name) return alert("Product Name is required");
-
             try {
                 const res = await fetch(`${API_URL}/inventory/add`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 const result = await res.json();
-                
                 if (res.ok && result.product) {
-                    addToBasket(result.product); 
+                    addToBasket(result.product);
                     closeQuickAdd();
-                } else { alert(result.error || "Failed to add product"); }
-            } catch (e) { alert("Connection error."); }
+                } else { alert("Error: " + result.error); }
+            } catch (e) { alert("Failed to connect."); }
         }
 
-        // --- SUBMIT PO ---
         async function submitPO() {
             const supplierId = document.getElementById('supplier-select').value;
-            if (!supplierId) return alert("❌ Please select a Distributor first.");
-            if (basket.length === 0) return alert("❌ Order basket is empty!");
+            if (!supplierId) return alert("Please select a Distributor.");
+            if (basket.length === 0) return alert("Order is empty!");
 
             const btn = document.querySelector('button[onclick="submitPO()"]');
-            const originalText = btn.innerText;
             btn.disabled = true;
-            btn.innerText = "⏳ Saving Order...";
+            btn.innerText = "Processing...";
 
             const payload = {
                 supplier_id: parseInt(supplierId),
                 po_number: document.getElementById('po-number').value,
-                items: basket.map(i => ({
-                    inventory_id: i.inventory_id,
-                    qty: i.qty,
-                    cost: i.cost
-                }))
+                items: basket.map(i => ({ inventory_id: i.inventory_id, qty: i.qty, cost: i.cost }))
             };
 
             try {
                 const res = await fetch(`${API_URL}/purchase-orders`, {
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const result = await res.json();
-
                 if (res.ok) {
-                    alert("✅ Purchase Order Created!\nReference: " + result.po_number);
+                    alert("Order Saved: " + result.po_number);
                     basket = [];
-                    document.getElementById('po-number').value = '';
                     renderBasket();
                     loadPurchaseHistory();
-                } else {
-                    alert("❌ Failed: " + result.error);
-                }
-            } catch (err) { alert("❌ Connection failed."); }
-            finally {
+                } else { alert("Error: " + result.error); }
+            } catch (e) { alert("Failed to connect."); }
+            finally { 
                 btn.disabled = false;
-                btn.innerText = originalText;
+                btn.innerText = "Finalize & Save Purchase Order";
             }
         }
 
-        // --- HISTORY LOGIC ---
         async function loadPurchaseHistory() {
             const tbody = document.getElementById('po-history-table');
             const emptyState = document.getElementById('history-empty');
-
             try {
                 const res = await fetch(`${API_URL}/purchase-orders?limit=10`);
                 const orders = await res.json();
-
-                if (!orders || orders.length === 0) {
+                
+                if (!orders || !Array.isArray(orders) || orders.length === 0) {
                     emptyState.classList.remove('hidden');
                     tbody.innerHTML = '';
                     return;
@@ -404,28 +355,31 @@
                 tbody.innerHTML = orders.map(po => `
                     <tr class="border-b hover:bg-gray-50 text-xs">
                         <td class="p-4 font-mono font-bold text-blue-600">#${po.po_number}</td>
-                        <td class="p-4 font-bold text-gray-700">${po.supplier_name || 'Distributor'}</td>
-                        <td class="p-4 text-center font-bold text-gray-600">${po.total_items} items</td>
+                        <td class="p-4 font-bold text-gray-700">${po.supplier_name}</td>
                         <td class="p-4">
+                            <div class="text-gray-800 font-medium">${po.items_summary || 'N/A'}</div>
+                        </td>
+                        <td class="p-4 text-center">
                             <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${getStatusClass(po.status)}">
                                 ${po.status}
                             </span>
                         </td>
-                        <td class="p-4 text-right text-gray-400 font-medium">
+                        <td class="p-4 text-right text-gray-400">
                             ${new Date(po.order_date).toLocaleDateString()}
                         </td>
                     </tr>`).join('');
-            } catch (err) { console.warn("History failed to load"); }
+            } catch (err) { console.error("History Render Error:", err); }
         }
 
         function getStatusClass(status) {
             switch(status) {
                 case 'Ordered': return 'bg-yellow-100 text-yellow-700';
-                case 'Invoiced': return 'bg-blue-100 text-blue-700';
                 case 'Received': return 'bg-green-100 text-green-700';
                 default: return 'bg-gray-100 text-gray-500';
             }
         }
+        function openQuickAddModal() { document.getElementById('quick-add-modal').classList.remove('hidden'); }
+        function closeQuickAdd() { document.getElementById('quick-add-modal').classList.add('hidden'); }
     </script>
 </body>
 </html>
