@@ -139,14 +139,31 @@ app.post('/api/purchase-orders', async (req, res) => {
     const conn = await db.getConnection();
     try {
         await conn.beginTransaction();
-        const [po] = await conn.execute('INSERT INTO purchase_orders (supplier_id, po_number, status) VALUES (?,?,?)', [supplier_id, po_number || `PO-${Date.now()}`, 'Ordered']);
+
+        // --- NEW: AUTO-GENERATE PO ID ---
+        // Generates a format like: PO-20260218-XXXX
+        const finalPONumber = po_number || `PO-${new Date().toISOString().slice(0,10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+        const [po] = await conn.execute(
+            'INSERT INTO purchase_orders (supplier_id, po_number, status) VALUES (?,?,?)', 
+            [supplier_id, finalPONumber, 'Ordered']
+        );
+
         for (const i of items) {
-            await conn.execute('INSERT INTO po_items (po_id, inventory_id, ordered_qty, unit_cost) VALUES (?,?,?,?)', [po.insertId, i.inventory_id, i.qty, i.cost]);
+            await conn.execute(
+                'INSERT INTO po_items (po_id, inventory_id, ordered_qty, unit_cost) VALUES (?,?,?,?)', 
+                [po.insertId, i.inventory_id, i.qty, i.cost]
+            );
         }
+
         await conn.commit();
-        res.status(201).send();
-    } catch (e) { await conn.rollback(); res.status(500).send(); }
-    finally { conn.release(); }
+        res.status(201).json({ message: 'Purchase Order created!', po_number: finalPONumber });
+    } catch (e) { 
+        await conn.rollback(); 
+        res.status(500).json({ error: 'Failed to create PO' }); 
+    } finally { 
+        conn.release(); 
+    }
 });
 
 // --- KEEP ALIVE ---
