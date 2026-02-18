@@ -225,118 +225,84 @@ app.get('/api/purchase-orders', async (req, res) => {
 });
 
 // ==========================================
-// CUSTOMERS & EVENTS
+// CUSTOMER CRM SYSTEM (Official Phase 1)
 // ==========================================
 
+// 1. GET: List Customers (with Search)
 app.get('/api/customers', async (req, res) => {
     const { search } = req.query;
-    let query = 'SELECT * FROM customers';
-    let params = [];
-    if (search) {
-        query += ' WHERE name LIKE ? OR contact_info LIKE ?';
-        params = [`%${search}%`, `%${search}%`];
-    }
-    query += ' ORDER BY created_at DESC';
     try {
+        let query = 'SELECT * FROM customers';
+        let params = [];
+
+        if (search) {
+            query += ' WHERE name LIKE ? OR email LIKE ? OR mobile_number LIKE ? OR bandai_id LIKE ?';
+            const term = `%${search}%`;
+            params = [term, term, term, term];
+        }
+
+        query += ' ORDER BY name ASC';
         const [rows] = await db.execute(query, params);
         res.json(rows);
-    } catch (e) { res.status(500).json({ error: 'Failed to load customers' }); }
-});
-
-app.post('/api/customers/create', async (req, res) => {
-    const { name, contact_info } = req.body;
-    try {
-        const [resDb] = await db.execute('INSERT INTO customers (name, contact_info) VALUES (?, ?)', [name, contact_info]);
-        res.status(201).json({ message: 'Created', id: resDb.insertId });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/api/customers/search', async (req, res) => {
-    const { q } = req.query;
-    try {
-        const [rows] = await db.execute('SELECT id, name, contact_info FROM customers WHERE name LIKE ? LIMIT 5', [`%${q}%`]);
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Search failed' }); }
-});
-
-app.get('/api/customers/:id/recent-events', async (req, res) => {
-    try {
-        const [events] = await db.execute(`
-            SELECT e.id, e.title, e.game_title, e.event_date FROM event_registrations r
-            JOIN events e ON r.event_id = e.id WHERE r.customer_id = ?
-            ORDER BY e.event_date DESC LIMIT 5`, [req.params.id]);
-        res.json(events);
-    } catch (error) { res.status(500).json({ error: 'Failed to fetch history' }); }
-});
-
-app.get('/api/events', async (req, res) => {
-    const { admin } = req.query;
-    let query = `SELECT * FROM events`;
-    if (admin !== 'true') query += ` WHERE event_date >= NOW()`;
-    query += ` ORDER BY event_date DESC`;
-    try {
-        const [events] = await db.execute(query);
-        res.json(events);
-    } catch (e) { res.status(500).json({ error: 'Failed' }); }
-});
-
-app.post('/api/events/create', async (req, res) => {
-    const { title, game_title, event_date, entry_fee, max_players } = req.body;
-    try {
-        await db.execute('INSERT INTO events (title, game_title, event_date, entry_fee, max_players) VALUES (?,?,?,?,?)',
-            [title, game_title, event_date, entry_fee, max_players]);
-        res.status(201).send();
-    } catch (e) { res.status(500).send(); }
-});
-
-// ==========================================
-// PACK STORAGE
-// ==========================================
-
-app.get('/api/storage', async (req, res) => {
-  try {
-    const [rows] = await db.execute(`
-      SELECT p.id, c.id as customer_id, c.name, c.contact_info, p.game_title, p.pack_type, p.quantity, p.last_updated
-      FROM customer_packs p JOIN customers c ON p.customer_id = c.id
-      WHERE p.quantity > 0 ORDER BY p.last_updated DESC`);
-    res.json(rows);
-  } catch (error) { res.status(500).json({ error: 'Failed to fetch storage.' }); }
-});
-
-app.get('/api/storage/history/:customerId', async (req, res) => {
-    try {
-        const [history] = await db.execute(`
-            SELECT t.transaction_date, t.game_title, t.pack_type, t.amount, e.title as event_name, e.event_date 
-            FROM pack_transactions t LEFT JOIN events e ON t.event_id = e.id
-            WHERE t.customer_id = ? ORDER BY t.transaction_date DESC`, [req.params.customerId]);
-        res.json(history);
-    } catch (error) { res.status(500).json({ error: 'Failed to fetch history' }); }
-});
-
-app.post('/api/storage/update', async (req, res) => {
-  const { customer_id, game_title, pack_type, change_amount, event_id } = req.body;
-  const connection = await db.getConnection();
-  try {
-    await connection.beginTransaction();
-    if (change_amount > 0 && event_id) {
-        const [reg] = await connection.execute('SELECT id FROM event_registrations WHERE customer_id = ? AND event_id = ?', [customer_id, event_id]);
-        if (reg.length === 0) throw new Error("Customer did NOT join that event.");
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch customers' });
     }
-    const [existing] = await connection.execute('SELECT id, quantity FROM customer_packs WHERE customer_id = ? AND game_title = ? AND pack_type = ?', [customer_id, game_title, pack_type || 'Standard Booster']);
-    if (existing.length > 0) {
-      await connection.execute('UPDATE customer_packs SET quantity = quantity + ? WHERE id = ?', [change_amount, existing[0].id]);
-    } else {
-      await connection.execute('INSERT INTO customer_packs (customer_id, game_title, pack_type, quantity) VALUES (?, ?, ?, ?)', [customer_id, game_title, pack_type || 'Standard Booster', change_amount]);
-    }
-    await connection.execute('INSERT INTO pack_transactions (customer_id, game_title, pack_type, amount, event_id) VALUES (?, ?, ?, ?, ?)', [customer_id, game_title, pack_type || 'Standard Booster', change_amount, event_id || null]);
-    await connection.commit();
-    res.json({ message: 'Storage updated!' });
-  } catch (error) {
-    await connection.rollback();
-    res.status(500).json({ error: error.message });
-  } finally { connection.release(); }
 });
 
+// 2. POST: Create New Customer
+app.post('/api/customers', async (req, res) => {
+    const { name, email, mobile_number, bandai_id, bushiroad_id, status } = req.body;
+
+    if (!name || (!email && !mobile_number)) {
+        return res.status(400).json({ error: 'Name and at least one contact method (Email/Mobile) are required.' });
+    }
+
+    try {
+        const [result] = await db.execute(
+            `INSERT INTO customers (name, email, mobile_number, bandai_id, bushiroad_id, status) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [name, email || null, mobile_number || null, bandai_id || null, bushiroad_id || null, status || 'Active']
+        );
+        res.status(201).json({ message: 'Customer profile created!', id: result.insertId });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ error: 'Email or Mobile Number already exists.' });
+        }
+        res.status(500).json({ error: 'Database error: ' + error.message });
+    }
+});
+
+// 3. PUT: Update Customer
+app.put('/api/customers/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name, email, mobile_number, bandai_id, bushiroad_id, status, loyalty_points } = req.body;
+
+    try {
+        await db.execute(
+            `UPDATE customers SET 
+             name=?, email=?, mobile_number=?, bandai_id=?, bushiroad_id=?, status=?, loyalty_points=? 
+             WHERE id=?`,
+            [name, email || null, mobile_number || null, bandai_id || null, bushiroad_id || null, status, loyalty_points || 0, id]
+        );
+        res.json({ message: 'Customer updated successfully' });
+    } catch (error) {
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ error: 'Email or Mobile Number is already taken by another user.' });
+        }
+        res.status(500).json({ error: 'Update failed' });
+    }
+});
+
+// 4. DELETE: Remove Customer
+app.delete('/api/customers/:id', async (req, res) => {
+    try {
+        await db.execute('DELETE FROM customers WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Customer deleted' });
+    } catch (error) {
+        // If they are linked to sales or events, this might fail (which is good for safety)
+        res.status(500).json({ error: 'Cannot delete customer. They may have active orders or event history.' });
+    }
+});
 // --- KEEP ALIVE ---
 setInterval(async () => { try { await db.execute('SELECT 1'); } catch(e){} }, 300000);
 
