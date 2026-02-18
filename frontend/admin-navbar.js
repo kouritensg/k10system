@@ -13,11 +13,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 
                 <div class="h-4 w-px bg-gray-300 mx-1"></div>
                 <a href="admin-purchase.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">New Order</a>
-                <a href="admin-PurchaseHistory.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">PO History</a>
+                <a href="admin-PurchaseHistory.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Purchase History</a>
+                <a href=" admin-suppliers.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Suppliers</a>
                 
                 <div class="h-4 w-px bg-gray-300 mx-1"></div>
                 <a href="admin-sales.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">POS</a>
-                <a href="admin-preorders.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Preorders</a>
+                <a href="admin-preorders.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Cust-Preorder</a>
                 <a href="admin-sales-history.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Sales Log</a>
                 
                 <div class="h-4 w-px bg-gray-300 mx-1"></div>
