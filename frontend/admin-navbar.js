@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <a href="admin-customers.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Customers</a>
             <a href="admin-sales.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">POS / Sales</a>
             <a href="admin-preorders.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Customer Preorders</a>
+            <a href="admin-sales-history.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Sales Log</a>
            
             
             <button id="global-logout-btn" class="text-red-600 font-semibold ml-4 border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition">
