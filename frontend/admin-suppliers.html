@@ -9,51 +9,69 @@
 
     <script src="admin-navbar.js"></script>
 
-    <div class="max-w-4xl mx-auto px-4 mt-8 pb-12">
+    <div class="max-w-6xl mx-auto px-4 mt-8 pb-12">
         <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-600 mb-8 flex justify-between items-center">
             <div>
-                <h2 class="text-2xl font-bold text-gray-800">Distributors / Suppliers</h2>
-                <p class="text-xs text-gray-500 mt-1">Manage external vendors and check Database IDs.</p>
+                <h2 class="text-2xl font-bold text-gray-800">Distributors</h2>
+                <p class="text-xs text-gray-400 mt-1 uppercase tracking-widest font-bold">Vendor Directory</p>
             </div>
             <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow transition">
-                + Add New Supplier
+                + Add Distributor
             </button>
         </div>
 
-        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[400px]">
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[500px]">
             <table class="w-full text-left border-collapse">
-                <thead class="bg-gray-50 border-b text-xs font-bold text-gray-400 uppercase">
+                <thead class="bg-gray-50 border-b text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                     <tr>
                         <th class="p-4 w-20">ID</th>
-                        <th class="p-4">Supplier Name</th>
-                        <th class="p-4">Contact/Email</th>
+                        <th class="p-4">Supplier & Terms</th>
+                        <th class="p-4">Contact Details</th>
                         <th class="p-4 text-right">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="supplier-table">
-                    </tbody>
+                <tbody id="supplier-table"></tbody>
             </table>
-            <div id="loading" class="p-12 text-center text-gray-500">Loading suppliers...</div>
+            <div id="loading" class="p-12 text-center text-gray-500">Connecting to database...</div>
         </div>
     </div>
 
     <div id="sup-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-96">
-            <h3 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Add Supplier</h3>
-            <div class="space-y-4">
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Distributor Name</label>
+        <div class="bg-white p-8 rounded-lg shadow-2xl w-[550px]">
+            <h3 class="text-xl font-bold mb-6 text-gray-800 border-b pb-2">Register New Supplier</h3>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Distributor Name *</label>
                     <input type="text" id="sup-name" placeholder="e.g. Maxsoft" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Contact Information</label>
-                    <input type="text" id="sup-contact" placeholder="Email or Phone" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Contact Person</label>
+                    <input type="text" id="sup-person" placeholder="Name" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Phone Number</label>
+                    <input type="text" id="sup-phone" placeholder="+65..." class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div class="col-span-2">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Email Address</label>
+                    <input type="email" id="sup-email" placeholder="orders@distributor.com" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Payment Terms</label>
+                    <select id="sup-terms" class="w-full p-2 border rounded bg-gray-50">
+                        <option value="Immediate">Immediate</option>
+                        <option value="Net 7">Net 7</option>
+                        <option value="Net 14">Net 14</option>
+                        <option value="Net 30">Net 30</option>
+                    </select>
                 </div>
             </div>
-            <div class="flex justify-end gap-3 mt-6">
-                <button onclick="closeModal()" class="text-gray-500 font-bold px-4 hover:bg-gray-100 rounded py-2">Cancel</button>
-                <button onclick="saveSupplier()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded shadow-md transition">
-                    Save Supplier
+
+            <div class="flex justify-end gap-3 mt-8">
+                <button onclick="closeModal()" class="text-gray-500 font-bold px-4 hover:bg-gray-50 rounded py-2">Cancel</button>
+                <button onclick="saveSupplier()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-2 rounded shadow-lg transition">
+                    Save Distributor
                 </button>
             </div>
         </div>
@@ -63,93 +81,80 @@
         const API_URL = 'https://k10system.onrender.com/api';
 
         document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('k10_token');
-            if (!token) window.location.href = 'admin.html';
+            if (!localStorage.getItem('k10_token')) window.location.href = 'admin.html';
             loadSuppliers();
         });
 
         async function loadSuppliers() {
             const tbody = document.getElementById('supplier-table');
             const loading = document.getElementById('loading');
-            
             tbody.innerHTML = '';
             loading.classList.remove('hidden');
 
             try {
                 const res = await fetch(`${API_URL}/suppliers`);
                 const data = await res.json();
-                
                 loading.classList.add('hidden');
                 
                 if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="p-12 text-center text-gray-400 italic">No suppliers found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="4" class="p-12 text-center text-gray-400 italic">No suppliers in database.</td></tr>';
                     return;
                 }
 
                 tbody.innerHTML = data.map(s => `
                     <tr class="border-b hover:bg-gray-50 transition">
                         <td class="p-4 font-mono text-sm text-blue-600 font-bold">#${s.id}</td>
-                        <td class="p-4 font-bold text-gray-800">${s.name}</td>
-                        <td class="p-4 text-gray-500 text-sm">${s.contact_info || '<span class="text-gray-300 italic">No info</span>'}</td>
+                        <td class="p-4">
+                            <div class="font-bold text-gray-800">${s.name}</div>
+                            <div class="text-[10px] font-bold text-blue-500 uppercase bg-blue-50 inline-block px-1 rounded border border-blue-100 mt-1">
+                                ${s.payment_terms || 'Immediate'}
+                            </div>
+                        </td>
+                        <td class="p-4 text-xs text-gray-600 space-y-1">
+                            <div>👤 <span class="font-medium">${s.contact_person || '-'}</span></div>
+                            <div>📧 ${s.email || '-'}</div>
+                            <div>📱 ${s.phone || '-'}</div>
+                        </td>
                         <td class="p-4 text-right">
-                            <button onclick="deleteSupplier(${s.id})" class="text-red-400 hover:text-red-600 font-bold text-xs transition">
+                            <button onclick="deleteSupplier(${s.id})" class="text-red-400 hover:text-red-600 font-bold text-xs">
                                 Delete
                             </button>
                         </td>
-                    </tr>
-                `).join('');
-            } catch (err) {
-                loading.innerText = "Error loading data.";
-            }
+                    </tr>`).join('');
+            } catch (err) { loading.innerText = "Connection failed."; }
         }
 
         async function saveSupplier() {
-            const name = document.getElementById('sup-name').value;
-            const contact_info = document.getElementById('sup-contact').value;
-            
-            if(!name) return alert("Please enter a supplier name.");
+            const payload = {
+                name: document.getElementById('sup-name').value,
+                contact_person: document.getElementById('sup-person').value,
+                email: document.getElementById('sup-email').value,
+                phone: document.getElementById('sup-phone').value,
+                payment_terms: document.getElementById('sup-terms').value
+            };
+            if(!payload.name) return alert("Name is required");
 
             try {
                 const res = await fetch(`${API_URL}/suppliers`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, contact_info })
+                    body: JSON.stringify(payload)
                 });
-
-                if(res.ok) { 
-                    alert("Supplier Added!");
-                    closeModal(); 
-                    loadSuppliers(); 
-                } else {
-                    const error = await res.json();
-                    alert("Error: " + error.error);
-                }
-            } catch(e) {
-                alert("Connection failed.");
-            }
+                if(res.ok) { closeModal(); loadSuppliers(); }
+                else { alert("Error saving."); }
+            } catch(e) { alert("Failed to connect to server."); }
         }
 
         function openModal() {
-            document.getElementById('sup-name').value = '';
-            document.getElementById('sup-contact').value = '';
+            document.querySelectorAll('#sup-modal input').forEach(i => i.value = '');
             document.getElementById('sup-modal').classList.remove('hidden');
             document.getElementById('sup-name').focus();
         }
-
-        function closeModal() {
-            document.getElementById('sup-modal').classList.add('hidden');
-        }
-        
+        function closeModal() { document.getElementById('sup-modal').classList.add('hidden'); }
         async function deleteSupplier(id) {
-            if(confirm("Are you sure? This may break existing Purchase Orders linked to this ID.")) {
-                try {
-                    const res = await fetch(`${API_URL}/suppliers/${id}`, { method: 'DELETE' });
-                    if(res.ok) {
-                        loadSuppliers();
-                    } else {
-                        alert("Could not delete. Check if this supplier is used in PO History.");
-                    }
-                } catch(e) { alert("Error deleting."); }
+            if(confirm("Confirm deletion?")) {
+                await fetch(`${API_URL}/suppliers/${id}`, { method: 'DELETE' });
+                loadSuppliers();
             }
         }
     </script>
