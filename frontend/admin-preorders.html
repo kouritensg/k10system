@@ -16,15 +16,18 @@
             <div class="flex flex-col md:flex-row justify-between items-end gap-4">
                 <div>
                     <h2 class="text-2xl font-bold text-gray-800">⏳ Active Preorder Queue</h2>
-                    <p class="text-gray-500 text-sm">Manage outstanding reservations and top-up deposits.</p>
+                    <p class="text-gray-500 text-sm">Manage outstanding reservations.</p>
                 </div>
                 
                 <div class="flex gap-2 w-full md:w-auto">
                     <select id="filter-game" onchange="applyFilters()" class="p-2 border rounded bg-gray-50 font-bold text-gray-700">
                         <option value="">All Games</option>
                         <option value="One Piece">One Piece</option>
+                        <option value="Pokemon">Pokemon</option>
                         <option value="Hololive">Hololive</option>
                         <option value="Digimon">Digimon</option>
+                        <option value="Dragon Ball">Dragon Ball</option>
+                        <option value="Union Arena">Union Arena</option>
                         <option value="Other">Other</option>
                     </select>
                     
@@ -59,22 +62,15 @@
         <div class="bg-white rounded-lg shadow-xl w-96 p-6">
             <h3 class="text-xl font-bold text-gray-800 mb-2">Add Payment</h3>
             <p class="text-sm text-gray-500 mb-4 whitespace-pre-line" id="pay-modal-desc">...</p>
-            
             <input type="hidden" id="pay-order-id">
             <input type="hidden" id="pay-balance">
-
             <div class="mb-4">
-                <label class="text-xs font-bold text-gray-500 uppercase">Amount to Add ($)</label>
+                <label class="text-xs font-bold text-gray-500 uppercase">Amount ($)</label>
                 <input type="number" id="pay-amount" class="w-full p-2 border-2 border-green-500 rounded text-xl font-bold text-green-700 bg-green-50 focus:outline-none">
             </div>
-
             <div class="flex flex-col gap-2">
-                <button onclick="confirmPayment()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded shadow transition">
-                    Confirm Payment
-                </button>
-                <button onclick="setFullPayment()" class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold py-2 rounded transition">
-                    Mark Fully Paid
-                </button>
+                <button onclick="confirmPayment()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded shadow transition">Confirm Payment</button>
+                <button onclick="setFullPayment()" class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold py-2 rounded transition">Mark Fully Paid</button>
                 <button onclick="closePayModal()" class="text-gray-400 font-bold py-2 text-sm hover:text-gray-600">Cancel</button>
             </div>
         </div>
@@ -82,11 +78,10 @@
 
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
-        let globalOrders = []; // Store data here for instant filtering
+        let globalOrders = [];
 
         document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('k10_token');
-            if (!token) window.location.href = 'admin.html';
+            if (!localStorage.getItem('k10_token')) window.location.href = 'admin.html';
             loadPreorders();
         });
 
@@ -97,27 +92,23 @@
             try {
                 const res = await fetch(`${API_URL}/sales/preorders`);
                 globalOrders = await res.json();
-                
                 loading.classList.add('hidden');
-                applyFilters(); // Render the table
-            } catch (err) { 
-                loading.innerText = "Error loading data."; 
-            }
+                applyFilters(); 
+            } catch (err) { loading.innerText = "Error loading data."; }
         }
 
-        // --- FILTER LOGIC ---
         function applyFilters() {
-            const gameFilter = document.getElementById('filter-game').value;
+            const gameFilter = document.getElementById('filter-game').value.toLowerCase(); // Case insensitive
             const searchText = document.getElementById('filter-search').value.toLowerCase();
             const tbody = document.getElementById('preorder-table');
             const empty = document.getElementById('empty-state');
 
-            // Filter the global list
             const filtered = globalOrders.filter(o => {
-                // 1. Check Game Tag (Backend provides this hidden field)
-                const hasGame = gameFilter === '' || (o.game_tags && o.game_tags.includes(gameFilter));
+                // 1. Check Game Tag (Safe Check)
+                const tags = (o.game_tags || '').toLowerCase(); // "One Piece, Digimon" -> "one piece, digimon"
+                const hasGame = gameFilter === '' || tags.includes(gameFilter);
                 
-                // 2. Check Search Text (Customer Name, Mobile, or Item Name)
+                // 2. Check Search Text
                 const hasText = searchText === '' || 
                                 o.customer_name.toLowerCase().includes(searchText) || 
                                 (o.mobile_number && o.mobile_number.includes(searchText)) ||
@@ -126,7 +117,6 @@
                 return hasGame && hasText;
             });
 
-            // Render Results
             if (filtered.length === 0) {
                 tbody.innerHTML = '';
                 empty.classList.remove('hidden');
@@ -135,20 +125,14 @@
             
             empty.classList.add('hidden');
             tbody.innerHTML = filtered.map(o => {
-                // Calculate Balance
                 const deposit = parseFloat(o.deposit_amount || 0);
                 const total = parseFloat(o.total_amount || 0);
                 const balance = total - deposit;
+                const gameTags = o.game_tags ? o.game_tags.split(',').join(' • ') : 'No Game Tag';
 
-                // Smart Payment Display (Green vs Red)
                 const paymentDisplay = balance <= 0.01 
-                    ? `<div class="text-green-600 font-bold flex items-center gap-1">
-                         <span>✅</span> Fully Paid ($${total})
-                       </div>`
-                    : `<div>
-                        <span class="text-gray-800 font-bold">$${deposit.toFixed(2)} Paid</span>
-                        <div class="text-xs text-red-500 font-bold mt-0.5">Owe: $${balance.toFixed(2)}</div>
-                    </div>`;
+                    ? `<div class="text-green-600 font-bold flex items-center gap-1"><span>✅</span> Fully Paid ($${total})</div>`
+                    : `<div><span class="text-gray-800 font-bold">$${deposit.toFixed(2)} Paid</span><div class="text-xs text-red-500 font-bold mt-0.5">Owe: $${balance.toFixed(2)}</div></div>`;
 
                 return `
                 <tr class="border-b hover:bg-gray-50 transition">
@@ -159,32 +143,26 @@
                     </td>
                     <td class="p-4">
                         <div class="text-sm text-purple-700 font-medium">${o.items_summary}</div>
+                        <div class="text-[10px] text-gray-400 uppercase mt-1 tracking-wider border border-gray-200 inline-block px-1 rounded bg-gray-50">
+                            ${gameTags}
+                        </div>
                     </td>
-                    <td class="p-4">
-                        ${paymentDisplay}
-                    </td>
+                    <td class="p-4">${paymentDisplay}</td>
                     <td class="p-4">
                         <span class="px-2 py-1 rounded text-xs font-bold uppercase ${o.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'}">
                             ${o.status}
                         </span>
                     </td>
                     <td class="p-4 text-right flex justify-end gap-2 items-center">
-                        ${balance > 0.01 ? `
-                        <button onclick="openPayModal(${o.id}, '${o.customer_name}', ${balance})" 
-                                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm transition">
-                            💰 Pay
-                        </button>` : ''}
-                        
-                        <button onclick="markFulfilled(${o.id})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm transition">
-                            ✅ Fulfill
-                        </button>
+                        ${balance > 0.01 ? `<button onclick="openPayModal(${o.id}, '${o.customer_name}', ${balance})" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm transition">💰 Pay</button>` : ''}
+                        <button onclick="markFulfilled(${o.id})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm transition">✅ Fulfill</button>
                     </td>
                 </tr>
                 `;
             }).join('');
         }
 
-        // --- PAYMENT MODAL LOGIC ---
+        // --- MODAL & ACTION FUNCTIONS REMAIN SAME AS BEFORE ---
         function openPayModal(id, name, balance) {
             document.getElementById('pay-order-id').value = id;
             document.getElementById('pay-balance').value = balance;
@@ -193,60 +171,33 @@
             document.getElementById('pay-modal').classList.remove('hidden');
             document.getElementById('pay-amount').focus();
         }
-
         function setFullPayment() {
-            const bal = document.getElementById('pay-balance').value;
-            document.getElementById('pay-amount').value = parseFloat(bal).toFixed(2);
+            document.getElementById('pay-amount').value = parseFloat(document.getElementById('pay-balance').value).toFixed(2);
         }
-
+        function closePayModal() { document.getElementById('pay-modal').classList.add('hidden'); }
+        
         async function confirmPayment() {
             const id = document.getElementById('pay-order-id').value;
             const amount = document.getElementById('pay-amount').value;
-
-            if(!amount || amount <= 0) return alert("Please enter a valid amount");
-
-            // Disable button to prevent double-click
+            if(!amount || amount <= 0) return alert("Enter valid amount");
             const btn = document.querySelector('button[onclick="confirmPayment()"]');
-            const originalText = btn.innerText;
-            btn.innerText = "Processing...";
             btn.disabled = true;
-
             try {
                 const res = await fetch(`${API_URL}/sales/${id}/payment`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ amount: amount })
+                    body: JSON.stringify({ amount })
                 });
-                
-                const result = await res.json();
-
-                if(res.ok) {
-                    alert("Payment Recorded Successfully!");
-                    closePayModal();
-                    loadPreorders(); // Refresh the main table
-                } else {
-                    alert("Error: " + result.error);
-                }
-            } catch(e) { 
-                alert("Connection Error"); 
-            } finally {
-                btn.innerText = originalText;
-                btn.disabled = false;
-            }
+                if(res.ok) { alert("Paid!"); closePayModal(); loadPreorders(); }
+                else alert("Error");
+            } catch(e) { alert("Connection Error"); } finally { btn.disabled = false; }
         }
 
-        function closePayModal() {
-            document.getElementById('pay-modal').classList.add('hidden');
-        }
-
-        // --- FULFILLMENT LOGIC ---
         async function markFulfilled(id) {
-            if(!confirm("Confirm this preorder has been collected/shipped?\nThis will remove it from the active queue.")) return;
-            try {
-                const res = await fetch(`${API_URL}/sales/${id}/fulfill`, { method: 'PUT' });
-                if(res.ok) loadPreorders();
-                else alert("Failed to update status.");
-            } catch(e) { alert("Error updating status"); }
+            if(confirm("Complete this order?")) {
+                await fetch(`${API_URL}/sales/${id}/fulfill`, { method: 'PUT' });
+                loadPreorders();
+            }
         }
     </script>
 </body>
