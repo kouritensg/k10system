@@ -294,21 +294,39 @@ async function viewHistory(id, name) {
             return;
         }
 
-        tbody.innerHTML = history.map(h => `
-            <tr class="border-b hover:bg-gray-50">
-                <td class="p-3 text-gray-500 text-xs">${new Date(h.order_date).toLocaleDateString()}</td>
-                <td class="p-3">
-                    <span class="px-2 py-1 rounded text-xs font-bold uppercase ${h.order_type === 'Preorder' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
-                        ${h.order_type}
-                    </span>
-                </td>
-                <td class="p-3 font-medium text-gray-700 text-xs">${h.items}</td>
-                <td class="p-3 text-right font-bold text-gray-800">$${h.total_amount}</td>
-                <td class="p-3 text-center">
-                    <span class="text-xs font-bold text-gray-500 uppercase">${h.status}</span>
-                </td>
-            </tr>
-        `).join('');
+       tbody.innerHTML = history.map(h => {
+    const deposit = parseFloat(h.deposit_amount || 0);
+    const total = parseFloat(h.total_amount || 0);
+    
+    // Only show "Deposit / Total" logic if it was a Partial/Pending Preorder
+    let priceDisplay = `$${total.toFixed(2)}`;
+    if (h.order_type === 'Preorder' && deposit < total) {
+        priceDisplay = `<span class="text-gray-500 line-through text-xs mr-1">$${total}</span> 
+                        <span class="text-red-500 font-bold">$${deposit} Paid</span>`;
+    } else {
+        priceDisplay = `<span class="font-bold text-green-600">$${total.toFixed(2)}</span>`;
+    }
+
+    return `
+    <tr class="border-b hover:bg-gray-50">
+        <td class="p-3 text-gray-500 text-xs">${new Date(h.order_date).toLocaleDateString()}</td>
+        <td class="p-3">
+            <span class="px-2 py-1 rounded text-xs font-bold uppercase ${h.order_type === 'Preorder' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">
+                ${h.order_type}
+            </span>
+        </td>
+        <td class="p-3 font-medium text-gray-700 text-xs">${h.items}</td>
+        
+        <td class="p-3 text-right">
+            ${priceDisplay}
+        </td>
+
+        <td class="p-3 text-center">
+            <span class="text-xs font-bold text-gray-500 uppercase">${h.status}</span>
+        </td>
+    </tr>
+    `;
+}).join('');
 
     } catch (e) { 
         loading.innerText = "Failed to load."; 
