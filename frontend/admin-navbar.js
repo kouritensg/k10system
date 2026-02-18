@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="flex flex-wrap items-center gap-4 text-sm">
                 <a href="admin.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Dashboard</a>
                 <a href="admin-inventory.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
+                <a href="admin-categories.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Inv Categories</a>
                 
                 <div class="h-4 w-px bg-gray-300 mx-1"></div>
                 <a href="admin-purchase.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">New Order</a>
