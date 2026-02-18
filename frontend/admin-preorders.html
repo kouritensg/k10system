@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Active Preorders</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-7xl mx-auto px-4 mt-8 pb-12">
+        <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-purple-500 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800">⏳ Active Preorder Queue</h2>
+            <p class="text-gray-500">List of all outstanding preorders waiting for fulfillment.</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[500px]">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50 border-b text-xs uppercase font-bold text-gray-500">
+                    <tr>
+                        <th class="p-4">Date</th>
+                        <th class="p-4">Customer</th>
+                        <th class="p-4">Items Reserved</th>
+                        <th class="p-4">Total Value</th>
+                        <th class="p-4">Status</th>
+                        <th class="p-4 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="preorder-table"></tbody>
+            </table>
+            <div id="loading" class="p-12 text-center text-gray-500">Loading queue...</div>
+            <div id="empty-state" class="p-12 text-center text-gray-400 hidden">No active preorders found.</div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('k10_token')) window.location.href = 'admin.html';
+            loadPreorders();
+        });
+
+        async function loadPreorders() {
+            const tbody = document.getElementById('preorder-table');
+            const loading = document.getElementById('loading');
+            const empty = document.getElementById('empty-state');
+            
+            tbody.innerHTML = '';
+            loading.classList.remove('hidden');
+            empty.classList.add('hidden');
+
+            try {
+                const res = await fetch(`${API_URL}/sales/preorders`);
+                const orders = await res.json();
+                
+                loading.classList.add('hidden');
+
+                if (orders.length === 0) {
+                    empty.classList.remove('hidden');
+                    return;
+                }
+
+                tbody.innerHTML = orders.map(o => `
+                    <tr class="border-b hover:bg-gray-50 transition">
+                        <td class="p-4 text-sm text-gray-500">${new Date(o.order_date).toLocaleDateString()}</td>
+                        <td class="p-4">
+                            <div class="font-bold text-gray-800">${o.customer_name}</div>
+                            <div class="text-xs text-gray-400">${o.mobile_number || 'No Contact'}</div>
+                        </td>
+                        <td class="p-4 text-sm text-purple-700 font-medium">${o.items_summary}</td>
+                        <td class="p-4 font-bold text-gray-800">$${o.total_amount}</td>
+                        <td class="p-4">
+                            <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold uppercase">
+                                ${o.status}
+                            </span>
+                        </td>
+                        <td class="p-4 text-right">
+                            <button onclick="markFulfilled(${o.id})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-bold shadow-sm">
+                                ✅ Mark Fulfilled
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) { loading.innerText = "Error loading data."; }
+        }
+
+        async function markFulfilled(id) {
+            if(!confirm("Confirm this preorder is collected/shipped?")) return;
+            try {
+                const res = await fetch(`${API_URL}/sales/${id}/fulfill`, { method: 'PUT' });
+                if(res.ok) loadPreorders();
+            } catch(e) { alert("Error updating status"); }
+        }
+    </script>
+</body>
+</html>
