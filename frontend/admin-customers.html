@@ -141,35 +141,34 @@
                     empty.classList.remove('hidden');
                     return;
                 }
-
-                tbody.innerHTML = data.map(c => `
-                    <tr class="border-b hover:bg-gray-50 transition">
-                        <td class="p-4 font-mono text-xs text-gray-400">#${c.id}</td>
-                        <td class="p-4">
-                            <div class="font-bold text-gray-800 text-lg">${c.name}</div>
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase 
-                                ${c.status === 'Active' ? 'bg-green-100 text-green-700' : 
-                                  c.status === 'Inactive' ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-600'}">
-                                ${c.status}
-                            </span>
-                        </td>
-                        <td class="p-4 text-sm text-gray-600">
-                            <div>📧 ${c.email || '<span class="text-gray-300">-</span>'}</div>
-                            <div class="mt-1">📱 ${c.mobile_number || '<span class="text-gray-300">-</span>'}</div>
-                        </td>
-                        <td class="p-4 text-xs">
-                            ${c.bandai_id ? `<div class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded inline-block mb-1 font-bold">Bandai: ${c.bandai_id}</div><br>` : ''}
-                            ${c.bushiroad_id ? `<div class="bg-red-100 text-red-800 px-2 py-1 rounded inline-block font-bold">Bushi: ${c.bushiroad_id}</div>` : ''}
-                        </td>
-                        <td class="p-4 text-center font-bold text-blue-600 text-lg">
-                            ${c.loyalty_points || 0}
-                        </td>
-                        <td class="p-4 text-right">
-                            <button onclick='openEditModal(${JSON.stringify(c)})' class="text-blue-600 hover:text-blue-800 font-bold text-sm mr-4">Edit</button>
-                            <button onclick="deleteCustomer(${c.id})" class="text-red-400 hover:text-red-600 text-sm font-bold">Delete</button>
-                        </td>
-                    </tr>
-                `).join('');
+tbody.innerHTML = data.map(c => `
+    <tr class="border-b hover:bg-gray-50 transition">
+        <td class="p-4 font-mono text-xs text-gray-400">#${c.id}</td>
+        <td class="p-4">
+            <div class="font-bold text-gray-800 text-lg">${c.name}</div>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase 
+                ${c.status === 'Active' ? 'bg-green-100 text-green-700' : 
+                  c.status === 'Inactive' ? 'bg-gray-100 text-gray-500' : 'bg-red-100 text-red-600'}">
+                ${c.status}
+            </span>
+        </td>
+        <td class="p-4 text-sm text-gray-600">
+            <div>📧 ${c.email || '<span class="text-gray-300">-</span>'}</div>
+            <div class="mt-1">📱 ${c.mobile_number || '<span class="text-gray-300">-</span>'}</div>
+        </td>
+        <td class="p-4 text-xs text-gray-500">
+            ${c.bandai_id ? `<div class="mb-1">Bandai: <span class="font-mono font-bold text-gray-700">${c.bandai_id}</span></div>` : ''}
+            ${c.bushiroad_id ? `<div>Bushi: <span class="font-mono font-bold text-gray-700">${c.bushiroad_id}</span></div>` : ''}
+        </td>
+        <td class="p-4 text-center font-bold text-blue-600 text-lg">
+            ${c.loyalty_points || 0}
+        </td>
+        <td class="p-4 text-right">
+            <button onclick='openEditModal(${JSON.stringify(c)})' class="text-blue-600 hover:text-blue-800 font-bold text-sm mr-4">Edit</button>
+            <button onclick="deleteCustomer(${c.id})" class="text-red-400 hover:text-red-600 text-sm font-bold">Delete</button>
+        </td>
+    </tr>
+`).join('');
 
             } catch (err) {
                 loading.innerText = "Error loading data.";
