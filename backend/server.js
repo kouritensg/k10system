@@ -378,7 +378,10 @@ app.get('/api/sales/preorders', async (req, res) => {
         const [rows] = await db.execute(`
             SELECT o.id, o.order_date, c.name as customer_name, c.mobile_number, 
                    o.total_amount, o.deposit_amount, o.status,
-                   GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items_summary
+                   -- Create a readable summary of items
+                   GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items_summary,
+                   -- Hidden field to help with filtering by Game
+                   GROUP_CONCAT(DISTINCT i.game_title) as game_tags
             FROM customer_orders o
             JOIN customers c ON o.customer_id = c.id
             JOIN customer_order_items oi ON o.id = oi.order_id
@@ -388,7 +391,10 @@ app.get('/api/sales/preorders', async (req, res) => {
             ORDER BY o.order_date ASC
         `);
         res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Failed to fetch preorders' }); }
+    } catch (error) { 
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch preorders' }); 
+    }
 });
 
 // 2. Get Customer History (Updated to fetch deposit)
