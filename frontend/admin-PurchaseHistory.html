@@ -2,26 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>K10 Admin - PO Tracking</title>
+    <title>K10 Admin - PO History & Tracking</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 font-sans text-gray-800 pb-20">
+<body class="bg-gray-100 font-sans text-gray-800">
 
     <script src="admin-navbar.js"></script>
 
-    <div class="max-w-7xl mx-auto px-4 mt-8">
-        <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-600 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-                <h2 class="text-2xl font-bold">📜 Purchase History</h2>
-                <p class="text-xs text-gray-400 font-bold uppercase">Manage Deliveries & Preorder Payments</p>
-            </div>
-            <div class="flex gap-2">
-                <input type="text" id="filter-search" onkeyup="applyFilters()" placeholder="Search PO or Supplier..." class="p-2 border rounded text-sm w-64 outline-none focus:ring-2 focus:ring-blue-500">
-                <select id="filter-status" onchange="applyFilters()" class="p-2 border rounded text-sm font-bold text-gray-600">
-                    <option value="">All Status</option>
-                    <option value="Ordered">Ordered</option>
-                    <option value="Received">Received</option>
-                </select>
+    <div class="max-w-7xl mx-auto px-4 mt-8 pb-12">
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-600 mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">📜 Purchase History</h2>
+                    <p class="text-gray-500 text-sm italic">Manage Deliveries & Payments</p>
+                </div>
+                
+                <div class="flex gap-2 w-full md:w-auto">
+                    <input type="text" id="filter-search" onkeyup="applyFilters()" 
+                           placeholder="Search PO or Supplier..." 
+                           class="p-2 border rounded shadow-sm w-full md:w-64 outline-none focus:ring-2 focus:ring-blue-500">
+                    <select id="filter-status" onchange="applyFilters()" class="p-2 border rounded font-bold text-gray-600">
+                        <option value="">All Status</option>
+                        <option value="Ordered">Ordered</option>
+                        <option value="Received">Received</option>
+                        <option value="Partial">Partial Delivery</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -31,41 +38,41 @@
                     <tr>
                         <th class="p-4">PO Number</th>
                         <th class="p-4">Supplier</th>
-                        <th class="p-4">Finance (Value/Paid)</th>
-                        <th class="p-4">Items Summary</th>
-                        <th class="p-4 text-center">Status</th>
+                        <th class="p-4">Value / Paid</th>
+                        <th class="p-4">Delivery Status</th>
                         <th class="p-4 text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="po-table-body"></tbody>
             </table>
-            <div id="loading" class="p-12 text-center text-gray-400 animate-pulse font-bold">⏳ Syncing with database...</div>
+            <div id="loading" class="p-12 text-center text-gray-500 font-bold">⏳ Loading records...</div>
         </div>
     </div>
 
-    <div id="manage-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-[100]">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-xl p-8 relative">
-            <h3 class="text-xl font-bold mb-6 border-b pb-2" id="manage-title">Manage Order</h3>
+    <div id="details-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[80]">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 p-6 relative">
+            <h3 class="text-xl font-bold text-gray-800 mb-4" id="modal-title">PO Details</h3>
             
-            <div class="space-y-6">
-                <div class="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <label class="text-[10px] font-bold text-green-700 uppercase">💰 Record New Payment (Invoice)</label>
-                    <div class="flex gap-2 mt-2">
-                        <input type="number" id="new-pay-amount" step="0.01" class="flex-grow p-2 border rounded font-bold" placeholder="0.00">
-                        <button onclick="submitPayment()" class="bg-green-600 text-white px-4 py-2 rounded font-bold hover:bg-green-700 shadow">Update</button>
-                    </div>
-                    <p id="pay-summary" class="text-[10px] text-green-600 mt-2 font-bold uppercase"></p>
-                </div>
-
-                <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <label class="text-[10px] font-bold text-blue-700 uppercase">📦 Inventory Receipt</label>
-                    <p class="text-xs text-gray-500 mb-3">Mark this order as received to add all items to live stock.</p>
-                    <button onclick="markAsReceived()" class="w-full bg-blue-600 text-white py-3 rounded font-bold shadow-lg hover:bg-blue-700">Confirm Receipt of Stock</button>
-                </div>
+            <div class="overflow-y-auto max-h-[60vh] border rounded">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-gray-50 text-gray-500 uppercase font-bold text-[10px]">
+                        <tr>
+                            <th class="p-3">Product</th>
+                            <th class="p-3 text-center">Ordered</th>
+                            <th class="p-3 text-center">Previously Recv.</th>
+                            <th class="p-3 text-center bg-blue-50">Receive Now</th>
+                            <th class="p-3 text-right">Unit Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-body"></tbody>
+                </table>
             </div>
-
-            <div class="mt-8 text-right">
-                <button onclick="closeManageModal()" class="text-gray-400 font-bold hover:underline uppercase text-xs">Close Window</button>
+            
+            <div class="flex justify-between items-center mt-6 pt-4 border-t">
+                <button onclick="closeModal()" class="text-gray-500 font-bold px-4 hover:underline">Close</button>
+                <button onclick="processDelivery()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-8 rounded shadow-lg">
+                    Confirm Delivery
+                </button>
             </div>
         </div>
     </div>
@@ -73,17 +80,15 @@
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
         let globalOrders = [];
-        let currentManageId = null;
+        let currentPOId = null;
 
         document.addEventListener('DOMContentLoaded', loadHistory);
 
         async function loadHistory() {
-            try {
-                const res = await fetch(`${API_URL}/purchase-orders`);
-                globalOrders = await res.json();
-                document.getElementById('loading').classList.add('hidden');
-                applyFilters();
-            } catch (e) { document.getElementById('loading').innerText = "Connection Error"; }
+            const res = await fetch(`${API_URL}/purchase-orders`);
+            globalOrders = await res.json();
+            document.getElementById('loading').classList.add('hidden');
+            applyFilters();
         }
 
         function applyFilters() {
@@ -98,57 +103,92 @@
             });
 
             tbody.innerHTML = filtered.map(o => {
-                const total = parseFloat(o.calculated_total || 0);
+                const total = parseFloat(o.total_value || 0);
                 const paid = parseFloat(o.paid_amount || 0);
-                const isPaid = paid >= (total - 0.01);
+                const isFullyPaid = paid >= (total - 0.01);
                 
                 return `
-                <tr class="border-b hover:bg-gray-50 transition text-xs">
+                <tr class="border-b hover:bg-gray-50">
                     <td class="p-4 font-mono font-bold text-blue-600">#${o.po_number}</td>
                     <td class="p-4 font-bold text-gray-700">${o.supplier_name}</td>
                     <td class="p-4">
                         <div class="font-bold">$${total.toFixed(2)}</div>
-                        <div class="text-[9px] font-bold uppercase ${isPaid ? 'text-green-500' : 'text-orange-500'}">
-                            ${isPaid ? '✅ Fully Paid' : `Paid: $${paid.toFixed(2)}`}
+                        <div class="text-[10px] uppercase font-bold ${isFullyPaid ? 'text-green-500' : 'text-orange-500'}">
+                            ${isFullyPaid ? '✅ Fully Paid' : `Paid: $${paid.toFixed(2)}`}
                         </div>
                     </td>
-                    <td class="p-4 text-gray-500 max-w-xs truncate">${o.items_summary || '-'}</td>
-                    <td class="p-4 text-center">
-                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${o.status === 'Received' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
+                    <td class="p-4">
+                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-gray-100 text-gray-600">
                             ${o.status}
                         </span>
                     </td>
-                    <td class="p-4 text-right space-x-2">
-                        <button onclick="openManageModal(${o.id}, '${o.po_number}', ${total}, ${paid})" class="bg-gray-800 text-white px-3 py-1 rounded text-[10px] font-bold uppercase">Manage</button>
+                    <td class="p-4 text-right">
+                        <button onclick="viewDetails(${o.id}, '${o.po_number}')" 
+                                class="text-blue-600 hover:underline text-xs font-bold uppercase tracking-wider">
+                            View Details
+                        </button>
                     </td>
                 </tr>`;
             }).join('');
         }
 
-        function openManageModal(id, poNum, total, paid) {
-            currentManageId = id;
-            document.getElementById('manage-title').innerText = `PO: ${poNum}`;
-            document.getElementById('pay-summary').innerText = `Total Order Value: $${total.toFixed(2)} | Current Paid: $${paid.toFixed(2)}`;
-            document.getElementById('manage-modal').classList.remove('hidden');
+        async function viewDetails(id, poNum) {
+            currentPOId = id;
+            document.getElementById('modal-title').innerText = `Stock-In: ${poNum}`;
+            document.getElementById('details-modal').classList.remove('hidden');
+            
+            const res = await fetch(`${API_URL}/purchase-orders/${id}`);
+            const items = await res.json();
+            
+            document.getElementById('modal-body').innerHTML = items.map(i => `
+                <tr class="border-b">
+                    <td class="p-3">
+                        <div class="font-bold text-gray-800">${i.card_name}</div>
+                        <input type="hidden" class="item-id" value="${i.inventory_id}">
+                        <input type="hidden" class="po-item-id" value="${i.id}">
+                    </td>
+                    <td class="p-3 text-center font-bold text-gray-400">${i.ordered_qty}</td>
+                    <td class="p-3 text-center font-bold text-gray-500">${i.received_qty || 0}</td>
+                    <td class="p-3 text-center bg-blue-50">
+                        <input type="number" class="receive-qty w-16 p-1 border rounded text-center font-bold border-blue-300" 
+                               value="${i.ordered_qty - (i.received_qty || 0)}" max="${i.ordered_qty - (i.received_qty || 0)}">
+                    </td>
+                    <td class="p-3 text-right font-mono text-gray-500">$${parseFloat(i.unit_cost).toFixed(2)}</td>
+                </tr>
+            `).join('');
         }
 
-        async function submitPayment() {
-            const amount = parseFloat(document.getElementById('new-pay-amount').value) || 0;
-            if(amount <= 0) return alert("Enter amount");
-            const res = await fetch(`${API_URL}/purchase-orders/${currentManageId}/payment`, {
-                method: 'PUT', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ amount })
+        async function processDelivery() {
+            const rows = document.querySelectorAll('#modal-body tr');
+            const items = [];
+            
+            rows.forEach(row => {
+                const qty = parseInt(row.querySelector('.receive-qty').value);
+                if (qty > 0) {
+                    items.push({
+                        po_item_id: row.querySelector('.po-item-id').value,
+                        inventory_id: row.querySelector('.item-id').value,
+                        qty_received: qty
+                    });
+                }
             });
-            if(res.ok) { alert("Paid!"); location.reload(); }
+
+            if(items.length === 0) return alert("Nothing to receive.");
+
+            const res = await fetch(`${API_URL}/purchase-orders/${currentPOId}/receive`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items })
+            });
+
+            if(res.ok) {
+                alert("Inventory Updated!");
+                closeModal();
+                loadHistory();
+            }
         }
 
-        async function markAsReceived() {
-            if(!confirm("Stock-in all items?")) return;
-            const res = await fetch(`${API_URL}/purchase-orders/${currentManageId}/receive-all`, { method: 'PUT' });
-            if(res.ok) { alert("Inventory Updated!"); location.reload(); }
-        }
-
-        function closeManageModal() { document.getElementById('manage-modal').classList.add('hidden'); }
+        function closeModal() { document.getElementById('details-modal').classList.add('hidden'); }
     </script>
 </body>
 </html>
