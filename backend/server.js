@@ -117,21 +117,24 @@ app.put('/api/inventory/:id', async (req, res) => {
 
 // Create a New Purchase Order
 app.post('/api/purchase-orders', async (req, res) => {
-    const { supplier_id, po_number, items } = req.body;
+    const { supplier_id, po_number, items, payment_status, total_cost, deposit_paid, paid_amount } = req.body;
     const conn = await db.getConnection();
     
     try {
         await conn.beginTransaction();
         const finalPONumber = po_number || `PO-${Date.now()}`;
 
+        // Save Header with Financial Data
         const [po] = await conn.execute(
-            'INSERT INTO purchase_orders (supplier_id, po_number, status) VALUES (?,?,?)', 
-            [supplier_id, finalPONumber, 'Ordered']
+            `INSERT INTO purchase_orders 
+            (supplier_id, po_number, status, payment_status, total_cost, deposit_paid, paid_amount) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)`, 
+            [supplier_id, finalPONumber, 'Ordered', payment_status, total_cost, deposit_paid, paid_amount]
         );
 
         for (const i of items) {
             await conn.execute(
-                'INSERT INTO po_items (po_id, inventory_id, ordered_qty, unit_cost) VALUES (?,?,?,?)', 
+                'INSERT INTO po_items (po_id, inventory_id, ordered_qty, unit_cost) VALUES (?, ?, ?, ?)', 
                 [po.insertId, i.inventory_id, i.qty, i.cost]
             );
         }
@@ -140,7 +143,7 @@ app.post('/api/purchase-orders', async (req, res) => {
         res.status(201).json({ message: 'PO Created', po_number: finalPONumber });
     } catch (e) { 
         await conn.rollback(); 
-        res.status(500).json({ error: 'Failed to create PO: ' + e.message }); 
+        res.status(500).json({ error: e.message }); 
     } finally { conn.release(); }
 });
 
