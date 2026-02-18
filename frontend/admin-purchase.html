@@ -20,18 +20,23 @@
     <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
         
         <div class="lg:col-span-1 space-y-6">
-            <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
-                <h2 class="text-lg font-bold mb-4">1. Order Details</h2>
-                <div class="space-y-4">
-                    <div>
-                        <label class="text-xs font-bold text-gray-500 uppercase">Distributor</label>
-                        <select id="supplier-select" class="w-full p-2 border rounded mt-1 bg-gray-50"></select>
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold text-gray-500 uppercase">PO Reference #</label>
-                        <input type="text" id="po-number" placeholder="e.g. MS-2026-001" class="w-full p-2 border rounded mt-1">
-                    </div>
-                </div>
+         <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
+    <h2 class="text-lg font-bold mb-4">1. Order Details</h2>
+    <div class="space-y-4">
+        <div>
+            <label class="text-xs font-bold text-gray-500 uppercase italic">Purchase ID (Auto-Generated)</label>
+            <div class="flex items-center gap-2 mt-1">
+                <input type="text" id="po-number" placeholder="Leave blank for auto-gen" 
+                       class="w-full p-2 border rounded bg-gray-50 font-mono text-blue-600 font-bold">
+            </div>
+        </div>
+        <div>
+            <label class="text-xs font-bold text-gray-500 uppercase">Distributor / Supplier</label>
+            <select id="supplier-select" class="w-full p-2 border rounded mt-1 bg-white border-blue-200 focus:ring-2 focus:ring-blue-500">
+                </select>
+        </div>
+    </div>
+</div>
             </div>
 
             <div class="bg-white p-6 rounded-lg shadow-sm">
