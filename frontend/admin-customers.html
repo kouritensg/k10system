@@ -3,97 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K10 Admin - Customers</title>
+    <title>K10 Admin - Customer Database</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 font-sans">
 
-    <nav class="bg-white shadow-sm mb-8">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-            <h1 class="text-xl font-bold text-gray-800">K10 Manager Portal</h1>
-            <div class="space-x-4">
-                <a href="admin.html" class="text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
-                <a href="admin-events.html" class="text-gray-600 hover:text-blue-600 font-medium">Events</a>
-                <a href="admin-customers.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">Customers</a>
-                <a href="admin-storage.html" class="text-gray-600 hover:text-blue-600 font-medium">Pack Bank</a>
-                <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
-            </div>
+    <nav class="bg-white shadow-sm mb-8 px-4 py-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-gray-800">👥 Customer Database</h1>
+        <div class="space-x-4">
+            <a href="admin.html" class="text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
+            <a href="admin-orders.html" class="text-gray-600 hover:text-blue-600 font-medium">Orders</a>
+            <a href="admin-customers.html" class="text-blue-600 font-bold border-b-2 border-blue-600 pb-1">Customers</a>
+            <button id="logout-btn" class="text-red-600 font-semibold ml-4">Logout</button>
         </div>
     </nav>
 
-    <div class="max-w-6xl mx-auto px-4">
+    <div class="max-w-7xl mx-auto px-4">
         
         <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h2 class="text-2xl font-bold text-gray-800">Customer Database</h2>
-            <div class="flex gap-2 w-full md:w-auto">
-                <input type="text" id="search-input" placeholder="Search name or phone..." class="p-2 border rounded w-full md:w-64">
-                <button onclick="openModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold shadow-sm whitespace-nowrap">
-                    + Add Customer
-                </button>
+            <div class="relative w-full md:w-96">
+                <input type="text" id="search-input" placeholder="Search Name, Email, Mobile or Game ID..." 
+                       class="w-full p-2 pl-10 border rounded shadow-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
             </div>
+            <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow-md flex items-center gap-2">
+                <span>+</span> Add Customer
+            </button>
         </div>
 
-        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[500px]">
             <table class="w-full text-left border-collapse">
-                <thead class="bg-gray-50 border-b">
+                <thead class="bg-gray-50 border-b text-xs uppercase font-bold text-gray-500">
                     <tr>
-                        <th class="p-4 w-16">ID</th>
-                        <th class="p-4">Name</th>
+                        <th class="p-4">ID</th>
+                        <th class="p-4">Customer Details</th>
                         <th class="p-4">Contact Info</th>
-                        <th class="p-4">Loyalty Pts</th>
-                        <th class="p-4 text-right">Joined Date</th>
+                        <th class="p-4">Game IDs</th>
+                        <th class="p-4 text-center">Status</th>
+                        <th class="p-4 text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="customer-table-body">
                     </tbody>
             </table>
-            <div id="loading-msg" class="p-8 text-center text-gray-500">Loading customers...</div>
+            <div id="loading" class="p-12 text-center text-gray-500">Loading directory...</div>
+            <div id="empty-state" class="p-12 text-center text-gray-400 hidden">No customers found.</div>
         </div>
-
     </div>
 
-    <div id="add-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 p-6">
-            <h3 class="text-xl font-bold mb-4 text-gray-800">Register New Customer</h3>
+    <div id="customer-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6">
+            <div class="flex justify-between items-center mb-6 border-b pb-4">
+                <h3 class="text-xl font-bold text-gray-800" id="modal-title">Add New Customer</h3>
+                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
             
-            <div class="mb-4">
-                <label class="block text-gray-700 text-sm font-bold mb-2">Full Name</label>
-                <input type="text" id="cust-name" class="border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:border-blue-500">
-            </div>
+            <form id="customer-form" class="space-y-4">
+                <input type="hidden" id="cust-id"> <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Full Name *</label>
+                        <input type="text" id="cust-name" required class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Email Address</label>
+                        <input type="email" id="cust-email" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Mobile Number</label>
+                        <input type="text" id="cust-mobile" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
 
-            <div class="mb-6">
-                <label class="block text-gray-700 text-sm font-bold mb-2">Contact Info (Unique)</label>
-                <input type="text" id="cust-contact" placeholder="Email or Phone Number" class="border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:border-blue-500">
-                <p class="text-xs text-gray-400 mt-1">This will be their unique ID.</p>
-            </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Bandai ID</label>
+                        <input type="text" id="cust-bandai" placeholder="e.g. 100293..." class="w-full p-2 border rounded bg-yellow-50 focus:ring-2 focus:ring-yellow-400 outline-none">
+                    </div>
 
-            <div class="flex justify-end space-x-3">
-                <button onclick="closeModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded transition">
-                    Cancel
-                </button>
-                <button onclick="saveCustomer()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition shadow-md">
-                    Register
-                </button>
-            </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Bushiroad ID</label>
+                        <input type="text" id="cust-bushi" placeholder="e.g. US-992..." class="w-full p-2 border rounded bg-red-50 focus:ring-2 focus:ring-red-400 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
+                        <select id="cust-status" class="w-full p-2 border rounded">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                            <option value="Banned">Banned</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Loyalty Points</label>
+                        <input type="number" id="cust-points" value="0" class="w-full p-2 border rounded">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-8 pt-4 border-t">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">Cancel</button>
+                    <button type="submit" class="px-6 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 shadow-md">Save Customer</button>
+                </div>
+            </form>
         </div>
     </div>
 
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
-        
+
         document.addEventListener('DOMContentLoaded', () => {
             const token = localStorage.getItem('k10_token');
             if (!token) window.location.href = 'admin.html';
             
             loadCustomers();
-
-            // Search Logic
-            let debounceTimer;
+            
+            // Search Debounce
+            let timeout;
             document.getElementById('search-input').addEventListener('input', (e) => {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => loadCustomers(e.target.value), 300);
+                clearTimeout(timeout);
+                timeout = setTimeout(() => loadCustomers(e.target.value), 300);
             });
 
+            // Handle Form Submit (Add or Edit)
+            document.getElementById('customer-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await saveCustomer();
+            });
+            
             document.getElementById('logout-btn').addEventListener('click', () => {
                 localStorage.removeItem('k10_token');
                 window.location.href = 'admin.html';
@@ -102,26 +138,49 @@
 
         async function loadCustomers(search = '') {
             const tbody = document.getElementById('customer-table-body');
-            const loading = document.getElementById('loading-msg');
+            const loading = document.getElementById('loading');
+            const empty = document.getElementById('empty-state');
             
+            tbody.innerHTML = '';
+            loading.classList.remove('hidden');
+            empty.classList.add('hidden');
+
             try {
                 const res = await fetch(`${API_URL}/customers?search=${search}`);
-                const customers = await res.json();
+                const data = await res.json();
                 
                 loading.classList.add('hidden');
-                
-                if (customers.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-500">No customers found.</td></tr>`;
+
+                if (data.length === 0) {
+                    empty.classList.remove('hidden');
                     return;
                 }
 
-                tbody.innerHTML = customers.map(c => `
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="p-4 font-mono text-xs text-gray-500">#${c.id}</td>
-                        <td class="p-4 font-bold text-gray-800">${c.name}</td>
-                        <td class="p-4 text-gray-600">${c.contact_info}</td>
-                        <td class="p-4 font-bold text-blue-600">${c.loyalty_points || 0}</td>
-                        <td class="p-4 text-right text-sm text-gray-400">${new Date(c.created_at).toLocaleDateString()}</td>
+                tbody.innerHTML = data.map(c => `
+                    <tr class="border-b hover:bg-gray-50 transition">
+                        <td class="p-4 font-mono text-xs text-gray-400">#${c.id}</td>
+                        <td class="p-4">
+                            <div class="font-bold text-gray-800">${c.name}</div>
+                            <div class="text-xs text-blue-600 font-bold">Points: ${c.loyalty_points || 0}</div>
+                        </td>
+                        <td class="p-4 text-sm text-gray-600">
+                            <div>📧 ${c.email || '<span class="text-gray-300">-</span>'}</div>
+                            <div class="mt-1">📱 ${c.mobile_number || '<span class="text-gray-300">-</span>'}</div>
+                        </td>
+                        <td class="p-4 text-xs">
+                            ${c.bandai_id ? `<div class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded inline-block mb-1">Bandai: ${c.bandai_id}</div><br>` : ''}
+                            ${c.bushiroad_id ? `<div class="bg-red-100 text-red-800 px-2 py-1 rounded inline-block">Bushi: ${c.bushiroad_id}</div>` : ''}
+                        </td>
+                        <td class="p-4 text-center">
+                            <span class="px-2 py-1 rounded-full text-xs font-bold uppercase 
+                                ${c.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">
+                                ${c.status}
+                            </span>
+                        </td>
+                        <td class="p-4 text-right">
+                            <button onclick='openEditModal(${JSON.stringify(c)})' class="text-blue-600 hover:underline font-bold text-sm mr-3">Edit</button>
+                            <button onclick="deleteCustomer(${c.id})" class="text-red-400 hover:text-red-600 text-sm">Delete</button>
+                        </td>
                     </tr>
                 `).join('');
 
@@ -132,44 +191,74 @@
 
         // --- MODAL LOGIC ---
         function openModal() {
-            document.getElementById('add-modal').classList.remove('hidden');
-            document.getElementById('cust-name').focus();
+            document.getElementById('modal-title').innerText = "Add New Customer";
+            document.getElementById('customer-form').reset();
+            document.getElementById('cust-id').value = ''; // Ensure ID is empty
+            document.getElementById('customer-modal').classList.remove('hidden');
+        }
+
+        function openEditModal(customer) {
+            document.getElementById('modal-title').innerText = "Edit Customer";
+            document.getElementById('cust-id').value = customer.id;
+            document.getElementById('cust-name').value = customer.name;
+            document.getElementById('cust-email').value = customer.email;
+            document.getElementById('cust-mobile').value = customer.mobile_number;
+            document.getElementById('cust-bandai').value = customer.bandai_id;
+            document.getElementById('cust-bushi').value = customer.bushiroad_id;
+            document.getElementById('cust-status').value = customer.status;
+            document.getElementById('cust-points').value = customer.loyalty_points;
+            
+            document.getElementById('customer-modal').classList.remove('hidden');
         }
 
         function closeModal() {
-            document.getElementById('add-modal').classList.add('hidden');
-            document.getElementById('cust-name').value = '';
-            document.getElementById('cust-contact').value = '';
+            document.getElementById('customer-modal').classList.add('hidden');
         }
 
         async function saveCustomer() {
-            const name = document.getElementById('cust-name').value;
-            const contact = document.getElementById('cust-contact').value;
+            const id = document.getElementById('cust-id').value;
+            const data = {
+                name: document.getElementById('cust-name').value,
+                email: document.getElementById('cust-email').value,
+                mobile_number: document.getElementById('cust-mobile').value,
+                bandai_id: document.getElementById('cust-bandai').value,
+                bushiroad_id: document.getElementById('cust-bushi').value,
+                status: document.getElementById('cust-status').value,
+                loyalty_points: document.getElementById('cust-points').value
+            };
 
-            if(!name || !contact) {
-                alert("Name and Contact Info are required!");
-                return;
-            }
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API_URL}/customers/${id}` : `${API_URL}/customers`;
 
             try {
-                const res = await fetch(`${API_URL}/customers/create`, {
-                    method: 'POST',
+                const res = await fetch(url, {
+                    method: method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, contact_info: contact })
+                    body: JSON.stringify(data)
                 });
-
-                const data = await res.json();
-
+                
+                const result = await res.json();
+                
                 if (res.ok) {
-                    alert("Customer Registered Successfully!");
+                    alert("Saved Successfully!");
                     closeModal();
                     loadCustomers();
                 } else {
-                    alert("Error: " + data.error);
+                    alert("Error: " + result.error);
                 }
             } catch (err) {
-                alert("Connection failed.");
+                alert("Connection Failed");
             }
+        }
+
+        async function deleteCustomer(id) {
+            if (!confirm("Are you sure? This cannot be undone.")) return;
+            
+            try {
+                const res = await fetch(`${API_URL}/customers/${id}`, { method: 'DELETE' });
+                if (res.ok) loadCustomers();
+                else alert("Could not delete. Check if customer has linked orders.");
+            } catch (err) { alert("Error deleting."); }
         }
     </script>
 </body>
