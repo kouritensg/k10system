@@ -10,6 +10,7 @@
     <script src="admin-navbar.js"></script>
 
     <div class="max-w-7xl mx-auto px-4 mt-8 pb-12">
+        
         <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-600 mb-8">
             <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div>
@@ -51,6 +52,7 @@
     <div id="details-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[80]">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 p-6 relative">
             <h3 class="text-xl font-bold text-gray-800 mb-4" id="modal-title">PO Details</h3>
+            
             <div class="overflow-y-auto max-h-[60vh] border rounded">
                 <table class="w-full text-sm text-left">
                     <thead class="bg-gray-50 text-gray-500 uppercase font-bold text-[10px]">
@@ -65,9 +67,12 @@
                     <tbody id="modal-body"></tbody>
                 </table>
             </div>
+            
             <div class="flex justify-between items-center mt-6 pt-4 border-t">
                 <button onclick="closeModal('details-modal')" class="text-gray-500 font-bold px-4 hover:underline">Close</button>
-                <button onclick="processDelivery()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-8 rounded shadow-lg">Confirm Delivery</button>
+                <button onclick="processDelivery()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-8 rounded shadow-lg">
+                    Confirm Delivery
+                </button>
             </div>
         </div>
     </div>
@@ -80,8 +85,9 @@
             <div class="space-y-4">
                 <div>
                     <label class="text-[10px] font-bold text-gray-400 uppercase">Invoice Number</label>
-                    <input type="text" id="pay-invoice-no" class="w-full p-2 border rounded font-bold">
+                    <input type="text" id="pay-invoice-no" class="w-full p-2 border rounded font-bold outline-none focus:border-blue-500">
                 </div>
+                
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="text-[10px] font-bold text-gray-400 uppercase">Payment Date</label>
@@ -92,15 +98,20 @@
                         <input type="number" id="pay-total-cost" step="0.01" class="w-full p-2 border rounded font-bold bg-gray-50">
                     </div>
                 </div>
+
                 <div>
                     <label class="text-[10px] font-bold text-gray-400 uppercase">Amount Paid Now ($)</label>
-                    <input type="number" id="pay-amount" step="0.01" class="w-full p-2 border-2 border-green-500 rounded text-lg font-bold text-green-700">
+                    <input type="number" id="pay-amount" step="0.01" class="w-full p-2 border-2 border-green-500 rounded text-lg font-bold text-green-700 bg-green-50 outline-none">
                 </div>
             </div>
 
             <div class="flex flex-col gap-2 mt-6">
-                <button onclick="confirmPayment()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded shadow">Save Payment</button>
-                <button onclick="closeModal('payment-modal')" class="text-gray-400 font-bold py-2 text-sm">Cancel</button>
+                <button onclick="confirmPayment()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded shadow transition active:scale-95">
+                    Save Payment & Invoice
+                </button>
+                <button onclick="closeModal('payment-modal')" class="text-gray-400 font-bold py-2 text-sm hover:text-gray-600">
+                    Cancel
+                </button>
             </div>
         </div>
     </div>
@@ -113,10 +124,14 @@
         document.addEventListener('DOMContentLoaded', loadHistory);
 
         async function loadHistory() {
-            const res = await fetch(`${API_URL}/purchase-orders`);
-            globalOrders = await res.json();
-            document.getElementById('loading').classList.add('hidden');
-            applyFilters();
+            try {
+                const res = await fetch(`${API_URL}/purchase-orders`);
+                globalOrders = await res.json();
+                document.getElementById('loading').classList.add('hidden');
+                applyFilters();
+            } catch (e) {
+                document.getElementById('loading').innerText = "Error loading history.";
+            }
         }
 
         function applyFilters() {
@@ -131,9 +146,9 @@
             });
 
             tbody.innerHTML = filtered.map(o => {
-                const total = parseFloat(o.total_cost || o.original_value || 0);
+                const total = parseFloat(o.total_cost || o.total_value || 0);
                 const paid = parseFloat(o.paid_amount || 0);
-                const isFullyPaid = paid >= (total - 0.01);
+                const isFullyPaid = paid >= (total - 0.01) && total > 0;
                 
                 return `
                 <tr class="border-b hover:bg-gray-50">
@@ -154,13 +169,13 @@
                             ${o.status}
                         </span>
                     </td>
-                    <td class="p-4 text-right flex justify-end gap-2">
-                        <button onclick="openPaymentModal(${JSON.stringify(o).replace(/'/g, "&apos;")})" 
-                                class="bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1 rounded text-[10px] font-bold uppercase">
+                    <td class="p-4 text-right flex justify-end gap-2 items-center">
+                        <button onclick="openPaymentModal(${JSON.stringify(o).replace(/"/g, '&quot;')})" 
+                                class="bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1 rounded text-[10px] font-bold uppercase hover:bg-blue-100 transition">
                             Pay / Invoice
                         </button>
                         <button onclick="viewDetails(${o.id}, '${o.po_number}')" 
-                                class="bg-gray-800 text-white px-3 py-1 rounded text-[10px] font-bold uppercase">
+                                class="bg-gray-800 text-white px-3 py-1 rounded text-[10px] font-bold uppercase hover:bg-black transition">
                             Receive
                         </button>
                     </td>
@@ -170,12 +185,17 @@
 
         function openPaymentModal(o) {
             currentPOId = o.id;
-            const originalVal = parseFloat(o.total_cost || o.original_value || 0);
+            const originalVal = parseFloat(o.total_cost || o.total_value || 0);
+            
             document.getElementById('pay-po-num').innerText = `PO: ${o.po_number}`;
             document.getElementById('pay-invoice-no').value = o.invoice_no || '';
             document.getElementById('pay-date').value = o.payment_date ? o.payment_date.split('T')[0] : new Date().toISOString().split('T')[0];
             document.getElementById('pay-total-cost').value = originalVal.toFixed(2);
-            document.getElementById('pay-amount').value = (originalVal - parseFloat(o.paid_amount || 0)).toFixed(2);
+            
+            // Suggest remaining balance as payment amount
+            const remaining = originalVal - parseFloat(o.paid_amount || 0);
+            document.getElementById('pay-amount').value = remaining > 0 ? remaining.toFixed(2) : "0.00";
+            
             document.getElementById('payment-modal').classList.remove('hidden');
         }
 
@@ -187,55 +207,84 @@
                 final_total_cost: document.getElementById('pay-total-cost').value
             };
 
-            const res = await fetch(`${API_URL}/purchase-orders/${currentPOId}/payment`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            if (!payload.final_total_cost || payload.final_total_cost <= 0) return alert("Please enter the invoiced total.");
 
-            if (res.ok) {
-                alert("Payment Recorded!");
-                closeModal('payment-modal');
-                loadHistory();
-            }
+            try {
+                const res = await fetch(`${API_URL}/purchase-orders/${currentPOId}/payment`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    alert("Payment and Invoice Recorded!");
+                    closeModal('payment-modal');
+                    loadHistory();
+                } else {
+                    const err = await res.json();
+                    alert("Error: " + err.error);
+                }
+            } catch (e) { alert("Connection Error"); }
         }
 
         async function viewDetails(id, poNum) {
             currentPOId = id;
             document.getElementById('modal-title').innerText = `Stock-In: ${poNum}`;
             document.getElementById('details-modal').classList.remove('hidden');
-            const res = await fetch(`${API_URL}/purchase-orders/${id}`);
-            const items = await res.json();
-            document.getElementById('modal-body').innerHTML = items.map(i => `
-                <tr class="border-b">
-                    <td class="p-3">
-                        <div class="font-bold text-gray-800">${i.card_name}</div>
-                        <input type="hidden" class="item-id" value="${i.inventory_id}">
-                        <input type="hidden" class="po-item-id" value="${i.id}">
-                    </td>
-                    <td class="p-3 text-center font-bold text-gray-400">${i.ordered_qty}</td>
-                    <td class="p-3 text-center font-bold text-gray-500">${i.received_qty || 0}</td>
-                    <td class="p-3 text-center bg-blue-50">
-                        <input type="number" class="receive-qty w-16 p-1 border rounded text-center font-bold border-blue-300" 
-                               value="${i.ordered_qty - (i.received_qty || 0)}" max="${i.ordered_qty - (i.received_qty || 0)}">
-                    </td>
-                    <td class="p-3 text-right font-mono text-gray-500">$${parseFloat(i.unit_cost).toFixed(2)}</td>
-                </tr>`).join('');
+            
+            try {
+                const res = await fetch(`${API_URL}/purchase-orders/${id}`);
+                const items = await res.json();
+                
+                document.getElementById('modal-body').innerHTML = items.map(i => `
+                    <tr class="border-b">
+                        <td class="p-3">
+                            <div class="font-bold text-gray-800">${i.card_name}</div>
+                            <input type="hidden" class="item-id" value="${i.inventory_id}">
+                            <input type="hidden" class="po-item-id" value="${i.id}">
+                        </td>
+                        <td class="p-3 text-center font-bold text-gray-400">${i.ordered_qty}</td>
+                        <td class="p-3 text-center font-bold text-gray-500">${i.received_qty || 0}</td>
+                        <td class="p-3 text-center bg-blue-50">
+                            <input type="number" class="receive-qty w-16 p-1 border rounded text-center font-bold border-blue-300" 
+                                   value="${i.ordered_qty - (i.received_qty || 0)}" max="${i.ordered_qty - (i.received_qty || 0)}">
+                        </td>
+                        <td class="p-3 text-right font-mono text-gray-500">$${parseFloat(i.unit_cost).toFixed(2)}</td>
+                    </tr>
+                `).join('');
+            } catch (e) { alert("Failed to load PO details."); }
         }
 
         async function processDelivery() {
             const rows = document.querySelectorAll('#modal-body tr');
             const items = [];
+            
             rows.forEach(row => {
                 const qty = parseInt(row.querySelector('.receive-qty').value);
-                if (qty > 0) items.push({ po_item_id: row.querySelector('.po-item-id').value, inventory_id: row.querySelector('.item-id').value, qty_received: qty });
+                if (qty > 0) {
+                    items.push({
+                        po_item_id: row.querySelector('.po-item-id').value,
+                        inventory_id: row.querySelector('.item-id').value,
+                        qty_received: qty
+                    });
+                }
             });
+
             if(items.length === 0) return alert("Nothing to receive.");
-            const res = await fetch(`${API_URL}/purchase-orders/${currentPOId}/receive`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items })
-            });
-            if(res.ok) { alert("Inventory Updated!"); closeModal('details-modal'); loadHistory(); }
+
+            try {
+                const res = await fetch(`${API_URL}/purchase-orders/${currentPOId}/receive`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+
+                if(res.ok) {
+                    alert("Inventory Updated Successfully!");
+                    closeModal('details-modal');
+                    loadHistory();
+                }
+            } catch (e) { alert("Update failed."); }
         }
 
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
