@@ -372,12 +372,12 @@ app.post('/api/sales', async (req, res) => {
 // Customer ORDER HISTORY & Customer PREORDER MANAGEMENT
 // ==========================================
 
-// 1. Get ALL Active Preorders (For the Dashboard)
+// 1. Get Active Preorders (Updated to fetch deposit)
 app.get('/api/sales/preorders', async (req, res) => {
     try {
         const [rows] = await db.execute(`
             SELECT o.id, o.order_date, c.name as customer_name, c.mobile_number, 
-                   o.total_amount, o.status,
+                   o.total_amount, o.deposit_amount, o.status,
                    GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items_summary
             FROM customer_orders o
             JOIN customers c ON o.customer_id = c.id
@@ -391,11 +391,11 @@ app.get('/api/sales/preorders', async (req, res) => {
     } catch (error) { res.status(500).json({ error: 'Failed to fetch preorders' }); }
 });
 
-// 2. Get Specific Customer's History (For Customer Page)
+// 2. Get Customer History (Updated to fetch deposit)
 app.get('/api/customers/:id/history', async (req, res) => {
     try {
         const [orders] = await db.execute(`
-            SELECT o.id, o.order_date, o.order_type, o.status, o.total_amount,
+            SELECT o.id, o.order_date, o.order_type, o.status, o.total_amount, o.deposit_amount,
                    GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items
             FROM customer_orders o
             JOIN customer_order_items oi ON o.id = oi.order_id
