@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Point of Sale</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-7xl mx-auto px-4 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
+        
+        <div class="space-y-6">
+            <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-600">
+                <h2 class="text-lg font-bold mb-4 text-gray-700">1. Customer & Type</h2>
+                
+                <div class="flex bg-gray-100 p-1 rounded-lg mb-6">
+                    <button onclick="setOrderType('In-Stock')" id="btn-instock" class="flex-1 py-2 rounded-md text-sm font-bold shadow bg-white text-blue-600 transition">
+                        📦 In-Stock Buy
+                    </button>
+                    <button onclick="setOrderType('Preorder')" id="btn-preorder" class="flex-1 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition">
+                        ⏳ Preorder
+                    </button>
+                </div>
+
+                <div class="relative mb-4">
+                    <label class="text-xs font-bold text-gray-400 uppercase">Customer</label>
+                    <input type="text" id="cust-search" placeholder="Search Name / Mobile..." class="w-full p-2 border rounded mt-1">
+                    <div id="cust-results" class="absolute z-10 w-full bg-white shadow-lg border rounded hidden"></div>
+                    <input type="hidden" id="selected-cust-id">
+                </div>
+
+                <div id="cust-card" class="hidden bg-blue-50 p-4 rounded border border-blue-100">
+                    <div class="font-bold text-blue-800" id="card-name"></div>
+                    <div class="text-xs text-blue-600" id="card-info"></div>
+                    <button onclick="clearCustomer()" class="text-xs text-red-500 underline mt-2">Change Customer</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm">
+                <h2 class="text-lg font-bold mb-4 text-gray-700">3. Payment</h2>
+                <select id="payment-method" class="w-full p-3 border rounded bg-gray-50 font-bold">
+                    <option value="Cash">💵 Cash</option>
+                    <option value="PayNow">📱 PayNow / QR</option>
+                    <option value="Credit Card">💳 Credit Card</option>
+                    <option value="Store Credit">🏦 Store Credit</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white p-6 rounded-lg shadow-sm min-h-[600px] flex flex-col">
+                <h2 class="text-lg font-bold mb-4 text-gray-700">2. Add Items</h2>
+                
+                <div class="relative mb-6">
+                    <input type="text" id="prod-search" placeholder="Scan Barcode or Type Product Name..." 
+                           class="w-full p-4 text-lg border-2 border-blue-100 rounded-lg focus:border-blue-500 outline-none">
+                    <div id="prod-results" class="absolute z-10 w-full bg-white shadow-xl border rounded mt-1 hidden max-h-60 overflow-y-auto"></div>
+                </div>
+
+                <div class="flex-grow overflow-y-auto border rounded-lg">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                            <tr>
+                                <th class="p-4">Product</th>
+                                <th class="p-4 w-24">Price</th>
+                                <th class="p-4 w-32 text-center">Qty</th>
+                                <th class="p-4 w-24 text-right">Total</th>
+                                <th class="p-4 w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-body"></tbody>
+                    </table>
+                    <div id="empty-cart" class="p-12 text-center text-gray-400">Cart is empty. Scan items to begin.</div>
+                </div>
+
+                <div class="border-t pt-6 mt-4 flex justify-between items-end">
+                    <div class="text-gray-500 text-sm" id="item-count">0 Items</div>
+                    <div class="text-right">
+                        <div class="text-3xl font-bold text-gray-800" id="grand-total">$0.00</div>
+                        <button onclick="submitOrder()" class="mt-4 bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-3 px-8 rounded shadow-lg transition transform hover:-translate-y-1">
+                            Confirm Order
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+        let currentType = 'In-Stock';
+        let cart = [];
+
+        // --- 1. SETUP ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('k10_token');
+            if (!token) window.location.href = 'admin.html';
+
+            // Search Listeners
+            setupCustomerSearch();
+            setupProductSearch();
+        });
+
+        function setOrderType(type) {
+            currentType = type;
+            const btnStock = document.getElementById('btn-instock');
+            const btnPre = document.getElementById('btn-preorder');
+
+            if (type === 'In-Stock') {
+                btnStock.className = "flex-1 py-2 rounded-md text-sm font-bold shadow bg-white text-blue-600 transition";
+                btnPre.className = "flex-1 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition";
+            } else {
+                btnPre.className = "flex-1 py-2 rounded-md text-sm font-bold shadow bg-white text-purple-600 transition";
+                btnStock.className = "flex-1 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition";
+            }
+            
+            // Clear cart when switching modes to prevent confusion? 
+            // Optional: cart = []; renderCart();
+        }
+
+        // --- 2. CUSTOMER LOGIC ---
+        function setupCustomerSearch() {
+            const input = document.getElementById('cust-search');
+            input.addEventListener('input', async (e) => {
+                const q = e.target.value;
+                if (q.length < 2) return;
+                
+                const res = await fetch(`${API_URL}/customers?search=${q}`);
+                const data = await res.json();
+                
+                const div = document.getElementById('cust-results');
+                div.innerHTML = data.map(c => `
+                    <div class="p-3 hover:bg-blue-50 cursor-pointer border-b" onclick='selectCustomer(${JSON.stringify(c)})'>
+                        <div class="font-bold">${c.name}</div>
+                        <div class="text-xs text-gray-500">${c.mobile_number || c.email}</div>
+                    </div>
+                `).join('');
+                div.classList.remove('hidden');
+            });
+        }
+
+        function selectCustomer(c) {
+            document.getElementById('selected-cust-id').value = c.id;
+            document.getElementById('card-name').innerText = c.name;
+            document.getElementById('card-info').innerText = c.mobile_number || c.email;
+            
+            document.getElementById('cust-search').classList.add('hidden');
+            document.getElementById('cust-results').classList.add('hidden');
+            document.getElementById('cust-card').classList.remove('hidden');
+        }
+
+        function clearCustomer() {
+            document.getElementById('selected-cust-id').value = '';
+            document.getElementById('cust-search').value = '';
+            document.getElementById('cust-search').classList.remove('hidden');
+            document.getElementById('cust-card').classList.add('hidden');
+        }
+
+        // --- 3. PRODUCT LOGIC ---
+        function setupProductSearch() {
+            const input = document.getElementById('prod-search');
+            input.addEventListener('input', async (e) => {
+                const q = e.target.value;
+                if (q.length < 2) {
+                    document.getElementById('prod-results').classList.add('hidden');
+                    return;
+                }
+
+                const res = await fetch(`${API_URL}/inventory/status`); // Or a specific search endpoint
+                const items = await res.json();
+                const filtered = items.filter(i => i.card_name.toLowerCase().includes(q.toLowerCase()) || i.barcode === q);
+
+                const div = document.getElementById('prod-results');
+                div.innerHTML = filtered.map(i => `
+                    <div class="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between" onclick='addToCart(${JSON.stringify(i)})'>
+                        <div>
+                            <div class="font-bold">${i.card_name}</div>
+                            <div class="text-xs text-gray-500">${i.game_title} | ${i.set_name || ''}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bold text-green-600">$${i.price}</div>
+                            <div class="text-xs ${i.in_stock > 0 ? 'text-gray-500' : 'text-red-500'}">Stock: ${i.in_stock}</div>
+                        </div>
+                    </div>
+                `).join('');
+                div.classList.remove('hidden');
+            });
+        }
+
+        function addToCart(item) {
+            // Stock Check for "In-Stock" Mode
+            if (currentType === 'In-Stock' && item.in_stock <= 0) {
+                alert("This item is out of stock!");
+                return;
+            }
+
+            const existing = cart.find(x => x.id === item.id);
+            if (existing) {
+                if (currentType === 'In-Stock' && existing.qty + 1 > item.in_stock) {
+                    alert("Not enough stock!");
+                    return;
+                }
+                existing.qty++;
+            } else {
+                cart.push({ id: item.id, name: item.card_name, price: item.price, qty: 1, max: item.in_stock });
+            }
+            
+            document.getElementById('prod-search').value = '';
+            document.getElementById('prod-results').classList.add('hidden');
+            renderCart();
+        }
+
+        function renderCart() {
+            const tbody = document.getElementById('cart-body');
+            
+            if (cart.length === 0) {
+                document.getElementById('empty-cart').classList.remove('hidden');
+                tbody.innerHTML = '';
+                document.getElementById('grand-total').innerText = '$0.00';
+                return;
+            }
+            
+            document.getElementById('empty-cart').classList.add('hidden');
+            let total = 0;
+            let count = 0;
+
+            tbody.innerHTML = cart.map((item, idx) => {
+                const subtotal = item.qty * item.price;
+                total += subtotal;
+                count += item.qty;
+
+                return `
+                <tr class="border-b">
+                    <td class="p-4 font-bold text-gray-700">${item.name}</td>
+                    <td class="p-4 text-gray-500">$${item.price}</td>
+                    <td class="p-4 text-center">
+                        <input type="number" min="1" max="${currentType === 'In-Stock' ? item.max : 999}" 
+                               value="${item.qty}" 
+                               class="w-16 border rounded text-center font-bold"
+                               onchange="updateQty(${idx}, this.value)">
+                    </td>
+                    <td class="p-4 text-right font-bold text-gray-800">$${subtotal.toFixed(2)}</td>
+                    <td class="p-4 text-right">
+                        <button onclick="removeFromCart(${idx})" class="text-red-400 hover:text-red-600 font-bold">×</button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+
+            document.getElementById('grand-total').innerText = `$${total.toFixed(2)}`;
+            document.getElementById('item-count').innerText = `${count} Items`;
+        }
+
+        function updateQty(idx, val) {
+            const qty = parseInt(val);
+            if (qty < 1) return;
+            
+            // Re-check stock limit
+            if (currentType === 'In-Stock' && qty > cart[idx].max) {
+                alert(`Only ${cart[idx].max} available!`);
+                renderCart(); // Reset input
+                return;
+            }
+            cart[idx].qty = qty;
+            renderCart();
+        }
+
+        function removeFromCart(idx) {
+            cart.splice(idx, 1);
+            renderCart();
+        }
+
+        async function submitOrder() {
+            const custId = document.getElementById('selected-cust-id').value;
+            if (!custId) return alert("Please select a customer.");
+            if (cart.length === 0) return alert("Cart is empty.");
+
+            const payload = {
+                customer_id: custId,
+                order_type: currentType,
+                payment_method: document.getElementById('payment-method').value,
+                items: cart
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/sales`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await res.json();
+                
+                if (res.ok) {
+                    alert("Order Successful!");
+                    cart = [];
+                    renderCart();
+                    // Optional: Reset customer?
+                } else {
+                    alert("Error: " + result.error);
+                }
+            } catch (err) {
+                alert("Connection failed.");
+            }
+        }
+    </script>
+</body>
+</html>
