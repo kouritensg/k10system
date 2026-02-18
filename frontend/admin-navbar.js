@@ -6,11 +6,13 @@ document.addEventListener("DOMContentLoaded", () => {
             <h1 class="text-xl font-bold text-gray-800">Manager Portal</h1>
         </div>
         <div class="space-x-4 flex items-center">
-            <a href="admin.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
+            <a href="admin.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Dashboard</a>
+            <a href="admin-inventory.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Inventory</a>
             <a href="admin-purchase.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">New Order</a>
             <a href="admin-PurchaseHistory.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">History</a>
             <a href="admin-customers.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Customers</a>
             <a href="admin-sales.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">POS / Sales</a>
+           
             
             <button id="global-logout-btn" class="text-red-600 font-semibold ml-4 border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition">
                 Logout
@@ -19,26 +21,27 @@ document.addEventListener("DOMContentLoaded", () => {
     </nav>
     `;
 
-    // 1. Insert the Navbar at the very top of the page
     document.body.insertAdjacentHTML('afterbegin', navbarHTML);
 
-    // 2. Highlight the "Active" Page automatically
+    // Highlight Active Link
     const currentPage = window.location.pathname.split("/").pop() || 'admin.html';
     const links = document.querySelectorAll('.nav-link');
     
     links.forEach(link => {
-        // Check if the link matches the current file name
         if (link.getAttribute('href') === currentPage) {
             link.classList.remove('text-gray-600');
             link.classList.add('text-blue-600', 'font-bold', 'border-b-2', 'border-blue-600', 'pb-1');
         }
     });
 
-    // 3. Handle Logout (Centralized logic)
-    document.getElementById('global-logout-btn').addEventListener('click', () => {
-        if(confirm("Log out of Manager Portal?")) {
-            localStorage.removeItem('k10_token');
-            window.location.href = 'index.html'; // Or admin.html login screen
-        }
-    });
+    // Logout Logic
+    const logoutBtn = document.getElementById('global-logout-btn');
+    if(logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            if(confirm("Log out?")) {
+                localStorage.removeItem('k10_token');
+                window.location.href = 'index.html';
+            }
+        });
+    }
 });
