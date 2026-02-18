@@ -8,6 +8,7 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// --- CONFIGURATION ---
 const corsOptions = {
   origin: 'https://kouritensg.github.io', 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -39,7 +40,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ==========================================
-// 2. CATEGORY MANAGEMENT (NEW)
+// 2. CATEGORY MANAGEMENT (NEW RELATIONAL LOGIC)
 // ==========================================
 app.get('/api/categories', async (req, res) => {
     try {
@@ -60,12 +61,56 @@ app.delete('/api/categories/:id', async (req, res) => {
     try {
         await db.execute('DELETE FROM categories WHERE id = ?', [req.params.id]);
         res.json({ message: 'Category deleted' });
-    } catch (error) { res.status(500).json({ error: 'Cannot delete: Category is still linked to items.' }); }
+    } catch (error) { res.status(500).json({ error: 'Cannot delete. Category might be linked to products.' }); }
 });
 
 // ==========================================
-// 3. INVENTORY (UPDATED FOR CATEGORY_ID)
+// 3. SUPPLIER MANAGEMENT
 // ==========================================
+app.get('/api/suppliers', async (req, res) => {
+    try {
+        const [rows] = await db.execute('SELECT * FROM suppliers ORDER BY name ASC');
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: 'Failed to fetch suppliers' }); }
+});
+
+app.post('/api/suppliers', async (req, res) => {
+    const { name, contact_person, email, phone, payment_terms } = req.body;
+    try {
+        const [result] = await db.execute(
+            `INSERT INTO suppliers (name, contact_person, email, phone, payment_terms) VALUES (?, ?, ?, ?, ?)`,
+            [name, contact_person || null, email || null, phone || null, payment_terms || 'Immediate']
+        );
+        res.status(201).json({ id: result.insertId, message: 'Supplier created' });
+    } catch (error) { res.status(500).json({ error: 'Database error' }); }
+});
+
+app.delete('/api/suppliers/:id', async (req, res) => {
+    try {
+        await db.execute('DELETE FROM suppliers WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Supplier deleted' });
+    } catch (error) { res.status(500).json({ error: 'Cannot delete. Supplier might be linked to orders.' }); }
+});
+
+// ==========================================
+// 4. INVENTORY (FIXED FOR CATEGORY_ID)
+// ==========================================
+
+// Public Route (Used by index.html)
+app.get('/api/inventory', async (req, res) => {
+    try {
+        const [rows] = await db.execute(`
+            SELECT i.*, c.name as category_name 
+            FROM inventory i 
+            LEFT JOIN categories c ON i.category_id = c.id 
+            WHERE i.stock_quantity >= 0 
+            ORDER BY c.name, i.card_name ASC`
+        );
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: 'Failed to fetch inventory' }); }
+});
+
+// Admin Route (Used by admin-inventory.html)
 app.get('/api/inventory/status', async (req, res) => {
     try {
         const [rows] = await db.execute(`
@@ -91,9 +136,12 @@ app.post('/api/inventory/add', async (req, res) => {
 });
 
 app.put('/api/inventory/:id', async (req, res) => {
-  const { price, stock_quantity, cost_price } = req.body;
+  const { price, stock_quantity, cost_price, category_id } = req.body;
   try {
-    await db.execute('UPDATE inventory SET price = ?, stock_quantity = ?, cost_price = ? WHERE id = ?', [price, stock_quantity, cost_price || 0, req.params.id]);
+    await db.execute(
+        'UPDATE inventory SET price = ?, stock_quantity = ?, cost_price = ?, category_id = ? WHERE id = ?', 
+        [price, stock_quantity, cost_price || 0, category_id, req.params.id]
+    );
     res.json({ message: 'Updated' });
   } catch (error) { res.status(500).json({ error: 'Update failed' }); }
 });
@@ -101,12 +149,12 @@ app.put('/api/inventory/:id', async (req, res) => {
 app.delete('/api/inventory/:id', async (req, res) => {
     try {
         await db.execute('DELETE FROM inventory WHERE id = ?', [req.params.id]);
-        res.json({ message: 'Item deleted' });
+        res.json({ message: 'Deleted' });
     } catch (error) { res.status(500).json({ error: 'Delete failed' }); }
 });
 
 // ==========================================
-// 4. PURCHASING MODULE
+// 5. PURCHASING MODULE
 // ==========================================
 app.post('/api/purchase-orders', async (req, res) => {
     const { supplier_id, po_number, items, payment_status, total_cost, deposit_paid, paid_amount } = req.body;
@@ -150,8 +198,19 @@ app.put('/api/purchase-orders/:id/receive', async (req, res) => {
     } catch (e) { await conn.rollback(); res.status(500).json({ error: e.message }); } finally { conn.release(); }
 });
 
+app.get('/api/purchase-orders/:id', async (req, res) => {
+    try {
+        const [rows] = await db.execute(`
+            SELECT poi.*, i.card_name, i.game_title 
+            FROM po_items poi JOIN inventory i ON poi.inventory_id = i.id WHERE poi.po_id = ?`, 
+            [req.params.id]
+        );
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: 'Failed' }); }
+});
+
 // ==========================================
-// 5. SALES & PREORDERS
+// 6. SALES & PREORDERS
 // ==========================================
 app.post('/api/sales', async (req, res) => {
     const { customer_id, order_type, payment_method, items, custom_status, deposit_amount } = req.body;
@@ -172,6 +231,45 @@ app.post('/api/sales', async (req, res) => {
         await conn.commit();
         res.status(201).json({ message: 'Order recorded!' });
     } catch (error) { await conn.rollback(); res.status(500).json({ error: error.message }); } finally { conn.release(); }
+});
+
+app.get('/api/sales/history', async (req, res) => {
+    try {
+        const [rows] = await db.execute(`
+            SELECT o.*, c.name as customer_name FROM customer_orders o 
+            JOIN customers c ON o.customer_id = c.id ORDER BY o.order_date DESC`);
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: 'Failed' }); }
+});
+
+app.get('/api/sales/preorders', async (req, res) => {
+    try {
+        const [rows] = await db.execute(`
+            SELECT o.id, o.order_date, c.name as customer_name, c.mobile_number, o.total_amount, o.deposit_amount, o.status,
+                   GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items_summary,
+                   GROUP_CONCAT(DISTINCT i.game_title) as game_tags
+            FROM customer_orders o 
+            JOIN customers c ON o.customer_id = c.id 
+            JOIN customer_order_items oi ON o.id = oi.order_id 
+            JOIN inventory i ON oi.inventory_id = i.id
+            WHERE o.order_type = 'Preorder' AND o.status != 'Fulfilled'
+            GROUP BY o.id ORDER BY o.order_date ASC`);
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: 'Failed' }); }
+});
+
+app.put('/api/sales/:id/payment', async (req, res) => {
+    const { amount } = req.body;
+    const conn = await db.getConnection();
+    try {
+        await conn.beginTransaction();
+        const [rows] = await conn.execute('SELECT total_amount, deposit_amount FROM customer_orders WHERE id = ?', [req.params.id]);
+        const newTotalPaid = parseFloat(rows[0].deposit_amount || 0) + parseFloat(amount);
+        const newStatus = newTotalPaid >= (parseFloat(rows[0].total_amount) - 0.01) ? 'Paid' : 'Partial';
+        await conn.execute('UPDATE customer_orders SET deposit_amount = ?, status = ? WHERE id = ?', [newTotalPaid, newStatus, req.params.id]);
+        await conn.commit();
+        res.json({ message: 'Payment recorded' });
+    } catch (e) { await conn.rollback(); res.status(500).json({ error: e.message }); } finally { conn.release(); }
 });
 
 // --- KEEP ALIVE ---
