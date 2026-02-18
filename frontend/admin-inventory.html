@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Inventory</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-7xl mx-auto px-4 mt-8 pb-12">
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-8 border-t-4 border-blue-500">
+            <h2 class="text-xl font-bold text-gray-700 mb-4">📊 Stock Pipeline Intelligence</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="p-3">Product</th>
+                            <th class="p-3 text-center">In Stock</th>
+                            <th class="p-3 text-center">Allocated (Sold)</th>
+                            <th class="p-3 text-center">Ordered (Pending)</th>
+                            <th class="p-3 text-center">Active POs</th>
+                        </tr>
+                    </thead>
+                    <tbody id="intel-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-8 border-l-4 border-green-500">
+            <h2 class="text-lg font-semibold mb-4 text-gray-700">Add New Product</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <select id="game-title" class="p-2 border rounded bg-gray-50">
+                    <option value="One Piece">One Piece TCG</option>
+                    <option value="Hololive">Hololive OCG</option>
+                    <option value="Digimon">Digimon TCG</option>
+                    <option value="Other">Other</option>
+                </select>
+                <select id="product-type" class="p-2 border rounded bg-gray-50">
+                    <option value="Booster Box">Booster Box</option>
+                    <option value="Single">Single Card</option>
+                    <option value="Starter Deck">Starter Deck</option>
+                </select>
+                <input type="text" id="barcode" placeholder="Barcode" class="p-2 border rounded">
+                <input type="text" id="card-id" placeholder="Card ID (e.g. OP01-001)" class="p-2 border rounded">
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+                <input type="text" id="card-name" placeholder="Product Name" class="p-2 border rounded col-span-2">
+                <input type="number" id="price" placeholder="Sell Price" class="p-2 border rounded">
+                <input type="number" id="cost-price" placeholder="Cost Price" class="p-2 border rounded bg-blue-50">
+                <input type="number" id="stock" placeholder="Initial Qty" class="p-2 border rounded">
+                <button id="add-card-btn" class="bg-green-600 text-white font-bold rounded hover:bg-green-700 shadow-sm">Add Item</button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[500px]">
+            <div class="p-4 bg-gray-50 border-b flex flex-col md:flex-row justify-between items-center gap-4">
+                <input type="text" id="search-input" placeholder="Search by Name, Set, or ID..." 
+                       class="w-full md:w-96 p-2 border rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <span class="text-xs text-gray-500 italic">Showing active inventory</span>
+            </div>
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-100 text-xs font-bold uppercase text-gray-500">
+                    <tr>
+                        <th class="p-4">Name / Details</th>
+                        <th class="p-4">Financials</th>
+                        <th class="p-4">Stock Level</th>
+                        <th class="p-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="inventory-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="edit-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[70]">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-800">Edit Product</h3>
+                <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <input type="hidden" id="edit-id">
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase">Product Name</label>
+                    <input type="text" id="edit-name" disabled class="bg-gray-100 border rounded w-full py-2 px-3 text-gray-500 mt-1">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Cost Price</label>
+                        <input type="number" id="edit-cost" step="0.01" class="border rounded p-2 w-full mt-1 bg-blue-50">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Sell Price</label>
+                        <input type="number" id="edit-price" step="0.01" class="border rounded p-2 w-full mt-1">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-gray-500 uppercase">Current Stock</label>
+                    <input type="number" id="edit-stock" class="border rounded p-2 w-full mt-1 font-bold text-lg">
+                </div>
+                <div class="flex justify-end space-x-3 pt-4 border-t mt-4">
+                    <button onclick="closeEditModal()" class="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">Cancel</button>
+                    <button onclick="saveEdit()" class="px-6 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 shadow-md">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+        let globalInventory = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('k10_token');
+            if (!token) window.location.href = 'admin.html';
+            
+            loadInventory();
+            document.getElementById('add-card-btn').addEventListener('click', addProduct);
+            document.getElementById('search-input').addEventListener('input', applyFilters);
+        });
+
+        async function loadInventory() {
+            try {
+                const res = await fetch(`${API_URL}/inventory/status`);
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    globalInventory = data;
+                    applyFilters();
+                    renderIntel(data);
+                }
+            } catch (e) { console.error("Load failed:", e); }
+        }
+
+        function renderIntel(data) {
+            const incoming = data.filter(i => (i.qty_ordered > 0) || (i.qty_allocated > 0));
+            const tbody = document.getElementById('intel-table-body');
+            
+            if (incoming.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No incoming stock.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = incoming.map(item => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-3">
+                        <div class="font-bold text-gray-800">${item.card_name}</div>
+                        <div class="text-[10px] text-gray-500 uppercase">${item.game_title}</div>
+                    </td>
+                    <td class="p-3 text-center text-gray-500">${item.in_stock}</td>
+                    <td class="p-3 text-center text-green-600 font-bold">${item.qty_allocated}</td>
+                    <td class="p-3 text-center text-yellow-600 font-bold">${item.qty_ordered}</td>
+                    <td class="p-3 text-center">
+                        <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">${item.active_po_count} Active</span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function applyFilters() {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const filtered = globalInventory.filter(p => 
+                p.card_name.toLowerCase().includes(search) || 
+                (p.card_id && p.card_id.toLowerCase().includes(search)) ||
+                (p.set_name && p.set_name.toLowerCase().includes(search))
+            );
+            
+            const tbody = document.getElementById('inventory-table-body');
+            tbody.innerHTML = filtered.map(p => `
+                <tr class="border-b hover:bg-gray-50 transition">
+                    <td class="p-4">
+                        <div class="font-bold text-gray-800 text-lg">${p.card_name}</div>
+                        <div class="text-xs text-gray-500">
+                            <span class="font-bold text-blue-600">${p.game_title}</span> • 
+                            ${p.product_type} • 
+                            ${p.card_id || 'No ID'}
+                        </div>
+                    </td>
+                    <td class="p-4">
+                        <div class="text-xs text-gray-400 mb-1">Cost: $${p.cost_price || '0.00'}</div>
+                        <div class="font-bold text-green-600">Sell: $${p.price}</div>
+                    </td>
+                    <td class="p-4">
+                        <span class="text-xl font-bold ${p.in_stock > 0 ? 'text-gray-800' : 'text-red-400'}">
+                            ${p.in_stock}
+                        </span>
+                    </td>
+                    <td class="p-4 text-right">
+                        <button onclick="openEditModal(${p.id})" class="text-blue-600 hover:text-blue-800 font-bold mr-4 text-sm">Edit</button>
+                        <button onclick="deleteProduct(${p.id})" class="text-red-400 hover:text-red-600 font-bold text-sm">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function addProduct() {
+            const data = {
+                game_title: document.getElementById('game-title').value,
+                product_type: document.getElementById('product-type').value,
+                card_name: document.getElementById('card-name').value,
+                price: document.getElementById('price').value,
+                cost_price: document.getElementById('cost-price').value,
+                stock_quantity: document.getElementById('stock').value,
+                barcode: document.getElementById('barcode').value,
+                card_id: document.getElementById('card-id').value
+            };
+            if (!data.card_name) return alert("Name required");
+            try {
+                const res = await fetch(`${API_URL}/inventory/add`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(data) 
+                });
+                if (res.ok) {
+                    document.getElementById('card-name').value = '';
+                    loadInventory(); 
+                }
+            } catch (e) { alert("Connection Error"); }
+        }
+
+        function openEditModal(id) {
+            const p = globalInventory.find(x => x.id === id);
+            document.getElementById('edit-id').value = p.id;
+            document.getElementById('edit-name').value = p.card_name;
+            document.getElementById('edit-price').value = p.price;
+            document.getElementById('edit-cost').value = p.cost_price;
+            document.getElementById('edit-stock').value = p.in_stock;
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden'); }
+
+        async function saveEdit() {
+            const body = {
+                price: document.getElementById('edit-price').value,
+                cost_price: document.getElementById('edit-cost').value,
+                stock_quantity: document.getElementById('edit-stock').value
+            };
+            try {
+                await fetch(`${API_URL}/inventory/${document.getElementById('edit-id').value}`, {
+                    method: 'PUT', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(body)
+                });
+                closeEditModal(); 
+                loadInventory();
+            } catch (e) { alert("Update failed"); }
+        }
+
+        async function deleteProduct(id) {
+            if (confirm("Delete product?")) {
+                await fetch(`${API_URL}/inventory/${id}`, { method: 'DELETE' });
+                loadInventory();
+            }
+        }
+    </script>
+</body>
+</html>
