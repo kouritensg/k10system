@@ -170,6 +170,22 @@ app.get('/api/purchase-orders', async (req, res) => {
     }
 });
 
+// Get Specific PO Details
+app.get('/api/purchase-orders/:id', async (req, res) => {
+    try {
+        const [rows] = await db.execute(`
+            SELECT poi.*, i.card_name, i.game_title 
+            FROM po_items poi 
+            JOIN inventory i ON poi.inventory_id = i.id 
+            WHERE poi.po_id = ?`, 
+            [req.params.id]
+        );
+        res.json(rows);
+    } catch (error) { 
+        res.status(500).json({ error: 'Failed to fetch PO details' }); 
+    }
+});
+
 // ==========================================
 // 5. SALES & PREORDERS (WITH DEPOSITS)
 // ==========================================
