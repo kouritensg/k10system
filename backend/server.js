@@ -172,18 +172,54 @@ app.post('/api/purchase-orders', async (req, res) => {
     }
 });
 
-// Get Recent PO History (For the table at bottom of page)
+// Get PO History with Date Filters
 app.get('/api/purchase-orders', async (req, res) => {
+    const { limit, search, status, startDate, endDate } = req.query;
     try {
-        const [rows] = await db.execute(`
+        let query = `
             SELECT po.*, s.name as supplier_name, 
-            (SELECT COUNT(*) FROM po_items WHERE po_id = po.id) as total_items
+            (SELECT COUNT(*) FROM po_items WHERE po_id = po.id) as total_items,
+            (SELECT COALESCE(SUM(ordered_qty * unit_cost), 0) FROM po_items WHERE po_id = po.id) as total_cost
             FROM purchase_orders po
             JOIN suppliers s ON po.supplier_id = s.id
-            ORDER BY po.created_at DESC LIMIT 10
-        `);
+            WHERE 1=1
+        `;
+        
+        const params = [];
+
+        // 1. Filter by Search (ID or Supplier)
+        if (search) {
+            query += ` AND (po.po_number LIKE ? OR s.name LIKE ?)`;
+            params.push(`%${search}%`, `%${search}%`);
+        }
+
+        // 2. Filter by Status
+        if (status) {
+            query += ` AND po.status = ?`;
+            params.push(status);
+        }
+
+        // 3. Filter by Date Range (For Accounting)
+        if (startDate) {
+            query += ` AND po.order_date >= ?`;
+            params.push(startDate);
+        }
+        if (endDate) {
+            query += ` AND po.order_date <= ?`;
+            params.push(endDate);
+        }
+        
+        query += ` ORDER BY po.order_date DESC, po.created_at DESC`;
+        
+        if (limit) {
+            query += ` LIMIT ?`;
+            params.push(parseInt(limit));
+        }
+
+        const [rows] = await db.execute(query, params);
         res.json(rows);
     } catch (error) {
+        console.error("History Error:", error);
         res.status(500).json({ error: 'Failed to fetch PO history' });
     }
 });
