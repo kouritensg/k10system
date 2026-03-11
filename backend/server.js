@@ -114,7 +114,14 @@ app.get('/api/inventory', async (req, res) => {
 app.get('/api/inventory/status', async (req, res) => {
     try {
         const [rows] = await db.execute(`
-            SELECT i.*, c.name as category_name 
+            SELECT i.*, c.name as category_name,
+                   -- Calculate how many are on the way by checking active POs
+                   COALESCE((
+                       SELECT SUM(poi.ordered_qty - COALESCE(poi.received_qty, 0)) 
+                       FROM po_items poi 
+                       JOIN purchase_orders po ON poi.po_id = po.id 
+                       WHERE poi.inventory_id = i.id AND po.status IN ('Ordered', 'Partial')
+                   ), 0) as incoming_qty
             FROM inventory i 
             LEFT JOIN categories c ON i.category_id = c.id 
             ORDER BY i.card_name ASC`
