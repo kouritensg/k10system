@@ -17,9 +17,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     <div class="hidden md:flex space-x-1">
                         <a href="admin-inventory.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">📦 Inventory</a>
-                         <a href="admin-customers.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">👥 Customers Master</a>
+                        <a href="admin-customers.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">👥 Customers Master</a>
                         <a href="admin-sales.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">💳 POS</a>
-                        <a href="admin-sales-history.html class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">Sales History</a>
+                        <a href="admin-sales-history.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">Sales History</a>
                         <a href="admin-preorders.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">⏳ Customer Preorders</a>
                         ${isAdmin ? `
                         <div class="border-l border-gray-600 mx-2 h-6 mt-1.5"></div>
