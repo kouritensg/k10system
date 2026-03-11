@@ -115,7 +115,20 @@
                 </div>
 
                 <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[600px]">
-                    <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
+                    
+                    <div class="flex border-b bg-gray-50">
+                        <button onclick="setTab('all')" id="tab-all" class="flex-1 py-3 text-sm font-bold text-blue-600 border-b-2 border-blue-600 bg-white transition">
+                            All Inventory
+                        </button>
+                        <button onclick="setTab('instock')" id="tab-instock" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-blue-600 hover:bg-white transition">
+                            📦 In Stock
+                        </button>
+                        <button onclick="setTab('incoming')" id="tab-incoming" class="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-blue-600 hover:bg-white transition">
+                            🚚 Incoming Stock
+                        </button>
+                    </div>
+
+                    <div class="p-4 bg-white border-b flex justify-between items-center">
                         <span class="text-xs font-bold text-gray-500 uppercase" id="result-count">0 Items Found</span>
                         <button onclick="loadInventory()" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
                     </div>
@@ -127,7 +140,7 @@
                                     <th class="p-4">Product Details</th>
                                     <th class="p-4">Category</th>
                                     <th class="p-4 text-right">Price</th>
-                                    <th class="p-4">Stock Breakdown</th>
+                                    <th class="p-4">Stock Status</th>
                                     <th class="p-4 text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -145,6 +158,7 @@
         const API_URL = 'https://k10system.onrender.com/api';
         let globalInventory = [];
         let categories = [];
+        let currentTab = 'all'; // Default tab
 
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('k10_token');
@@ -162,16 +176,10 @@
             try {
                 const res = await fetch(`${API_URL}/categories`);
                 categories = await res.json();
-                
-                // Populate Add Form dropdown
                 const addSelect = document.getElementById('add-category');
-                addSelect.innerHTML = '<option value="">-- Select Type --</option>' + 
-                    categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-                
-                // Populate Filter dropdown
+                addSelect.innerHTML = '<option value="">-- Select Type --</option>' + categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
                 const filterSelect = document.getElementById('filter-category');
-                filterSelect.innerHTML = '<option value="">All Categories</option>' + 
-                    categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                filterSelect.innerHTML = '<option value="">All Categories</option>' + categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
             } catch (e) { console.error("Failed to load categories"); }
         }
 
@@ -179,19 +187,12 @@
             const catId = document.getElementById('add-category').value;
             const catName = categories.find(c => c.id == catId)?.name || "";
             const configDiv = document.getElementById('ratio-config');
-            
-            // Show config for box/pack categories
-            if (catName.includes('Box') || catName.includes('Pack')) {
-                configDiv.classList.remove('hidden');
-            } else {
-                configDiv.classList.add('hidden');
-            }
+            if (catName.includes('Box') || catName.includes('Pack')) { configDiv.classList.remove('hidden'); } else { configDiv.classList.add('hidden'); }
         }
 
         async function loadInventory() {
             const loading = document.getElementById('loading');
             loading.classList.remove('hidden');
-            
             try {
                 const res = await fetch(`${API_URL}/inventory/status`);
                 globalInventory = await res.json();
@@ -200,16 +201,38 @@
             } catch (e) { loading.innerText = "Error loading data."; }
         }
 
+        // --- NEW TAB LOGIC ---
+        function setTab(tabName) {
+            currentTab = tabName;
+            const tabs = ['all', 'instock', 'incoming'];
+            tabs.forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if (t === tabName) {
+                    el.className = "flex-1 py-3 text-sm font-bold text-blue-600 border-b-2 border-blue-600 bg-white transition";
+                } else {
+                    el.className = "flex-1 py-3 text-sm font-bold text-gray-500 hover:text-blue-600 hover:bg-white transition border-b-2 border-transparent";
+                }
+            });
+            applyFilters();
+        }
+
         function applyFilters() {
             const search = document.getElementById('filter-search').value.toLowerCase();
             const game = document.getElementById('filter-game').value;
             const catId = document.getElementById('filter-category').value;
 
             const filtered = globalInventory.filter(p => {
+                // 1. Sidebar Filters
                 const matchSearch = !search || p.card_name.toLowerCase().includes(search);
                 const matchGame = !game || p.game_title === game;
                 const matchCat = !catId || p.category_id == catId;
-                return matchSearch && matchGame && matchCat;
+                
+                // 2. Tab Filters
+                let matchTab = true;
+                if (currentTab === 'instock') matchTab = p.stock_quantity > 0;
+                if (currentTab === 'incoming') matchTab = parseFloat(p.incoming_qty) > 0; // Check DB calculation
+
+                return matchSearch && matchGame && matchCat && matchTab;
             });
             
             renderTable(filtered);
@@ -230,7 +253,7 @@
             tbody.innerHTML = items.map(p => {
                 let stockUI = `<span class="font-bold text-gray-800">${p.stock_quantity}</span>`;
                 
-                // Smart conversion display for specific categories
+                // Show Box/Case breakdown if applicable
                 if (p.packs_per_box > 1 && p.stock_quantity > 0) {
                     const ppb = p.packs_per_box;
                     const bpc = p.boxes_per_case || 1;
@@ -241,12 +264,15 @@
                     
                     stockUI = `
                         <div class="flex flex-col">
-                            <span class="text-sm font-bold text-gray-800">${p.stock_quantity} Total Packs</span>
-                            <span class="text-xs text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded mt-1 border border-blue-100 w-fit">
-                                📦 ${fullCases}C, ${leftBoxes}B, ${leftPacks}P
-                            </span>
+                            <span class="text-sm font-bold text-gray-800">${p.stock_quantity} Packs</span>
+                            <span class="text-xs text-blue-600 font-bold mt-0.5">📦 ${fullCases}C, ${leftBoxes}B, ${leftPacks}P</span>
                         </div>`;
                 }
+
+                // Add Incoming Badge if stock is on the way
+                const incomingUI = parseFloat(p.incoming_qty) > 0 
+                    ? `<div class="text-[10px] font-bold text-orange-500 uppercase mt-1">🚚 +${p.incoming_qty} Incoming</div>` 
+                    : '';
 
                 return `
                 <tr class="border-b hover:bg-gray-50 transition text-sm">
@@ -255,14 +281,17 @@
                         <div class="text-[10px] text-gray-400 font-mono">ID: ${p.card_id || '-'}</div>
                     </td>
                     <td class="p-4">
-                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-gray-100 text-gray-600">
+                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-gray-100 text-gray-600 border border-gray-200">
                             ${p.game_title} • ${p.category_name || 'Uncategorized'}
                         </span>
                     </td>
                     <td class="p-4 text-right font-bold text-gray-700">$${parseFloat(p.price).toFixed(2)}</td>
-                    <td class="p-4">${stockUI}</td>
+                    <td class="p-4">
+                        ${stockUI}
+                        ${incomingUI}
+                    </td>
                     <td class="p-4 text-right">
-                        <button onclick="deleteProduct(${p.id})" class="text-red-400 hover:text-red-600 font-bold text-xs">Delete</button>
+                        <button onclick="deleteProduct(${p.id})" class="text-red-400 hover:text-red-600 font-bold text-xs bg-red-50 px-2 py-1 rounded">Delete</button>
                     </td>
                 </tr>`;
             }).join('');
