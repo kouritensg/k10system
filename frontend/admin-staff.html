@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Staff Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800">
+
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-5xl mx-auto px-4 mt-8 pb-12">
+        
+        <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-red-600 mb-8 flex justify-between items-center">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-800">🛡️ Staff Access Management</h2>
+                <p class="text-gray-500 text-sm">Create accounts and assign system roles.</p>
+            </div>
+            <button onclick="toggleForm()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded shadow transition">
+                + Add New Staff
+            </button>
+        </div>
+
+        <div id="add-form" class="bg-white p-6 rounded-lg shadow-sm mb-8 hidden border border-gray-200">
+            <h3 class="font-bold text-gray-700 mb-4">Register New Account</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Username</label>
+                    <input type="text" id="staff-user" class="w-full p-2 border rounded font-bold outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Password</label>
+                    <input type="password" id="staff-pass" class="w-full p-2 border rounded outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">System Role</label>
+                    <select id="staff-role" class="w-full p-2 border rounded font-bold text-gray-700 bg-gray-50">
+                        <option value="Staff">Staff (POS & Inventory Only)</option>
+                        <option value="Admin">Full Admin</option>
+                    </select>
+                </div>
+            </div>
+            <div class="text-right">
+                <button onclick="saveStaff()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-8 rounded shadow">Save Account</button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[400px]">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50 border-b text-[10px] uppercase font-bold text-gray-400">
+                    <tr>
+                        <th class="p-4">Username</th>
+                        <th class="p-4">Assigned Role</th>
+                        <th class="p-4">Created Date</th>
+                        <th class="p-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="staff-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('k10_token');
+            const role = localStorage.getItem('k10_role'); // We will set this in the login script next
+            
+            if (!token) window.location.href = 'admin.html';
+            
+            // SECURITY CHECK: Boot non-admins out
+            if (role !== 'Admin') {
+                alert("Access Denied. Admins only.");
+                window.location.href = 'admin-sales.html';
+            }
+
+            loadStaff();
+        });
+
+        function toggleForm() {
+            document.getElementById('add-form').classList.toggle('hidden');
+        }
+
+        async function loadStaff() {
+            try {
+                const res = await fetch(`${API_URL}/staff`);
+                const staff = await res.json();
+                
+                document.getElementById('staff-table-body').innerHTML = staff.map(s => `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-4 font-bold text-gray-800">${s.username}</td>
+                        <td class="p-4">
+                            <span class="px-3 py-1 rounded text-xs font-bold uppercase ${s.role === 'Admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
+                                ${s.role}
+                            </span>
+                        </td>
+                        <td class="p-4 text-sm text-gray-500">${new Date(s.created_at).toLocaleDateString()}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="deleteStaff(${s.id}, '${s.username}')" class="text-red-400 hover:text-red-600 font-bold text-xs uppercase tracking-wider">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error("Failed to load staff"); }
+        }
+
+        async function saveStaff() {
+            const username = document.getElementById('staff-user').value;
+            const password = document.getElementById('staff-pass').value;
+            const role = document.getElementById('staff-role').value;
+
+            if (!username || !password) return alert("Username and Password required.");
+
+            const res = await fetch(`${API_URL}/staff`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, role })
+            });
+
+            if (res.ok) {
+                alert("Staff account created!");
+                document.getElementById('staff-user').value = '';
+                document.getElementById('staff-pass').value = '';
+                toggleForm();
+                loadStaff();
+            } else {
+                const err = await res.json();
+                alert(err.error);
+            }
+        }
+
+        async function deleteStaff(id, username) {
+            if (confirm(`Are you sure you want to delete the account for ${username}?`)) {
+                await fetch(`${API_URL}/staff/${id}`, { method: 'DELETE' });
+                loadStaff();
+            }
+        }
+    </script>
+</body>
+</html>
