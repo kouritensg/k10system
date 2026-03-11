@@ -2,8 +2,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const role = localStorage.getItem('k10_role') || 'Staff';
     const username = localStorage.getItem('k10_username') || 'User';
     
-    // Determine which links to show based on Role
-    const isAdmin = role === 'Admin';
+    // Make the check case-insensitive so "admin" or "Admin" both work
+    const isAdmin = role.toLowerCase() === 'admin';
 
     const navHTML = `
     <nav class="bg-gray-800 shadow-md">
@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <a href="admin-purchase.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">🛒 Order Stock</a>
                         <a href="admin-PurchaseHistory.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">📜 PO History</a>
                         <a href="admin-suppliers.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">🏢 Suppliers</a>
+                        <a href="admin-staff.html" class="px-3 py-2 rounded-md text-sm font-bold text-red-400 hover:bg-gray-700 hover:text-white transition">🛡️ Staff</a>
                         ` : ''}
                     </div>
                 </div>
@@ -36,12 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="text-sm font-bold text-white leading-tight">${username}</span>
                         <span class="text-[10px] font-bold uppercase tracking-wider ${isAdmin ? 'text-red-400' : 'text-blue-400'}">${role}</span>
                     </div>
-                    
-                    ${isAdmin ? `
-                    <a href="admin-staff.html" class="p-2 text-gray-400 hover:text-white transition" title="Manage Staff">
-                        ⚙️
-                    </a>
-                    ` : ''}
                     
                     <button onclick="logout()" class="ml-4 bg-gray-700 hover:bg-red-600 text-white px-4 py-1.5 rounded text-xs font-bold transition">
                         Logout
@@ -60,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const links = document.querySelectorAll('nav a');
     links.forEach(link => {
         if (link.getAttribute('href') === currentPage) {
-            link.classList.remove('text-gray-300', 'text-blue-400');
+            link.classList.remove('text-gray-300', 'text-blue-400', 'text-red-400');
             link.classList.add('bg-gray-900', 'text-white');
         }
     });
