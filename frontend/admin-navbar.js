@@ -23,8 +23,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 <a href="admin-sales-history.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Sales Log</a>
                 
                 <div class="h-4 w-px bg-gray-300 mx-1"></div>
-                <a href="admin-customers.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Customers</a>
-                
+                <a href="admin-customers.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Customers Masterdata</a>
+                <a href="admin-staff.html" class="nav-link text-gray-600 hover:text-blue-600 font-medium">Staff MasterData</a>
                 <button id="global-logout-btn" class="text-red-600 font-semibold ml-2 border border-red-200 px-3 py-1 rounded hover:bg-red-50 transition">
                     Logout
                 </button>
