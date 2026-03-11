@@ -16,18 +16,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     
                     <div class="hidden md:flex space-x-1">
-                        <a href="admin-sales.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">💳 POS</a>
-                        <a href="admin-preorders.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">⏳ Preorders</a>
                         <a href="admin-inventory.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">📦 Inventory</a>
-                        <a href="admin-categories.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">📁 Categories</a>
-                        <a href="admin-customers.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">👥 Customers</a>
-                        
+                         <a href="admin-customers.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">👥 Customers Master</a>
+                        <a href="admin-sales.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">💳 POS</a>
+                        <a href="admin-preorders.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">⏳ Customer Preorders</a>
                         ${isAdmin ? `
                         <div class="border-l border-gray-600 mx-2 h-6 mt-1.5"></div>
                         <a href="admin-purchase.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">🛒 Order Stock</a>
-                        <a href="admin-PurchaseHistory.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">📜 PO History</a>
+                        <a href="admin-PurchaseHistory.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">📜 PO (store) History</a>
                         <a href="admin-suppliers.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">🏢 Suppliers</a>
                         <a href="admin-staff.html" class="px-3 py-2 rounded-md text-sm font-bold text-red-400 hover:bg-gray-700 hover:text-white transition">🛡️ Staff</a>
+                        <a href="admin-categories.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">📁 Categories</a>
                         ` : ''}
                     </div>
                 </div>
