@@ -64,20 +64,6 @@
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
 
-        document.addEventListener('DOMContentLoaded', () => {
-    const token = localStorage.getItem('k10_token');
-    const role = localStorage.getItem('k10_role') || ''; // Get the role
-    
-    if (!token) window.location.href = 'admin.html';
-    
-    // SECURITY CHECK: Make it case-insensitive!
-    if (role.toLowerCase() !== 'admin') {
-        alert("Access Denied. Admins only.");
-        window.location.href = 'admin-sales.html';
-    }
-
-    loadStaff();
-});
         function toggleForm() {
             document.getElementById('add-form').classList.toggle('hidden');
         }
