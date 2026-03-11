@@ -35,8 +35,43 @@ app.post('/api/auth/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ error: 'Invalid login' });
 
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: '12h' });
-    res.json({ token, user: { id: user.id, username: user.username } });
+    
+    // Send the role back to the frontend so we can hide/show UI elements
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
   } catch (error) { res.status(500).json({ error: 'Login error' }); }
+});
+
+// ==========================================
+// STAFF MANAGEMENT ROUTES (NEW)
+// ==========================================
+
+app.get('/api/staff', async (req, res) => {
+    try {
+        // Exclude passwords from the response for security
+        const [rows] = await db.execute('SELECT id, username, role, created_at FROM staff ORDER BY role ASC, username ASC');
+        res.json(rows);
+    } catch (error) { res.status(500).json({ error: 'Failed to fetch staff' }); }
+});
+
+app.post('/api/staff', async (req, res) => {
+    const { username, password, role } = req.body;
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await db.execute(
+            'INSERT INTO staff (username, password_hash, role) VALUES (?, ?, ?)',
+            [username, hashedPassword, role || 'Staff']
+        );
+        res.status(201).json({ message: 'Staff account created' });
+    } catch (error) { 
+        res.status(500).json({ error: 'Username might already exist.' }); 
+    }
+});
+
+app.delete('/api/staff/:id', async (req, res) => {
+    try {
+        await db.execute('DELETE FROM staff WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Staff deleted' });
+    } catch (error) { res.status(500).json({ error: 'Delete failed' }); }
 });
 
 // ==========================================
