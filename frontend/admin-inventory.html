@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K10 Admin - Inventory Management</title>
+    <title>K10 Admin - Inventory Management (FIFO)</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 pb-20">
@@ -15,13 +15,13 @@
         <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-600 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
                 <h2 class="text-2xl font-bold">📦 Inventory Master List</h2>
-                <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Click any product row to view details</p>
+                <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Click any product row to view details & batches</p>
             </div>
             <div class="flex gap-2 w-full md:w-auto">
                 <input type="text" id="search-inventory" onkeyup="filterInventory()" placeholder="Search card, box, or ID..." 
                        class="p-2 border rounded shadow-sm w-full md:w-64 outline-none focus:ring-2 focus:ring-blue-500">
                 <button onclick="openProductModal()" class="bg-blue-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-blue-700 transition whitespace-nowrap">
-                    + Add Product
+                    + Add Master Product
                 </button>
             </div>
         </div>
@@ -30,10 +30,9 @@
             <table class="w-full text-left border-collapse">
                 <thead class="bg-gray-50 border-b text-[10px] uppercase font-bold text-gray-400 tracking-widest">
                     <tr>
-                        <th class="p-4">Product Name</th>
+                        <th class="p-4">Master Product Name</th>
                         <th class="p-4">Game / Category</th>
-                        <th class="p-4 w-32 text-center">Live Stock</th>
-                        <th class="p-4 w-32 text-right">Retail Price</th>
+                        <th class="p-4 w-32 text-center">Retail Price</th>
                     </tr>
                 </thead>
                 <tbody id="inventory-list-body"></tbody>
@@ -43,7 +42,7 @@
         </div>
     </div>
 
-    <div id="inventory-details-view" class="hidden max-w-5xl mx-auto px-4 mt-8 animate-fade-in">
+    <div id="inventory-details-view" class="hidden max-w-6xl mx-auto px-4 mt-8 animate-fade-in pb-20">
         
         <div class="flex justify-between items-center mb-6">
             <button onclick="hideDetails()" class="bg-white border border-gray-300 hover:bg-gray-100 px-5 py-2 rounded shadow-sm font-bold text-sm transition text-gray-600">
@@ -51,188 +50,200 @@
             </button>
             <div class="flex gap-2">
                 <button onclick="deleteProduct()" class="bg-red-100 text-red-600 border border-red-200 px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-red-200 transition">
-                    Delete
+                    Delete Product
                 </button>
                 <button onclick="openProductModal(true)" class="bg-yellow-500 text-white px-6 py-2 rounded font-bold text-sm shadow hover:bg-yellow-600 transition">
-                    Edit Product
+                    Edit Master Profile
                 </button>
             </div>
         </div>
 
-        <div class="bg-white border border-gray-300 shadow-sm rounded-lg overflow-hidden">
+        <div class="bg-white border border-gray-300 shadow-sm rounded-lg overflow-hidden mb-8">
             <div class="grid grid-cols-2 border-b border-gray-300">
-                <div class="p-5 border-r border-gray-300">
+                <div class="p-6 border-r border-gray-300">
                     <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Item Name</div>
-                    <div class="text-2xl font-bold text-gray-800" id="det-card-name"></div>
+                    <div class="text-2xl font-extrabold text-gray-900" id="det-card-name"></div>
                 </div>
-                <div class="p-5">
+                <div class="p-6">
                     <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Item IP</div>
-                    <div class="text-2xl font-bold text-blue-600" id="det-game-title"></div>
+                    <div class="text-2xl font-extrabold text-blue-600" id="det-game-title"></div>
                 </div>
-            </div>
-
-            <div class="grid grid-cols-4 border-b border-gray-300 bg-gray-50">
-                <div class="p-4 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Total Units</div>
-                    <div class="text-xl font-bold text-gray-800" id="det-stock"></div>
-                </div>
-                <div class="p-4 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Selling Price (Per Unit)</div>
-                    <div class="text-xl font-bold text-green-600" id="det-price"></div>
-                </div>
-                <div class="p-4 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Allocated QTY</div>
-                    <div class="text-xl font-bold text-orange-500" id="det-allocated"></div>
-                </div>
-                <div class="p-4">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Allocation Wave</div>
-                    <div class="text-xl font-bold text-gray-800" id="det-wave"></div>
-                </div>
-            </div>
-
-            <div class="p-4 border-b border-gray-300">
-                <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Inventory ID</div>
-                <div class="text-sm font-mono font-bold text-gray-500" id="det-card-id"></div>
             </div>
 
             <div class="grid grid-cols-3 border-b border-gray-300 bg-gray-50">
-                <div class="p-4 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Cost Per Unit</div>
-                    <div class="text-lg font-bold text-gray-800" id="det-cost-unit"></div>
+                <div class="p-5 border-r border-gray-300">
+                    <div class="text-[10px] text-blue-500 uppercase font-bold tracking-widest mb-1">Total Stock (All Waves)</div>
+                    <div class="text-3xl font-extrabold text-blue-800" id="agg-total-stock">0</div>
                 </div>
-                <div class="p-4 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Tax</div>
-                    <div class="text-lg font-bold text-gray-800" id="det-tax-info"></div>
+                <div class="p-5 border-r border-gray-300">
+                    <div class="text-[10px] text-orange-500 uppercase font-bold tracking-widest mb-1">Total Allocated (Preorders)</div>
+                    <div class="text-3xl font-extrabold text-orange-600" id="agg-total-allocated">0</div>
                 </div>
-                <div class="p-4">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Cost After Tax</div>
-                    <div class="text-lg font-bold text-gray-800" id="det-cost-tax"></div>
+                <div class="p-5">
+                    <div class="text-[10px] text-green-500 uppercase font-bold tracking-widest mb-1">Retail Selling Price</div>
+                    <div class="text-3xl font-extrabold text-green-600" id="det-price">$0.00</div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 border-b border-gray-300">
-                <div class="p-5 border-r border-gray-300 flex flex-col justify-center bg-white">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Shipping Included?</div>
-                    <div class="text-lg font-bold text-gray-800" id="det-shipping"></div>
+            <div class="grid grid-cols-4 border-b border-gray-300">
+                <div class="p-5 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Avg Unit Cost</div>
+                    <div class="text-lg font-bold text-gray-800" id="agg-avg-cost">$0.00</div>
                 </div>
-                <div class="grid grid-rows-4 bg-white">
-                    <div class="p-3 border-b border-gray-300 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Packaging Configuration</div>
-                    <div class="p-3 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Base</span>
-                        <span class="font-bold text-gray-800 font-mono" id="calc-unit">-</span>
-                    </div>
-                    <div class="p-3 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Display (Box)</span>
-                        <span class="font-bold text-gray-800 font-mono" id="calc-box">-</span>
-                    </div>
-                    <div class="p-3 flex justify-between items-center hover:bg-gray-50">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Case</span>
-                        <span class="font-bold text-gray-800 font-mono" id="calc-case">-</span>
-                    </div>
+                <div class="p-5 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Tax Rate</div>
+                    <div class="text-lg font-bold text-gray-800" id="det-tax-info"></div>
+                </div>
+                <div class="p-5 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Inventory ID</div>
+                    <div class="text-sm font-mono font-bold text-gray-600" id="det-card-id"></div>
+                </div>
+                <div class="p-5">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Shipping Config</div>
+                    <div class="text-sm font-bold text-gray-800" id="det-shipping"></div>
                 </div>
             </div>
 
             <div class="grid grid-cols-2">
-                <div class="p-5 border-r border-gray-300 bg-gray-50">
+                <div class="p-6 border-r border-gray-300">
                     <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Quick Description</div>
-                    <div class="text-sm text-gray-700 leading-relaxed min-h-[100px] whitespace-pre-wrap" id="det-quick-desc"></div>
+                    <div class="text-sm text-gray-700 leading-relaxed min-h-[60px]" id="det-quick-desc"></div>
                 </div>
-                <div class="p-5 bg-gray-50">
+                <div class="p-6">
                     <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Long Description</div>
-                    <div class="text-sm text-gray-700 leading-relaxed min-h-[100px] whitespace-pre-wrap" id="det-long-desc"></div>
+                    <div class="text-sm text-gray-700 leading-relaxed min-h-[60px]" id="det-long-desc"></div>
                 </div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-300 shadow-sm rounded-lg overflow-hidden">
+            <div class="p-5 bg-gray-800 border-b flex justify-between items-center">
+                <h3 class="font-bold text-white uppercase tracking-widest text-sm">📦 Incoming Waves & FIFO Batches</h3>
+                <button onclick="openWaveModal()" class="bg-blue-500 text-white text-xs px-4 py-2 font-bold uppercase tracking-wider rounded shadow hover:bg-blue-400 transition">
+                    + Add New Batch
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-100 border-b border-gray-300 text-[10px] uppercase font-bold text-gray-500 tracking-widest">
+                        <tr>
+                            <th class="p-4">Wave / Batch Name</th>
+                            <th class="p-4 text-center">Initial QTY</th>
+                            <th class="p-4 text-center">Remaining Stock</th>
+                            <th class="p-4 text-center text-orange-600">Allocated</th>
+                            <th class="p-4 text-right">Unit Cost</th>
+                            <th class="p-4 text-right">Arrival Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fifo-batches-body">
+                        </tbody>
+                </table>
             </div>
         </div>
     </div>
 
     <div id="product-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-[100] p-4">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div class="p-6 border-b sticky top-0 bg-white flex justify-between items-center z-10">
-                <h3 class="text-xl font-bold text-gray-800" id="modal-title">Add New Product</h3>
+                <h3 class="text-xl font-bold text-gray-800" id="modal-title">Add Master Product Profile</h3>
                 <button onclick="closeProductModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
             </div>
             
-            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="space-y-4 md:col-span-2">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item Name *</label>
-                            <input type="text" id="frm-name" class="w-full p-2 border rounded font-bold text-gray-800 outline-none focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item IP (Game) *</label>
-                            <input type="text" id="frm-ip" class="w-full p-2 border rounded font-bold text-blue-600 outline-none focus:border-blue-500">
-                        </div>
+            <div class="p-6 space-y-6">
+                <div class="grid grid-cols-2 gap-4 border p-4 rounded bg-gray-50">
+                    <div class="col-span-2 text-sm font-bold text-gray-700 border-b pb-2">1. Core Identity</div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item Name *</label>
+                        <input type="text" id="frm-name" class="w-full p-2 border rounded font-bold text-gray-800">
                     </div>
                     <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item IP (Game) *</label>
+                        <input type="text" id="frm-ip" class="w-full p-2 border rounded font-bold text-blue-600">
+                    </div>
+                    <div class="col-span-2">
                         <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Inventory ID (Set/Barcode)</label>
-                        <input type="text" id="frm-id" class="w-full p-2 border rounded font-mono text-gray-600 outline-none focus:border-blue-500">
+                        <input type="text" id="frm-id" class="w-full p-2 border rounded font-mono text-gray-600">
                     </div>
                 </div>
 
-                <div class="space-y-4 border p-4 rounded bg-gray-50">
-                    <h4 class="font-bold text-sm text-gray-700 border-b pb-2">Market & Allocation</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Total Units</label>
-                            <input type="number" id="frm-stock" class="w-full p-2 border rounded font-bold">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Selling Price / Unit ($)</label>
-                            <input type="number" step="0.01" id="frm-price" class="w-full p-2 border rounded font-bold text-green-600">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Allocated Qty</label>
-                            <input type="number" id="frm-allocated" class="w-full p-2 border rounded font-bold text-orange-500">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Allocation Wave</label>
-                            <input type="text" id="frm-wave" class="w-full p-2 border rounded font-bold">
-                        </div>
+                <div class="grid grid-cols-2 gap-4 border p-4 rounded bg-gray-50">
+                    <div class="col-span-2 text-sm font-bold text-gray-700 border-b pb-2">2. Master Pricing & Structure</div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Retail Selling Price ($)</label>
+                        <input type="number" step="0.01" id="frm-price" class="w-full p-2 border rounded font-bold text-green-600">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Tax Rate (e.g., 0.09)</label>
+                        <input type="number" step="0.01" id="frm-tax" class="w-full p-2 border rounded font-bold">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Packs per Box</label>
+                        <input type="number" id="frm-packs" class="w-full p-2 border rounded font-bold">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Boxes per Case</label>
+                        <input type="number" id="frm-cases" class="w-full p-2 border rounded font-bold">
+                    </div>
+                    <div class="col-span-2 flex items-center gap-2 mt-2">
+                        <input type="checkbox" id="frm-shipping" class="w-4 h-4 text-blue-600">
+                        <label class="text-sm font-bold text-gray-700">Shipping generally included?</label>
                     </div>
                 </div>
 
-                <div class="space-y-4 border p-4 rounded bg-gray-50">
-                    <h4 class="font-bold text-sm text-gray-700 border-b pb-2">Financials & Packaging</h4>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Cost Per Unit ($)</label>
-                            <input type="number" step="0.01" id="frm-cost" class="w-full p-2 border rounded font-bold">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Tax Rate (e.g., 0.09 for 9%)</label>
-                            <input type="number" step="0.01" id="frm-tax" class="w-full p-2 border rounded font-bold">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Units per Display/Box</label>
-                            <input type="number" id="frm-packs" class="w-full p-2 border rounded font-bold">
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Boxes per Case</label>
-                            <input type="number" id="frm-cases" class="w-full p-2 border rounded font-bold">
-                        </div>
-                        <div class="col-span-2 flex items-center gap-2 mt-2">
-                            <input type="checkbox" id="frm-shipping" class="w-4 h-4 text-blue-600">
-                            <label class="text-sm font-bold text-gray-700">Shipping Included in Cost?</label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="space-y-4 md:col-span-2">
+                <div class="space-y-4">
                     <div>
                         <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quick Description</label>
-                        <input type="text" id="frm-quick-desc" class="w-full p-2 border rounded text-gray-700 outline-none focus:border-blue-500">
+                        <input type="text" id="frm-quick-desc" class="w-full p-2 border rounded text-gray-700">
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Long Description</label>
-                        <textarea id="frm-long-desc" rows="3" class="w-full p-2 border rounded text-gray-700 outline-none focus:border-blue-500"></textarea>
+                        <textarea id="frm-long-desc" rows="3" class="w-full p-2 border rounded text-gray-700"></textarea>
                     </div>
                 </div>
             </div>
 
             <div class="p-6 border-t bg-gray-50 flex justify-end gap-3 sticky bottom-0 rounded-b-lg">
                 <button onclick="closeProductModal()" class="px-6 py-2 rounded font-bold text-gray-500 hover:bg-gray-200 transition">Cancel</button>
-                <button onclick="saveProduct()" id="btn-save-product" class="bg-blue-600 text-white px-8 py-2 rounded font-bold shadow hover:bg-blue-700 transition">Save Product</button>
+                <button onclick="saveProduct()" id="btn-save-product" class="bg-blue-600 text-white px-8 py-2 rounded font-bold shadow hover:bg-blue-700 transition">Save Profile</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="wave-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-[110] p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-md">
+            <div class="p-5 border-b bg-gray-800 flex justify-between items-center rounded-t-lg">
+                <h3 class="text-lg font-bold text-white">📦 Receive New Batch</h3>
+                <button onclick="closeWaveModal()" class="text-gray-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase">Wave Name (e.g., Wave 1, Reprints)</label>
+                    <input type="text" id="wave-name" placeholder="Standard Wave" class="w-full p-2 border rounded font-bold text-gray-800">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Quantity Arriving</label>
+                        <input type="number" id="wave-qty" placeholder="0" class="w-full p-2 border rounded font-bold text-blue-600">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Unit Cost ($)</label>
+                        <input type="number" step="0.01" id="wave-cost" placeholder="0.00" class="w-full p-2 border rounded font-bold">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Allocated Preorders</label>
+                        <input type="number" id="wave-allocated" class="w-full p-2 border rounded font-bold text-orange-500" value="0">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Arrival Date</label>
+                        <input type="date" id="wave-date" class="w-full p-2 border rounded font-bold text-gray-600">
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 border-t bg-gray-50 flex justify-end gap-3 rounded-b-lg">
+                <button onclick="closeWaveModal()" class="px-5 py-2 rounded font-bold text-gray-500 hover:bg-gray-200">Cancel</button>
+                <button onclick="submitNewWave()" class="bg-green-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-green-700">Add Batch to Stock</button>
             </div>
         </div>
     </div>
@@ -240,7 +251,7 @@
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
         let globalInventory = [];
-        let currentEditingId = null; 
+        let currentEditingId = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
@@ -274,11 +285,10 @@
                 <tr class="hover:bg-blue-50 cursor-pointer transition border-b group" onclick="showItemDetails(${item.id})">
                     <td class="p-4">
                         <div class="font-bold text-gray-800 group-hover:text-blue-600 transition">${item.card_name || ''}</div>
-                        <div class="text-[10px] text-gray-400 uppercase tracking-wider mt-1">${item.card_id || ''}</div>
+                        <div class="text-[10px] text-gray-400 uppercase tracking-wider mt-1">${item.card_id || 'NO ID'}</div>
                     </td>
                     <td class="p-4"><span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold">${item.game_title || ''}</span></td>
-                    <td class="p-4 text-center"><span class="font-bold ${item.stock_quantity <= 0 ? 'text-red-500' : 'text-blue-600'}">${item.stock_quantity ?? '0'}</span></td>
-                    <td class="p-4 text-right font-mono font-bold text-gray-700">${item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : ''}</td>
+                    <td class="p-4 text-center font-mono font-bold text-gray-700">${item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : ''}</td>
                 </tr>
             `).join('');
         }
@@ -293,46 +303,74 @@
             renderInventoryList(filtered);
         }
 
-        // ------------------ VIEW DETAILS ------------------
-        function showItemDetails(id) {
+        // ------------------ VIEW DETAILS & BATCHES ------------------
+        async function showItemDetails(id) {
             const item = globalInventory.find(i => i.id === id);
             if (!item) return;
-
-            currentEditingId = id; 
+            currentEditingId = id;
 
             document.getElementById('inventory-list-container').classList.add('hidden');
             document.getElementById('inventory-details-view').classList.remove('hidden');
 
+            // 1. Render Master Profile
             document.getElementById('det-card-name').innerText = item.card_name || '';
             document.getElementById('det-game-title').innerText = item.game_title || '';
-            document.getElementById('det-stock').innerText = item.stock_quantity ?? '';
-            document.getElementById('det-price').innerText = item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : '';
-            document.getElementById('det-allocated').innerText = item.allocated_qty ?? '';
-            document.getElementById('det-wave').innerText = item.allocation_wave || '';
-            document.getElementById('det-card-id').innerText = item.card_id || '';
+            document.getElementById('det-price').innerText = item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : '$0.00';
+            document.getElementById('det-card-id').innerText = item.card_id || 'N/A';
+            document.getElementById('det-tax-info').innerText = item.tax_rate != null ? `${(parseFloat(item.tax_rate) * 100).toFixed(2)}%` : '0%';
+            document.getElementById('det-shipping').innerText = (item.shipping_included == 1 || item.shipping_included === true) ? 'Included' : 'Calculated Separately';
+            document.getElementById('det-quick-desc').innerText = item.quick_description || 'No description provided.';
+            document.getElementById('det-long-desc').innerText = item.long_description || 'No detailed description provided.';
 
-            const unitCost = item.cost_price != null ? parseFloat(item.cost_price) : null;
-            const taxRate = item.tax_rate != null ? parseFloat(item.tax_rate) : null;
+            // 2. Fetch & Render FIFO Batches
+            try {
+                const res = await fetch(`${API_URL}/inventory/${id}/batches`);
+                const batches = await res.json();
+                
+                const tbody = document.getElementById('fifo-batches-body');
+                let totalRemaining = 0;
+                let totalAllocated = 0;
+                let totalValue = 0;
 
-            document.getElementById('det-cost-unit').innerText = unitCost != null ? `$${unitCost.toFixed(2)}` : '';
-            document.getElementById('det-tax-info').innerText = taxRate != null ? `${(taxRate * 100).toFixed(2)}%` : '';
-            document.getElementById('det-cost-tax').innerText = (unitCost != null && taxRate != null) ? `$${(unitCost * (1 + taxRate)).toFixed(2)}` : '';
+                if (batches.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-400 italic font-bold">No batches received yet. Add a batch to stock this item.</td></tr>`;
+                    document.getElementById('agg-total-stock').innerText = "0";
+                    document.getElementById('agg-total-allocated').innerText = "0";
+                    document.getElementById('agg-avg-cost').innerText = "$0.00";
+                } else {
+                    tbody.innerHTML = batches.map(batch => {
+                        const rem = parseInt(batch.remaining_qty || 0);
+                        const init = parseInt(batch.initial_qty || 0);
+                        const alloc = parseInt(batch.allocated_qty || 0);
+                        const cost = parseFloat(batch.cost_price || 0);
+                        
+                        // Aggregation Math
+                        totalRemaining += rem;
+                        totalAllocated += alloc;
+                        totalValue += (rem * cost);
 
-            let shippingText = '';
-            if (item.shipping_included === 1 || item.shipping_included === true) shippingText = 'Yes';
-            else if (item.shipping_included === 0 || item.shipping_included === false) shippingText = 'No';
-            document.getElementById('det-shipping').innerText = shippingText;
+                        return `
+                        <tr class="border-b hover:bg-gray-50 transition">
+                            <td class="p-4 font-bold text-gray-800">${batch.wave_name || 'Standard'}</td>
+                            <td class="p-4 text-center text-gray-500 font-mono text-xs">${init}</td>
+                            <td class="p-4 text-center font-bold ${rem <= 0 ? 'text-red-500' : 'text-blue-600'} text-lg">${rem}</td>
+                            <td class="p-4 text-center font-bold text-orange-500">${alloc}</td>
+                            <td class="p-4 text-right font-mono font-bold text-gray-700">$${cost.toFixed(2)}</td>
+                            <td class="p-4 text-right text-xs text-gray-400 font-bold">${new Date(batch.arrival_date).toLocaleDateString()}</td>
+                        </tr>`;
+                    }).join('');
 
-            const packs = item.packs_per_box != null ? parseInt(item.packs_per_box) : 1;
-            const boxes = item.boxes_per_case != null ? parseInt(item.boxes_per_case) : 1;
-            
-            document.getElementById('calc-unit').innerText = `1 Base Unit`;
-            document.getElementById('calc-box').innerText = `${packs} Units / Box`;
-            document.getElementById('calc-case').innerText = `${boxes} Boxes / Case`;
+                    document.getElementById('agg-total-stock').innerText = totalRemaining;
+                    document.getElementById('agg-total-allocated').innerText = totalAllocated;
+                    
+                    // Calculate Weighted Average Cost
+                    const avgCost = totalRemaining > 0 ? (totalValue / totalRemaining) : 0;
+                    document.getElementById('agg-avg-cost').innerText = `$${avgCost.toFixed(2)}`;
+                }
+            } catch (e) {
+                console.error("Failed to load batches", e);
+            }
 
-            document.getElementById('det-quick-desc').innerText = item.quick_description || '';
-            document.getElementById('det-long-desc').innerText = item.long_description || '';
-            
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -344,13 +382,13 @@
             renderInventoryList(globalInventory);
         }
 
-        // ------------------ CRUD MODAL OPERATIONS ------------------
+        // ------------------ MASTER PRODUCT CRUD ------------------
         function openProductModal(isEdit = false) {
             document.getElementById('product-modal').classList.remove('hidden');
             
             if (isEdit && currentEditingId) {
-                document.getElementById('modal-title').innerText = "Edit Product";
-                document.getElementById('btn-save-product').innerText = "Update Details";
+                document.getElementById('modal-title').innerText = "Edit Master Profile";
+                document.getElementById('btn-save-product').innerText = "Update Profile";
                 document.getElementById('btn-save-product').classList.replace('bg-blue-600', 'bg-yellow-500');
                 document.getElementById('btn-save-product').classList.replace('hover:bg-blue-700', 'hover:bg-yellow-600');
                 
@@ -359,11 +397,7 @@
                     document.getElementById('frm-name').value = item.card_name || '';
                     document.getElementById('frm-ip').value = item.game_title || '';
                     document.getElementById('frm-id').value = item.card_id || '';
-                    document.getElementById('frm-stock').value = item.stock_quantity ?? '';
                     document.getElementById('frm-price').value = item.price ?? '';
-                    document.getElementById('frm-allocated').value = item.allocated_qty ?? '';
-                    document.getElementById('frm-wave').value = item.allocation_wave || '';
-                    document.getElementById('frm-cost').value = item.cost_price ?? '';
                     document.getElementById('frm-tax').value = item.tax_rate ?? '';
                     document.getElementById('frm-packs').value = item.packs_per_box ?? '';
                     document.getElementById('frm-cases').value = item.boxes_per_case ?? '';
@@ -373,19 +407,18 @@
                 }
             } else {
                 currentEditingId = null;
-                document.getElementById('modal-title').innerText = "Add New Product";
-                document.getElementById('btn-save-product').innerText = "Save Product";
+                document.getElementById('modal-title').innerText = "Add Master Product Profile";
+                document.getElementById('btn-save-product').innerText = "Save Profile";
                 document.getElementById('btn-save-product').classList.replace('bg-yellow-500', 'bg-blue-600');
                 document.getElementById('btn-save-product').classList.replace('hover:bg-yellow-600', 'hover:bg-blue-700');
                 
-                ['frm-name', 'frm-ip', 'frm-id', 'frm-stock', 'frm-price', 'frm-allocated', 'frm-wave', 'frm-cost', 'frm-tax', 'frm-packs', 'frm-cases', 'frm-quick-desc', 'frm-long-desc'].forEach(id => document.getElementById(id).value = '');
+                // Clear Form
+                ['frm-name', 'frm-ip', 'frm-id', 'frm-price', 'frm-tax', 'frm-packs', 'frm-cases', 'frm-quick-desc', 'frm-long-desc'].forEach(id => document.getElementById(id).value = '');
                 document.getElementById('frm-shipping').checked = false;
             }
         }
 
-        function closeProductModal() {
-            document.getElementById('product-modal').classList.add('hidden');
-        }
+        function closeProductModal() { document.getElementById('product-modal').classList.add('hidden'); }
 
         async function saveProduct() {
             const btn = document.getElementById('btn-save-product');
@@ -396,11 +429,7 @@
                 card_name: document.getElementById('frm-name').value,
                 game_title: document.getElementById('frm-ip').value,
                 card_id: document.getElementById('frm-id').value,
-                stock_quantity: parseInt(document.getElementById('frm-stock').value) || 0,
                 price: parseFloat(document.getElementById('frm-price').value) || 0,
-                allocated_qty: parseInt(document.getElementById('frm-allocated').value) || 0,
-                allocation_wave: document.getElementById('frm-wave').value,
-                cost_price: parseFloat(document.getElementById('frm-cost').value) || 0,
                 tax_rate: parseFloat(document.getElementById('frm-tax').value) || 0,
                 packs_per_box: parseInt(document.getElementById('frm-packs').value) || 1,
                 boxes_per_case: parseInt(document.getElementById('frm-cases').value) || 1,
@@ -412,7 +441,7 @@
             if (!payload.card_name || !payload.game_title) {
                 alert("Item Name and Item IP are required!");
                 btn.disabled = false;
-                btn.innerText = currentEditingId ? "Update Details" : "Save Product";
+                btn.innerText = currentEditingId ? "Update Profile" : "Save Profile";
                 return;
             }
 
@@ -427,39 +456,75 @@
                 });
 
                 if (res.ok) {
-                    alert(currentEditingId ? "Product updated!" : "Product added!");
                     closeProductModal();
-                    if (currentEditingId) hideDetails(); 
-                    loadInventory(); 
+                    await loadInventory(); // Sync master list
+                    if (currentEditingId) showItemDetails(currentEditingId); // Refresh details view seamlessly
                 } else {
-                    const data = await res.json();
-                    alert("Error: " + data.error);
+                    alert("Error saving master product.");
                 }
             } catch (error) {
                 alert("Failed to connect to server.");
             } finally {
                 btn.disabled = false;
-                btn.innerText = currentEditingId ? "Update Details" : "Save Product";
+                btn.innerText = currentEditingId ? "Update Profile" : "Save Profile";
             }
         }
 
         async function deleteProduct() {
             if (!currentEditingId) return;
-            if (!confirm("Are you sure you want to permanently delete this product? This action cannot be undone.")) return;
+            if (!confirm("Delete this master product? This will also delete ALL related FIFO batches. This cannot be undone.")) return;
 
             try {
                 const res = await fetch(`${API_URL}/inventory/${currentEditingId}`, { method: 'DELETE' });
                 if (res.ok) {
-                    alert("Product deleted.");
                     hideDetails(); 
                     loadInventory(); 
-                } else {
-                    const data = await res.json();
-                    alert("Error: " + data.error);
-                }
-            } catch (error) {
-                alert("Failed to connect to server.");
+                } else { alert("Failed to delete."); }
+            } catch (error) { alert("Failed to connect to server."); }
+        }
+
+        // ------------------ FIFO BATCH MODAL ------------------
+        function openWaveModal() {
+            document.getElementById('wave-modal').classList.remove('hidden');
+            document.getElementById('wave-date').valueAsDate = new Date(); 
+            document.getElementById('wave-name').value = '';
+            document.getElementById('wave-qty').value = '';
+            document.getElementById('wave-cost').value = '';
+            document.getElementById('wave-allocated').value = '0';
+        }
+        
+        function closeWaveModal() { document.getElementById('wave-modal').classList.add('hidden'); }
+
+        async function submitNewWave() {
+            if(!currentEditingId) return;
+
+            const payload = {
+                wave_name: document.getElementById('wave-name').value || 'Standard Wave',
+                initial_qty: parseInt(document.getElementById('wave-qty').value) || 0,
+                cost_price: parseFloat(document.getElementById('wave-cost').value) || 0,
+                allocated_qty: parseInt(document.getElementById('wave-allocated').value) || 0,
+                arrival_date: document.getElementById('wave-date').value
+            };
+
+            if (payload.initial_qty <= 0) {
+                alert("Quantity arriving must be greater than zero.");
+                return;
             }
+
+            try {
+                const res = await fetch(`${API_URL}/inventory/${currentEditingId}/batches`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    closeWaveModal();
+                    showItemDetails(currentEditingId); // Reload details view to fetch new batches
+                } else {
+                    alert("Error saving wave.");
+                }
+            } catch (e) { alert("Server connection failed"); }
         }
     </script>
 </body>
