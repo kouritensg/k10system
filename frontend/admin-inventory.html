@@ -31,7 +31,6 @@
                     <tr>
                         <th class="p-4">Product Name</th>
                         <th class="p-4">Game / Category</th>
-                        <th class="p-4 w-32 text-center">Live Stock</th>
                         <th class="p-4 w-32 text-right">Retail Price</th>
                     </tr>
                 </thead>
@@ -52,7 +51,7 @@
                 <button onclick="openWaveModal()" class="bg-blue-50 text-blue-600 border border-blue-200 px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-blue-100 transition">
                     + Add Wave (FIFO)
                 </button>
-                <button onclick="openProductModal(true)" class="bg-yellow-500 text-white px-6 py-2 rounded font-bold text-sm shadow hover:bg-yellow-600 transition">
+                <button id="btn-dynamic-edit" onclick="openProductModal(true)" class="bg-yellow-500 text-white px-6 py-2 rounded font-bold text-sm shadow hover:bg-yellow-600 transition">
                     Edit Master Product
                 </button>
             </div>
@@ -118,18 +117,16 @@
                     <div class="text-xl font-bold text-gray-900" id="det-shipping"></div>
                 </div>
                 <div class="grid grid-rows-4">
-                    <div class="p-4 border-b border-gray-300 text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center justify-center bg-gray-50/50">
-                        Packaging Configuration
-                    </div>
-                    <div class="p-4 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50 transition">
+                    <div class="p-4 border-b border-gray-300 text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center justify-center bg-gray-50/50">Packaging Configuration</div>
+                    <div class="p-4 border-b border-gray-300 flex justify-between items-center">
                         <span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Base</span>
                         <span class="font-mono font-bold text-gray-900 text-sm">1 Base Unit</span>
                     </div>
-                    <div class="p-4 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50 transition">
+                    <div class="p-4 border-b border-gray-300 flex justify-between items-center">
                         <span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Display (Box)</span>
                         <span class="font-mono font-bold text-gray-900 text-sm" id="calc-box">-</span>
                     </div>
-                    <div class="p-4 flex justify-between items-center hover:bg-gray-50 transition">
+                    <div class="p-4 flex justify-between items-center">
                         <span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Master Case</span>
                         <span class="font-mono font-bold text-gray-900 text-sm" id="calc-case">-</span>
                     </div>
@@ -149,10 +146,71 @@
         </div>
     </div>
 
+    <div id="product-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-[100] p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b sticky top-0 bg-white flex justify-between items-center z-10">
+                <h3 class="text-xl font-bold text-gray-800" id="modal-title">Master Product Data</h3>
+                <button onclick="closeProductModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </div>
+            
+            <div class="p-6 space-y-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item Name *</label>
+                        <input type="text" id="frm-name" class="w-full p-2 border rounded font-bold text-gray-800 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item IP (Game) *</label>
+                        <input type="text" id="frm-ip" class="w-full p-2 border rounded font-bold text-blue-600 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Inventory ID (Set/Barcode)</label>
+                        <input type="text" id="frm-id" class="w-full p-2 border rounded font-mono text-gray-600 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Retail Selling Price ($)</label>
+                        <input type="number" step="0.01" id="frm-price" class="w-full p-2 border rounded font-bold text-green-600 outline-none">
+                    </div>
+                </div>
+
+                <div class="border p-4 rounded bg-gray-50 grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Tax Rate (e.g., 0.09)</label>
+                        <input type="number" step="0.01" id="frm-tax" class="w-full p-2 border rounded font-bold outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Packs per Box</label>
+                        <input type="number" id="frm-packs" class="w-full p-2 border rounded font-bold outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Boxes per Case</label>
+                        <input type="number" id="frm-cases" class="w-full p-2 border rounded font-bold outline-none">
+                    </div>
+                    <div class="col-span-3 flex items-center gap-2 mt-2">
+                        <input type="checkbox" id="frm-shipping" class="w-4 h-4 text-blue-600">
+                        <label class="text-sm font-bold text-gray-700">Does wholesale cost usually include shipping?</label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quick Description</label>
+                    <input type="text" id="frm-quick-desc" class="w-full p-2 border rounded text-gray-700 outline-none mb-4">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Long Description</label>
+                    <textarea id="frm-long-desc" rows="3" class="w-full p-2 border rounded text-gray-700 outline-none"></textarea>
+                </div>
+            </div>
+
+            <div class="p-6 border-t bg-gray-50 flex justify-end gap-3 sticky bottom-0 rounded-b-lg">
+                <button onclick="closeProductModal()" class="px-6 py-2 rounded font-bold text-gray-500 hover:bg-gray-200 transition">Cancel</button>
+                <button onclick="saveProduct()" id="btn-save-product" class="bg-blue-600 text-white px-8 py-2 rounded font-bold shadow hover:bg-blue-700 transition">Save Master Product</button>
+            </div>
+        </div>
+    </div>
+
     <div id="wave-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-[110] p-4">
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-lg">
             <div class="p-5 border-b bg-gray-50 flex justify-between items-center rounded-t-lg">
-                <h3 class="text-lg font-bold text-gray-800">Add Allocation Wave</h3>
+                <h3 class="text-lg font-bold text-gray-800" id="wave-modal-title">Add Allocation Wave</h3>
                 <button onclick="closeWaveModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
             </div>
             <div class="p-6 space-y-4">
@@ -162,7 +220,7 @@
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Total Units Arriving</label>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase">Units Arrived (Initial)</label>
                         <input type="number" id="wave-qty" class="w-full p-2 border rounded font-bold text-blue-600 outline-none">
                     </div>
                     <div>
@@ -183,7 +241,7 @@
             </div>
             <div class="p-5 border-t flex justify-end gap-3">
                 <button onclick="closeWaveModal()" class="px-5 py-2 rounded font-bold text-gray-500 hover:bg-gray-100 transition">Cancel</button>
-                <button onclick="submitNewWave()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-blue-700 transition">Save Wave</button>
+                <button onclick="submitWave()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-blue-700 transition">Save Wave</button>
             </div>
         </div>
     </div>
@@ -191,8 +249,9 @@
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
         let globalInventory = [];
-        let currentEditingId = null;
+        let currentEditingId = null; 
         let currentBatches = [];
+        let currentEditingWaveId = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
@@ -226,7 +285,6 @@
                         <div class="text-[10px] text-gray-400 uppercase tracking-wider mt-1">${item.card_id || ''}</div>
                     </td>
                     <td class="p-4"><span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold">${item.game_title || ''}</span></td>
-                    <td class="p-4 text-center"><span class="font-bold ${item.stock_quantity <= 0 ? 'text-red-500' : 'text-blue-600'}">${item.stock_quantity ?? '0'}</span></td>
                     <td class="p-4 text-right font-mono font-bold text-gray-700">${item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : ''}</td>
                 </tr>
             `).join('');
@@ -251,7 +309,6 @@
             document.getElementById('inventory-list-container').classList.add('hidden');
             document.getElementById('inventory-details-view').classList.remove('hidden');
 
-            // Static Data
             document.getElementById('det-card-name').innerText = currentItem.card_name || '';
             document.getElementById('det-game-title').innerText = currentItem.game_title || '';
             document.getElementById('det-price').innerText = currentItem.price != null ? `$${parseFloat(currentItem.price).toFixed(2)}` : '$0.00';
@@ -281,37 +338,37 @@
                 if (!currentBatches || currentBatches.length === 0) {
                     selector.innerHTML = `<option value="summary">Standard (No Waves)</option>`;
                     selector.disabled = true;
-                    // Fallback to master item cost/stock if no waves exist
-                    document.getElementById('det-stock').innerText = currentItem.stock_quantity ?? '0';
-                    document.getElementById('det-allocated').innerText = currentItem.allocated_qty ?? '0';
-                    const cst = parseFloat(currentItem.cost_price || 0);
-                    document.getElementById('det-cost-unit').innerText = `$${cst.toFixed(2)}`;
-                    document.getElementById('det-cost-tax').innerText = `$${(cst * (1 + tax)).toFixed(2)}`;
+                    document.getElementById('det-stock').innerText = '0';
+                    document.getElementById('det-allocated').innerText = '0';
+                    document.getElementById('det-cost-unit').innerText = "$0.00";
+                    document.getElementById('det-cost-tax').innerText = "$0.00";
+                    
+                    // Reset edit button
+                    switchWave('summary'); 
                 } else {
                     selector.disabled = false;
                     selector.innerHTML = `
                         <option value="summary">Summary (All Waves)</option>
                         ${currentBatches.map((b, index) => `<option value="${index}">${b.wave_name}</option>`).join('')}
                     `;
-                    // Trigger Summary Default
                     switchWave('summary');
                 }
-            } catch(e) {
-                console.error("Error fetching batches");
-            }
+            } catch(e) { console.error("Error fetching batches"); }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Logic for toggling Summary vs Specific Wave
+        // --- THE DYNAMIC EDIT BUTTON LOGIC ---
         function switchWave(value) {
             const tax = parseFloat(globalInventory.find(i => i.id === currentEditingId)?.tax_rate || 0);
+            const editBtn = document.getElementById('btn-dynamic-edit');
 
             if (value === 'summary') {
-                // Aggregate math across all waves
-                let totalStock = 0;
-                let totalAllocated = 0;
-                let totalValue = 0;
+                // Change Button to Edit Master
+                editBtn.innerText = "Edit Master Product";
+                editBtn.onclick = () => openProductModal(true);
 
+                // Math for Summary
+                let totalStock = 0; let totalAllocated = 0; let totalValue = 0;
                 currentBatches.forEach(b => {
                     const qty = parseInt(b.remaining_qty || 0);
                     const cost = parseFloat(b.cost_price || 0);
@@ -321,19 +378,19 @@
                 });
 
                 const avgCost = totalStock > 0 ? (totalValue / totalStock) : 0;
-
                 document.getElementById('det-stock').innerText = totalStock;
                 document.getElementById('det-allocated').innerText = totalAllocated;
                 document.getElementById('det-cost-unit').innerText = `$${avgCost.toFixed(2)}`;
                 document.getElementById('det-cost-tax').innerText = `$${(avgCost * (1 + tax)).toFixed(2)}`;
-
             } else {
-                // Show data for the specific wave selected
+                // Change Button to Edit Wave
+                editBtn.innerText = "Edit Wave Details";
+                editBtn.onclick = () => openWaveModal(true, parseInt(value));
+
+                // Data for specific wave
                 const batch = currentBatches[parseInt(value)];
                 if(!batch) return;
-
                 const waveCost = parseFloat(batch.cost_price || 0);
-
                 document.getElementById('det-stock').innerText = batch.remaining_qty || 0;
                 document.getElementById('det-allocated').innerText = batch.allocated_qty || 0;
                 document.getElementById('det-cost-unit').innerText = `$${waveCost.toFixed(2)}`;
@@ -348,42 +405,23 @@
             renderInventoryList(globalInventory);
         }
 
-        // --- NEW WAVE MODAL ---
-        function openWaveModal() {
-            document.getElementById('wave-modal').classList.remove('hidden');
-            document.getElementById('wave-date').valueAsDate = new Date(); // Default to today
-        }
-        
-        function closeWaveModal() { 
-            document.getElementById('wave-modal').classList.add('hidden'); 
-        }
-
-        async function submitNewWave() {
-            if(!currentEditingId) return;
-
-            const payload = {
-                wave_name: document.getElementById('wave-name').value || 'Standard',
-                initial_qty: parseInt(document.getElementById('wave-qty').value) || 0,
-                cost_price: parseFloat(document.getElementById('wave-cost').value) || 0,
-                allocated_qty: parseInt(document.getElementById('wave-allocated').value) || 0,
-                arrival_date: document.getElementById('wave-date').value
-            };
-
-            try {
-                const res = await fetch(`${API_URL}/inventory/${currentEditingId}/batches`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                if (res.ok) {
-                    closeWaveModal();
-                    showItemDetails(currentEditingId); // Refresh details to show new wave
-                } else {
-                    alert("Error saving wave.");
+        // --- MASTER PRODUCT MODAL (Cleaned up, no stock/cost) ---
+        function openProductModal(isEdit = false) {
+            document.getElementById('product-modal').classList.remove('hidden');
+            
+            if (isEdit && currentEditingId) {
+                document.getElementById('modal-title').innerText = "Edit Master Product";
+                const item = globalInventory.find(i => i.id === currentEditingId);
+                if(item) {
+                    document.getElementById('frm-name').value = item.card_name || '';
+                    document.getElementById('frm-ip').value = item.game_title || '';
+                    document.getElementById('frm-id').value = item.card_id || '';
+                    document.getElementById('frm-price').value = item.price ?? '';
+                    document.getElementById('frm-tax').value = item.tax_rate ?? '';
+                    document.getElementById('frm-packs').value = item.packs_per_box ?? '';
+                    document.getElementById('frm-cases').value = item.boxes_per_case ?? '';
+                    document.getElementById('frm-shipping').checked = item.shipping_included === 1 || item.shipping_included === true;
+                    document.getElementById('frm-quick-desc').value = item.quick_description || '';
+                    document.getElementById('frm-long-desc').value = item.long_description || '';
                 }
-            } catch (e) { alert("Server connection failed"); }
-        }
-    </script>
-</body>
-</html>
+            }
