@@ -204,6 +204,36 @@ app.put('/api/inventory/:id', async (req, res) => {
     }
 });
 
+
+// ==========================================
+// 4 FIFO BATCH MANAGEMENT
+// ==========================================
+
+// 1. Get all FIFO waves for a specific product
+app.get('/api/inventory/:id/batches', async (req, res) => {
+    try {
+        const [batches] = await db.execute('SELECT * FROM fifo WHERE inventory_id = ? ORDER BY arrival_date ASC, id ASC', [req.params.id]);
+        res.json(batches);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 2. Add a new FIFO wave
+app.post('/api/inventory/:id/batches', async (req, res) => {
+    const { wave_name, cost_price, initial_qty, allocated_qty, arrival_date } = req.body;
+    try {
+        await db.execute(
+            `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, allocated_qty, arrival_date) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [req.params.id, wave_name || 'Standard Wave', cost_price, initial_qty, initial_qty, allocated_qty || 0, arrival_date]
+        );
+        res.status(201).json({ message: 'Wave added successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ==========================================
 // 5. PURCHASING MODULE
 // ==========================================
