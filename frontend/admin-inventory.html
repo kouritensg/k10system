@@ -16,9 +16,15 @@
                 <h2 class="text-2xl font-bold">📦 Inventory Master List</h2>
                 <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Click any product row to view details</p>
             </div>
-            <div class="flex gap-2 w-full md:w-auto">
+            
+            <div class="flex flex-wrap gap-2 w-full md:w-auto items-center">
+                
+                <select id="filter-ip" onchange="filterInventory()" class="p-2 border rounded shadow-sm w-full md:w-48 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-gray-700 cursor-pointer">
+                    <option value="all">All IP / Categories</option>
+                    </select>
+
                 <input type="text" id="search-inventory" onkeyup="filterInventory()" placeholder="Search card, box, or ID..." 
-                       class="p-2 border rounded shadow-sm w-full md:w-72 outline-none focus:ring-2 focus:ring-blue-500">
+                       class="p-2 border rounded shadow-sm w-full md:w-64 outline-none focus:ring-2 focus:ring-blue-500">
                 <button onclick="openProductModal()" class="bg-blue-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-blue-700 transition whitespace-nowrap">
                     + Add Product
                 </button>
@@ -42,7 +48,6 @@
     </div>
 
     <div id="inventory-details-view" class="hidden max-w-5xl mx-auto px-4 mt-8 animate-fade-in">
-        
         <div class="flex justify-between items-center mb-6">
             <button onclick="hideDetails()" class="bg-white border border-gray-300 hover:bg-gray-100 px-5 py-2 rounded shadow-sm font-bold text-sm transition text-gray-600">
                 ← Return to Inventory List
@@ -58,7 +63,6 @@
         </div>
 
         <div class="bg-white border border-gray-300 shadow-sm rounded-lg overflow-hidden font-sans">
-            
             <div class="grid grid-cols-2 border-b border-gray-300">
                 <div class="p-6 border-r border-gray-300">
                     <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Item Name</div>
@@ -85,8 +89,7 @@
                 </div>
                 <div class="p-5 relative group">
                     <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Allocation Wave</div>
-                    <select id="wave-selector" onchange="switchWave(this.value)" class="w-full bg-transparent text-xl font-bold text-gray-900 outline-none cursor-pointer border-b border-dashed border-gray-300 pb-1 appearance-none hover:border-blue-500 transition">
-                        </select>
+                    <select id="wave-selector" onchange="switchWave(this.value)" class="w-full bg-transparent text-xl font-bold text-gray-900 outline-none cursor-pointer border-b border-dashed border-gray-300 pb-1 appearance-none hover:border-blue-500 transition"></select>
                     <div class="absolute right-6 bottom-6 pointer-events-none text-gray-400 text-xs">▼</div>
                 </div>
             </div>
@@ -247,26 +250,44 @@
     </div>
 
     <script>
-        const API_URL = 'https://k10system.onrender.com/api';
-        let globalInventory = [];
-        let currentEditingId = null; 
-        let currentBatches = [];
-        let currentEditingWaveId = null;
+        var API_BASE = 'https://k10system.onrender.com/api';
+        var globalInventory = [];
+        var currentEditingId = null; 
+        var currentBatches = [];
+        var currentEditingWaveId = null;
 
-        document.addEventListener('DOMContentLoaded', () => {
-            if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
-            loadInventory();
-        });
+        // AUTH CHECK
+        const token = localStorage.getItem('k10_token');
+        if (!token) { window.location.href = 'admin.html'; } 
+        else { loadInventory(); }
 
         async function loadInventory() {
             try {
-                const res = await fetch(`${API_URL}/inventory/status`);
+                const res = await fetch(`${API_BASE}/inventory/status`);
+                if (!res.ok) throw new Error("HTTP error");
+                
                 globalInventory = await res.json();
                 document.getElementById('loading-state').classList.add('hidden');
+                
+                populateCategoryFilter(); // <--- NEW: Setup the dropdown options
                 renderInventoryList(globalInventory);
             } catch (error) {
                 document.getElementById('loading-state').innerText = "❌ Failed to connect to database.";
             }
+        }
+
+        // --- NEW: POPULATE IP FILTER DROPDOWN ---
+        function populateCategoryFilter() {
+            const select = document.getElementById('filter-ip');
+            
+            // 1. Get all game_titles, remove empty/null ones, get unique values, and sort alphabetically
+            const uniqueIPs = [...new Set(globalInventory.map(item => item.game_title))]
+                                .filter(ip => ip && ip.trim() !== '')
+                                .sort();
+            
+            // 2. Build the HTML options
+            select.innerHTML = '<option value="all">All IP / Categories</option>' + 
+                               uniqueIPs.map(ip => `<option value="${ip}">${ip}</option>`).join('');
         }
 
         function renderInventoryList(items) {
@@ -290,13 +311,23 @@
             `).join('');
         }
 
+        // --- UPDATED: FILTER INVENTORY LOGIC ---
         function filterInventory() {
             const query = document.getElementById('search-inventory').value.toLowerCase();
-            const filtered = globalInventory.filter(item => 
-                (item.card_name && item.card_name.toLowerCase().includes(query)) ||
-                (item.game_title && item.game_title.toLowerCase().includes(query)) ||
-                (item.card_id && item.card_id.toLowerCase().includes(query))
-            );
+            const selectedIP = document.getElementById('filter-ip').value; // Get dropdown value
+
+            const filtered = globalInventory.filter(item => {
+                // Check text search match
+                const matchesSearch = (item.card_name && item.card_name.toLowerCase().includes(query)) ||
+                                      (item.game_title && item.game_title.toLowerCase().includes(query)) ||
+                                      (item.card_id && item.card_id.toLowerCase().includes(query));
+                
+                // Check IP category match
+                const matchesIP = selectedIP === 'all' || item.game_title === selectedIP;
+
+                return matchesSearch && matchesIP;
+            });
+            
             renderInventoryList(filtered);
         }
 
@@ -328,9 +359,8 @@
             document.getElementById('det-quick-desc').innerText = currentItem.quick_description || '';
             document.getElementById('det-long-desc').innerText = currentItem.long_description || '';
 
-            // Fetch FIFO Batches
             try {
-                const res = await fetch(`${API_URL}/inventory/${id}/batches`);
+                const res = await fetch(`${API_BASE}/inventory/${id}/batches`);
                 currentBatches = await res.json();
                 
                 const selector = document.getElementById('wave-selector');
@@ -343,7 +373,6 @@
                     document.getElementById('det-cost-unit').innerText = "$0.00";
                     document.getElementById('det-cost-tax').innerText = "$0.00";
                     
-                    // Reset edit button
                     switchWave('summary'); 
                 } else {
                     selector.disabled = false;
@@ -353,7 +382,7 @@
                     `;
                     switchWave('summary');
                 }
-            } catch(e) { console.error("Error fetching batches"); }
+            } catch(e) { console.error("Error fetching batches", e); }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -363,11 +392,9 @@
             const editBtn = document.getElementById('btn-dynamic-edit');
 
             if (value === 'summary') {
-                // Change Button to Edit Master
                 editBtn.innerText = "Edit Master Product";
                 editBtn.onclick = () => openProductModal(true);
 
-                // Math for Summary
                 let totalStock = 0; let totalAllocated = 0; let totalValue = 0;
                 currentBatches.forEach(b => {
                     const qty = parseInt(b.remaining_qty || 0);
@@ -383,11 +410,9 @@
                 document.getElementById('det-cost-unit').innerText = `$${avgCost.toFixed(2)}`;
                 document.getElementById('det-cost-tax').innerText = `$${(avgCost * (1 + tax)).toFixed(2)}`;
             } else {
-                // Change Button to Edit Wave
                 editBtn.innerText = "Edit Wave Details";
                 editBtn.onclick = () => openWaveModal(true, parseInt(value));
 
-                // Data for specific wave
                 const batch = currentBatches[parseInt(value)];
                 if(!batch) return;
                 const waveCost = parseFloat(batch.cost_price || 0);
@@ -402,10 +427,12 @@
             currentEditingId = null;
             document.getElementById('inventory-list-container').classList.remove('hidden');
             document.getElementById('inventory-details-view').classList.add('hidden');
+            document.getElementById('search-inventory').value = '';
+            document.getElementById('filter-ip').value = 'all'; // Reset filter
             renderInventoryList(globalInventory);
         }
 
-        // --- MASTER PRODUCT MODAL (Cleaned up, no stock/cost) ---
+        // --- MASTER PRODUCT MODAL ---
         function openProductModal(isEdit = false) {
             document.getElementById('product-modal').classList.remove('hidden');
             
@@ -452,7 +479,7 @@
 
             try {
                 const method = currentEditingId ? 'PUT' : 'POST';
-                const endpoint = currentEditingId ? `${API_URL}/inventory/${currentEditingId}` : `${API_URL}/inventory/add`;
+                const endpoint = currentEditingId ? `${API_BASE}/inventory/${currentEditingId}` : `${API_BASE}/inventory/add`;
                 
                 const res = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 
@@ -473,10 +500,9 @@
                 currentEditingWaveId = batch.id;
                 document.getElementById('wave-modal-title').innerText = "Edit Allocation Wave";
                 document.getElementById('wave-name').value = batch.wave_name;
-                document.getElementById('wave-qty').value = batch.initial_qty; // Note: initial qty edit
+                document.getElementById('wave-qty').value = batch.initial_qty;
                 document.getElementById('wave-cost').value = batch.cost_price;
                 document.getElementById('wave-allocated').value = batch.allocated_qty;
-                // Safely format date for HTML input
                 const dateParts = batch.arrival_date ? batch.arrival_date.split('T')[0] : '';
                 document.getElementById('wave-date').value = dateParts; 
             } else {
@@ -504,11 +530,10 @@
             };
 
             try {
-                // If currentEditingWaveId exists, it's a PUT (edit wave). Otherwise, it's a POST (add wave).
                 const method = currentEditingWaveId ? 'PUT' : 'POST';
                 const endpoint = currentEditingWaveId 
-                    ? `${API_URL}/batches/${currentEditingWaveId}` 
-                    : `${API_URL}/inventory/${currentEditingId}/batches`;
+                    ? `${API_BASE}/batches/${currentEditingWaveId}` 
+                    : `${API_BASE}/inventory/${currentEditingId}/batches`;
 
                 const res = await fetch(endpoint, {
                     method: method,
@@ -518,7 +543,7 @@
                 
                 if (res.ok) {
                     closeWaveModal();
-                    showItemDetails(currentEditingId); // Refresh to show changes
+                    showItemDetails(currentEditingId); 
                 } else {
                     alert("Error saving wave.");
                 }
