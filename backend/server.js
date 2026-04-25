@@ -234,6 +234,23 @@ app.post('/api/inventory/:id/batches', async (req, res) => {
     }
 });
 
+// 3. Edit an existing FIFO wave
+app.put('/api/batches/:id', async (req, res) => {
+    const { wave_name, cost_price, initial_qty, allocated_qty, arrival_date } = req.body;
+    try {
+        await db.execute(
+            `UPDATE fifo SET 
+                wave_name = ?, cost_price = ?, initial_qty = ?, 
+                allocated_qty = ?, arrival_date = ?
+            WHERE id = ?`,
+            [wave_name, cost_price, initial_qty, allocated_qty, arrival_date, req.params.id]
+        );
+        res.json({ message: 'Wave updated successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ==========================================
 // 5. PURCHASING MODULE
 // ==========================================
