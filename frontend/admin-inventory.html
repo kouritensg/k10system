@@ -73,11 +73,11 @@
 
             <div class="grid grid-cols-4 border-b border-gray-300 bg-gray-50">
                 <div class="p-4 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Stock Remaining</div>
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Total Units</div>
                     <div class="text-xl font-bold text-gray-800" id="det-stock"></div>
                 </div>
                 <div class="p-4 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Selling Price</div>
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Selling Price (Per Unit)</div>
                     <div class="text-xl font-bold text-green-600" id="det-price"></div>
                 </div>
                 <div class="p-4 border-r border-gray-300">
@@ -116,17 +116,17 @@
                     <div class="text-lg font-bold text-gray-800" id="det-shipping"></div>
                 </div>
                 <div class="grid grid-rows-4 bg-white">
-                    <div class="p-3 border-b border-gray-300 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Packaging Details</div>
-                    <div class="p-3 border-b border-gray-300 flex justify-between items-center">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Unit</span>
+                    <div class="p-3 border-b border-gray-300 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Packaging Configuration</div>
+                    <div class="p-3 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Base</span>
                         <span class="font-bold text-gray-800 font-mono" id="calc-unit">-</span>
                     </div>
-                    <div class="p-3 border-b border-gray-300 flex justify-between items-center">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Display (Box)</span>
+                    <div class="p-3 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Display (Box)</span>
                         <span class="font-bold text-gray-800 font-mono" id="calc-box">-</span>
                     </div>
-                    <div class="p-3 flex justify-between items-center">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Case</span>
+                    <div class="p-3 flex justify-between items-center hover:bg-gray-50">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Master Case</span>
                         <span class="font-bold text-gray-800 font-mono" id="calc-case">-</span>
                     </div>
                 </div>
@@ -174,11 +174,11 @@
                     <h4 class="font-bold text-sm text-gray-700 border-b pb-2">Market & Allocation</h4>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Stock Remaining</label>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Total Units</label>
                             <input type="number" id="frm-stock" class="w-full p-2 border rounded font-bold">
                         </div>
                         <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Selling Price ($)</label>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Selling Price / Unit ($)</label>
                             <input type="number" step="0.01" id="frm-price" class="w-full p-2 border rounded font-bold text-green-600">
                         </div>
                         <div>
@@ -204,7 +204,7 @@
                             <input type="number" step="0.01" id="frm-tax" class="w-full p-2 border rounded font-bold">
                         </div>
                         <div>
-                            <label class="text-[10px] font-bold text-gray-400 uppercase">Packs per Box</label>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Units per Display/Box</label>
                             <input type="number" id="frm-packs" class="w-full p-2 border rounded font-bold">
                         </div>
                         <div>
@@ -240,7 +240,7 @@
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
         let globalInventory = [];
-        let currentEditingId = null; // Tracks if we are adding (null) or editing (ID)
+        let currentEditingId = null; 
 
         document.addEventListener('DOMContentLoaded', () => {
             if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
@@ -298,7 +298,7 @@
             const item = globalInventory.find(i => i.id === id);
             if (!item) return;
 
-            currentEditingId = id; // Store ID for Edit/Delete
+            currentEditingId = id; 
 
             document.getElementById('inventory-list-container').classList.add('hidden');
             document.getElementById('inventory-details-view').classList.remove('hidden');
@@ -326,15 +326,9 @@
             const packs = item.packs_per_box != null ? parseInt(item.packs_per_box) : 1;
             const boxes = item.boxes_per_case != null ? parseInt(item.boxes_per_case) : 1;
             
-            if (unitCost != null) {
-                document.getElementById('calc-unit').innerText = `$${unitCost.toFixed(2)}`;
-                document.getElementById('calc-box').innerText = `$${(unitCost * packs).toFixed(2)} (${packs} units)`;
-                document.getElementById('calc-case').innerText = `$${(unitCost * packs * boxes).toFixed(2)} (${boxes} boxes)`;
-            } else {
-                document.getElementById('calc-unit').innerText = "1 unit";
-                document.getElementById('calc-box').innerText = `${packs} units`;
-                document.getElementById('calc-case').innerText = `${boxes} boxes`;
-            }
+            document.getElementById('calc-unit').innerText = `1 Base Unit`;
+            document.getElementById('calc-box').innerText = `${packs} Units / Box`;
+            document.getElementById('calc-case').innerText = `${boxes} Boxes / Case`;
 
             document.getElementById('det-quick-desc').innerText = item.quick_description || '';
             document.getElementById('det-long-desc').innerText = item.long_description || '';
@@ -384,7 +378,6 @@
                 document.getElementById('btn-save-product').classList.replace('bg-yellow-500', 'bg-blue-600');
                 document.getElementById('btn-save-product').classList.replace('hover:bg-yellow-600', 'hover:bg-blue-700');
                 
-                // Clear Form
                 ['frm-name', 'frm-ip', 'frm-id', 'frm-stock', 'frm-price', 'frm-allocated', 'frm-wave', 'frm-cost', 'frm-tax', 'frm-packs', 'frm-cases', 'frm-quick-desc', 'frm-long-desc'].forEach(id => document.getElementById(id).value = '');
                 document.getElementById('frm-shipping').checked = false;
             }
@@ -436,8 +429,8 @@
                 if (res.ok) {
                     alert(currentEditingId ? "Product updated!" : "Product added!");
                     closeProductModal();
-                    if (currentEditingId) hideDetails(); // go back to list to see update
-                    loadInventory(); // Refresh data
+                    if (currentEditingId) hideDetails(); 
+                    loadInventory(); 
                 } else {
                     const data = await res.json();
                     alert("Error: " + data.error);
@@ -458,8 +451,8 @@
                 const res = await fetch(`${API_URL}/inventory/${currentEditingId}`, { method: 'DELETE' });
                 if (res.ok) {
                     alert("Product deleted.");
-                    hideDetails(); // Return to list view
-                    loadInventory(); // Refresh data
+                    hideDetails(); 
+                    loadInventory(); 
                 } else {
                     const data = await res.json();
                     alert("Error: " + data.error);
