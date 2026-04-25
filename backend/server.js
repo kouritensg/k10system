@@ -166,6 +166,16 @@ app.post('/api/inventory/add', async (req, res) => {
     }
 });
 
+// DELETE Product
+app.delete('/api/inventory/:id', async (req, res) => {
+    try {
+        await db.execute('DELETE FROM inventory WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Product deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete product' });
+    }
+});
+
 app.put('/api/inventory/:id', async (req, res) => {
     const { 
         price, stock_quantity, cost_price, allocated_qty, allocation_wave, 
