@@ -424,4 +424,106 @@
                     document.getElementById('frm-quick-desc').value = item.quick_description || '';
                     document.getElementById('frm-long-desc').value = item.long_description || '';
                 }
+            } else {
+                currentEditingId = null;
+                document.getElementById('modal-title').innerText = "Add New Product";
+                ['frm-name', 'frm-ip', 'frm-id', 'frm-price', 'frm-tax', 'frm-packs', 'frm-cases', 'frm-quick-desc', 'frm-long-desc'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('frm-shipping').checked = false;
             }
+        }
+
+        function closeProductModal() { document.getElementById('product-modal').classList.add('hidden'); }
+
+        async function saveProduct() {
+            const payload = {
+                card_name: document.getElementById('frm-name').value,
+                game_title: document.getElementById('frm-ip').value,
+                card_id: document.getElementById('frm-id').value,
+                price: parseFloat(document.getElementById('frm-price').value) || 0,
+                tax_rate: parseFloat(document.getElementById('frm-tax').value) || 0,
+                packs_per_box: parseInt(document.getElementById('frm-packs').value) || 1,
+                boxes_per_case: parseInt(document.getElementById('frm-cases').value) || 1,
+                shipping_included: document.getElementById('frm-shipping').checked,
+                quick_description: document.getElementById('frm-quick-desc').value,
+                long_description: document.getElementById('frm-long-desc').value
+            };
+
+            if (!payload.card_name) return alert("Item Name is required!");
+
+            try {
+                const method = currentEditingId ? 'PUT' : 'POST';
+                const endpoint = currentEditingId ? `${API_URL}/inventory/${currentEditingId}` : `${API_URL}/inventory/add`;
+                
+                const res = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+
+                if (res.ok) {
+                    closeProductModal();
+                    await loadInventory();
+                    if (currentEditingId) showItemDetails(currentEditingId);
+                } else { alert("Error saving Master Product."); }
+            } catch (error) { alert("Server connection failed."); }
+        }
+
+        // --- WAVE MODAL (Add & Edit) ---
+        function openWaveModal(isEdit = false, index = null) {
+            document.getElementById('wave-modal').classList.remove('hidden');
+            
+            if (isEdit && index !== null) {
+                const batch = currentBatches[index];
+                currentEditingWaveId = batch.id;
+                document.getElementById('wave-modal-title').innerText = "Edit Allocation Wave";
+                document.getElementById('wave-name').value = batch.wave_name;
+                document.getElementById('wave-qty').value = batch.initial_qty; // Note: initial qty edit
+                document.getElementById('wave-cost').value = batch.cost_price;
+                document.getElementById('wave-allocated').value = batch.allocated_qty;
+                // Safely format date for HTML input
+                const dateParts = batch.arrival_date ? batch.arrival_date.split('T')[0] : '';
+                document.getElementById('wave-date').value = dateParts; 
+            } else {
+                currentEditingWaveId = null;
+                document.getElementById('wave-modal-title').innerText = "Add Allocation Wave";
+                document.getElementById('wave-name').value = '';
+                document.getElementById('wave-qty').value = '';
+                document.getElementById('wave-cost').value = '';
+                document.getElementById('wave-allocated').value = '0';
+                document.getElementById('wave-date').valueAsDate = new Date();
+            }
+        }
+        
+        function closeWaveModal() { document.getElementById('wave-modal').classList.add('hidden'); }
+
+        async function submitWave() {
+            if(!currentEditingId) return;
+
+            const payload = {
+                wave_name: document.getElementById('wave-name').value || 'Standard',
+                initial_qty: parseInt(document.getElementById('wave-qty').value) || 0,
+                cost_price: parseFloat(document.getElementById('wave-cost').value) || 0,
+                allocated_qty: parseInt(document.getElementById('wave-allocated').value) || 0,
+                arrival_date: document.getElementById('wave-date').value
+            };
+
+            try {
+                // If currentEditingWaveId exists, it's a PUT (edit wave). Otherwise, it's a POST (add wave).
+                const method = currentEditingWaveId ? 'PUT' : 'POST';
+                const endpoint = currentEditingWaveId 
+                    ? `${API_URL}/batches/${currentEditingWaveId}` 
+                    : `${API_URL}/inventory/${currentEditingId}/batches`;
+
+                const res = await fetch(endpoint, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    closeWaveModal();
+                    showItemDetails(currentEditingId); // Refresh to show changes
+                } else {
+                    alert("Error saving wave.");
+                }
+            } catch (e) { alert("Server connection failed"); }
+        }
+    </script>
+</body>
+</html>
