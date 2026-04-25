@@ -15,7 +15,7 @@
         <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-600 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
                 <h2 class="text-2xl font-bold">📦 Inventory Master List</h2>
-                <p class="text-xs text-gray-400 font-bold uppercase">Click any product row to view details</p>
+                <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Click any product row to view details</p>
             </div>
             <div class="flex gap-2 w-full md:w-auto">
                 <input type="text" id="search-inventory" onkeyup="filterInventory()" placeholder="Search card, box, or ID..." 
@@ -45,80 +45,105 @@
         </div>
     </div>
 
-    <div id="inventory-details-view" class="hidden max-w-6xl mx-auto px-4 mt-8 animate-fade-in">
+    <div id="inventory-details-view" class="hidden max-w-5xl mx-auto px-4 mt-8 animate-fade-in">
         
         <div class="flex justify-between items-center mb-6">
             <button onclick="hideDetails()" class="bg-white border border-gray-300 hover:bg-gray-100 px-5 py-2 rounded shadow-sm font-bold text-sm transition text-gray-600">
                 ← Return to Inventory List
             </button>
-            <div class="flex gap-2">
-                <button class="bg-yellow-500 text-white px-6 py-2 rounded font-bold text-sm shadow hover:bg-yellow-600 transition">
-                    Edit Product
-                </button>
-            </div>
+            <button class="bg-yellow-500 text-white px-6 py-2 rounded font-bold text-sm shadow hover:bg-yellow-600 transition">
+                Edit Product
+            </button>
         </div>
 
-        <div class="bg-white border border-gray-300 rounded shadow-sm overflow-hidden">
+        <div class="bg-white border border-gray-300 shadow-sm rounded-lg overflow-hidden">
             
-            <div class="grid grid-cols-4 border-b">
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center">Item Name</div>
-                <div class="col-span-2 p-4 font-bold text-xl border-r text-gray-800" id="det-card-name">-</div>
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center">Item IP (Game)</div>
-                <div class="p-4 font-bold text-blue-600 flex items-center" id="det-game-title">-</div>
+            <div class="grid grid-cols-2 border-b border-gray-300">
+                <div class="p-5 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Item Name</div>
+                    <div class="text-2xl font-bold text-gray-800" id="det-card-name"></div>
+                </div>
+                <div class="p-5">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Item IP</div>
+                    <div class="text-2xl font-bold text-blue-600" id="det-game-title"></div>
+                </div>
             </div>
 
-            <div class="grid grid-cols-4 border-b">
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Stock Remaining</div>
-                <div class="p-4 border-r font-bold text-xl" id="det-stock">-</div>
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Selling Price</div>
-                <div class="p-4 border-r font-bold text-xl text-green-600" id="det-price">-</div>
-            </div>
-            
-            <div class="grid grid-cols-4 border-b">
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Allocated QTY</div>
-                <div class="p-4 border-r font-bold text-orange-500" id="det-allocated">-</div>
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Allocation Wave</div>
-                <div class="p-4 font-bold text-gray-700" id="det-wave">-</div>
-            </div>
-
-            <div class="grid grid-cols-4 border-b">
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center">Inventory ID</div>
-                <div class="col-span-3 p-4 font-mono font-bold text-gray-500" id="det-card-id">-</div>
-            </div>
-
-            <div class="grid grid-cols-4 border-b">
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Cost Per Unit</div>
-                <div class="p-4 border-r font-bold text-gray-800" id="det-cost-unit">-</div>
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Cost After Tax</div>
-                <div class="p-4 border-r font-bold text-gray-800" id="det-cost-tax">-</div>
+            <div class="grid grid-cols-4 border-b border-gray-300 bg-gray-50">
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Stock Remaining</div>
+                    <div class="text-xl font-bold text-gray-800" id="det-stock"></div>
+                </div>
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Selling Price</div>
+                    <div class="text-xl font-bold text-green-600" id="det-price"></div>
+                </div>
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Allocated QTY</div>
+                    <div class="text-xl font-bold text-orange-500" id="det-allocated"></div>
+                </div>
+                <div class="p-4">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Allocation Wave</div>
+                    <div class="text-xl font-bold text-gray-800" id="det-wave"></div>
+                </div>
             </div>
 
-            <div class="grid grid-cols-4 border-b bg-gray-50">
-                <div class="col-span-4 p-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Packaging Breakdown</div>
+            <div class="p-4 border-b border-gray-300">
+                <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Inventory ID</div>
+                <div class="text-sm font-mono font-bold text-gray-500" id="det-card-id"></div>
             </div>
 
-            <div class="grid grid-cols-4 border-b">
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Packs Per Box</div>
-                <div class="p-4 border-r font-bold text-gray-800" id="det-packs-box">-</div>
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Boxes Per Case</div>
-                <div class="p-4 font-bold text-gray-800" id="det-boxes-case">-</div>
+            <div class="grid grid-cols-3 border-b border-gray-300 bg-gray-50">
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Cost Per Unit</div>
+                    <div class="text-lg font-bold text-gray-800" id="det-cost-unit"></div>
+                </div>
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Tax</div>
+                    <div class="text-lg font-bold text-gray-800" id="det-tax-info"></div>
+                </div>
+                <div class="p-4">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Cost After Tax</div>
+                    <div class="text-lg font-bold text-gray-800" id="det-cost-tax"></div>
+                </div>
             </div>
 
-            <div class="grid grid-cols-4 border-b">
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tax Rate</div>
-                <div class="p-4 border-r text-gray-600 text-sm" id="det-tax-info">-</div>
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Shipping Included?</div>
-                <div class="p-4 text-sm text-gray-600 font-bold" id="det-shipping">-</div>
+            <div class="grid grid-cols-2 border-b border-gray-300">
+                <div class="p-5 border-r border-gray-300 flex flex-col justify-center bg-white">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Shipping Included?</div>
+                    <div class="text-lg font-bold text-gray-800" id="det-shipping"></div>
+                </div>
+                
+                <div class="grid grid-rows-4 bg-white">
+                    <div class="p-3 border-b border-gray-300 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">
+                        Packaging Details
+                    </div>
+                    <div class="p-3 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Unit</span>
+                        <span class="font-bold text-gray-800 font-mono" id="calc-unit">-</span>
+                    </div>
+                    <div class="p-3 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Display (Box)</span>
+                        <span class="font-bold text-gray-800 font-mono" id="calc-box">-</span>
+                    </div>
+                    <div class="p-3 flex justify-between items-center hover:bg-gray-50">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per Case</span>
+                        <span class="font-bold text-gray-800 font-mono" id="calc-case">-</span>
+                    </div>
+                </div>
             </div>
 
-            <div class="grid grid-cols-2 border-b">
-                <div class="p-4 bg-gray-50 border-r text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quick Description</div>
-                <div class="p-4 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Long Description</div>
-            </div>
             <div class="grid grid-cols-2">
-                <div class="p-4 border-r min-h-[120px] text-sm text-gray-600 leading-relaxed" id="det-quick-desc">-</div>
-                <div class="p-4 min-h-[120px] text-sm text-gray-600 leading-relaxed" id="det-long-desc">-</div>
+                <div class="p-5 border-r border-gray-300 bg-gray-50">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Quick Description</div>
+                    <div class="text-sm text-gray-700 leading-relaxed min-h-[100px] whitespace-pre-wrap" id="det-quick-desc"></div>
+                </div>
+                <div class="p-5 bg-gray-50">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Long Description</div>
+                    <div class="text-sm text-gray-700 leading-relaxed min-h-[100px] whitespace-pre-wrap" id="det-long-desc"></div>
+                </div>
             </div>
+
         </div>
     </div>
 
@@ -138,11 +163,10 @@
             try {
                 const res = await fetch(`${API_URL}/inventory/status`);
                 globalInventory = await res.json();
-                
                 document.getElementById('loading-state').classList.add('hidden');
                 renderInventoryList(globalInventory);
             } catch (error) {
-                console.error("Failed to load inventory:", error);
+                console.error("Failed to fetch inventory:", error);
                 document.getElementById('loading-state').innerText = "❌ Failed to connect to database.";
             }
         }
@@ -161,19 +185,19 @@
             tbody.innerHTML = items.map(item => `
                 <tr class="hover:bg-blue-50 cursor-pointer transition border-b group" onclick="showItemDetails(${item.id})">
                     <td class="p-4">
-                        <div class="font-bold text-gray-800 group-hover:text-blue-600 transition">${item.card_name || 'N/A'}</div>
+                        <div class="font-bold text-gray-800 group-hover:text-blue-600 transition">${item.card_name || ''}</div>
                         <div class="text-[10px] text-gray-400 uppercase tracking-wider mt-1">${item.card_id || ''}</div>
                     </td>
                     <td class="p-4">
-                        <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold">${item.game_title || 'N/A'}</span>
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold">${item.game_title || ''}</span>
                     </td>
                     <td class="p-4 text-center">
                         <span class="font-bold ${item.stock_quantity <= 0 ? 'text-red-500' : 'text-blue-600'}">
-                            ${item.stock_quantity !== null && item.stock_quantity !== undefined ? item.stock_quantity : '0'}
+                            ${item.stock_quantity ?? '0'}
                         </span>
                     </td>
                     <td class="p-4 text-right font-mono font-bold text-gray-700">
-                        ${item.price !== null && item.price !== undefined ? `$${parseFloat(item.price).toFixed(2)}` : 'N/A'}
+                        ${item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : ''}
                     </td>
                 </tr>
             `).join('');
@@ -193,42 +217,57 @@
             const item = globalInventory.find(i => i.id === id);
             if (!item) return;
 
+            // Switch view
             document.getElementById('inventory-list-container').classList.add('hidden');
             document.getElementById('inventory-details-view').classList.remove('hidden');
 
-            // 1. Core Fields (No Hardcoded Defaults)
+            // ROW 1
             document.getElementById('det-card-name').innerText = item.card_name || '';
             document.getElementById('det-game-title').innerText = item.game_title || '';
-            document.getElementById('det-stock').innerText = item.stock_quantity !== null && item.stock_quantity !== undefined ? item.stock_quantity : '';
-            document.getElementById('det-price').innerText = item.price !== null && item.price !== undefined ? `$${parseFloat(item.price).toFixed(2)}` : '';
-            document.getElementById('det-card-id').innerText = item.card_id || '';
-            
-            // 2. Allocations
-            document.getElementById('det-allocated').innerText = item.allocated_qty !== null && item.allocated_qty !== undefined ? item.allocated_qty : '';
+
+            // ROW 2
+            document.getElementById('det-stock').innerText = item.stock_quantity ?? '';
+            document.getElementById('det-price').innerText = item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : '';
+            document.getElementById('det-allocated').innerText = item.allocated_qty ?? '';
             document.getElementById('det-wave').innerText = item.allocation_wave || '';
 
-            // 3. Financials
-            const unitCost = item.cost_price !== null && item.cost_price !== undefined ? parseFloat(item.cost_price) : null;
-            const taxRate = item.tax_rate !== null && item.tax_rate !== undefined ? parseFloat(item.tax_rate) : null;
+            // ROW 3
+            document.getElementById('det-card-id').innerText = item.card_id || item.barcode || '';
 
-            document.getElementById('det-cost-unit').innerText = unitCost !== null ? `$${unitCost.toFixed(2)}` : '';
-            document.getElementById('det-cost-tax').innerText = (unitCost !== null && taxRate !== null) ? `$${(unitCost * (1 + taxRate)).toFixed(2)}` : '';
-            document.getElementById('det-tax-info').innerText = taxRate !== null ? `${(taxRate * 100).toFixed(2)}%` : '';
+            // ROW 4
+            const unitCost = item.cost_price != null ? parseFloat(item.cost_price) : null;
+            const taxRate = item.tax_rate != null ? parseFloat(item.tax_rate) : null;
 
-            // 4. Packaging Structure
-            document.getElementById('det-packs-box').innerText = item.packs_per_box !== null && item.packs_per_box !== undefined ? item.packs_per_box : '';
-            document.getElementById('det-boxes-case').innerText = item.boxes_per_case !== null && item.boxes_per_case !== undefined ? item.boxes_per_case : '';
+            document.getElementById('det-cost-unit').innerText = unitCost != null ? `$${unitCost.toFixed(2)}` : '';
+            document.getElementById('det-tax-info').innerText = taxRate != null ? `${(taxRate * 100).toFixed(2)}%` : '';
+            document.getElementById('det-cost-tax').innerText = (unitCost != null && taxRate != null) ? `$${(unitCost * (1 + taxRate)).toFixed(2)}` : '';
 
-            // 5. Shipping Boolean Handling
+            // ROW 5: Shipping
             let shippingText = '';
             if (item.shipping_included === 1 || item.shipping_included === true) shippingText = 'Yes';
             else if (item.shipping_included === 0 || item.shipping_included === false) shippingText = 'No';
             document.getElementById('det-shipping').innerText = shippingText;
 
-            // 6. Descriptions
+            // ROW 5: Packaging Math
+            const packs = item.packs_per_box != null ? parseInt(item.packs_per_box) : 1;
+            const boxes = item.boxes_per_case != null ? parseInt(item.boxes_per_case) : 1;
+            
+            if (unitCost != null) {
+                document.getElementById('calc-unit').innerText = `$${unitCost.toFixed(2)}`;
+                document.getElementById('calc-box').innerText = `$${(unitCost * packs).toFixed(2)} (${packs} units)`;
+                document.getElementById('calc-case').innerText = `$${(unitCost * packs * boxes).toFixed(2)} (${boxes} boxes)`;
+            } else {
+                // Displays raw structure if no cost data is entered yet
+                document.getElementById('calc-unit').innerText = "1 unit";
+                document.getElementById('calc-box').innerText = `${packs} units`;
+                document.getElementById('calc-case').innerText = `${boxes} boxes`;
+            }
+
+            // ROW 6: Descriptions
             document.getElementById('det-quick-desc').innerText = item.quick_description || '';
             document.getElementById('det-long-desc').innerText = item.long_description || '';
             
+            // Auto-scroll to the top of the details view
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
