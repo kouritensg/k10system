@@ -128,71 +128,70 @@ app.delete('/api/suppliers/:id', async (req, res) => {
 });
 
 // ==========================================
-// 4. INVENTORY (FIXED FOR CATEGORY_ID)
+// 3. INVENTORY (UPDATED FOR TCG DETAILS)
 // ==========================================
 
-// Public Route (Used by index.html)
-app.get('/api/inventory', async (req, res) => {
-    try {
-        const [rows] = await db.execute(`
-            SELECT i.*, c.name as category_name 
-            FROM inventory i 
-            LEFT JOIN categories c ON i.category_id = c.id 
-            WHERE i.stock_quantity >= 0 
-            ORDER BY c.name, i.card_name ASC`
-        );
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Failed to fetch inventory' }); }
-});
-
-// Admin Route (Used by admin-inventory.html)
 app.get('/api/inventory/status', async (req, res) => {
     try {
-        const [rows] = await db.execute(`
-            SELECT i.*, c.name as category_name,
-                   -- Calculate how many are on the way by checking active POs
-                   COALESCE((
-                       SELECT SUM(poi.ordered_qty - COALESCE(poi.received_qty, 0)) 
-                       FROM po_items poi 
-                       JOIN purchase_orders po ON poi.po_id = po.id 
-                       WHERE poi.inventory_id = i.id AND po.status IN ('Ordered', 'Partial')
-                   ), 0) as incoming_qty
-            FROM inventory i 
-            LEFT JOIN categories c ON i.category_id = c.id 
-            ORDER BY i.card_name ASC`
-        );
+        // SELECT * automatically picks up your new columns!
+        const [rows] = await db.execute('SELECT * FROM inventory ORDER BY card_name ASC');
         res.json(rows);
     } catch (error) { res.status(500).json({ error: 'Database Query Failed' }); }
 });
 
 app.post('/api/inventory/add', async (req, res) => {
-  const { barcode, game_title, category_id, card_id, card_name, price, cost_price, stock_quantity, packs_per_box, boxes_per_case } = req.body;
-  try {
-    const [result] = await db.execute(
-      `INSERT INTO inventory (barcode, game_title, category_id, card_id, card_name, price, cost_price, stock_quantity, packs_per_box, boxes_per_case) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [barcode || null, game_title || null, category_id, card_id || null, card_name, price || 0, cost_price || 0, stock_quantity || 0, packs_per_box || 1, boxes_per_case || 1]
-    );
-    res.status(201).json({ message: 'Product registered!' });
-  } catch (error) { res.status(500).json({ error: error.message }); }
+    const { 
+        barcode, game_title, product_type, card_id, card_name, 
+        price, cost_price, stock_quantity, packs_per_box, boxes_per_case,
+        allocated_qty, allocation_wave, quick_description, long_description, tax_rate, shipping_included 
+    } = req.body;
+    
+    try {
+        const [result] = await db.execute(
+            `INSERT INTO inventory 
+            (barcode, game_title, product_type, card_id, card_name, price, cost_price, stock_quantity, packs_per_box, boxes_per_case,
+             allocated_qty, allocation_wave, quick_description, long_description, tax_rate, shipping_included) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                barcode || null, game_title, product_type, card_id || null, card_name, 
+                price || 0, cost_price || 0, stock_quantity || 0, packs_per_box || 1, boxes_per_case || 1,
+                allocated_qty || 0, allocation_wave || 'Standard', quick_description || null, long_description || null, tax_rate || 0.09, shipping_included || false
+            ]
+        );
+
+        const [newProduct] = await db.execute('SELECT * FROM inventory WHERE id = ?', [result.insertId]);
+        res.status(201).json({ message: 'Product registered!', product: newProduct[0] });
+    } catch (error) { 
+        res.status(500).json({ error: error.message }); 
+    }
 });
 
 app.put('/api/inventory/:id', async (req, res) => {
-  const { price, stock_quantity, cost_price, category_id } = req.body;
-  try {
-    await db.execute(
-        'UPDATE inventory SET price = ?, stock_quantity = ?, cost_price = ?, category_id = ? WHERE id = ?', 
-        [price, stock_quantity, cost_price || 0, category_id, req.params.id]
-    );
-    res.json({ message: 'Updated' });
-  } catch (error) { res.status(500).json({ error: 'Update failed' }); }
-});
+    const { 
+        price, stock_quantity, cost_price, allocated_qty, allocation_wave, 
+        quick_description, long_description, tax_rate, shipping_included 
+    } = req.body;
 
-app.delete('/api/inventory/:id', async (req, res) => {
     try {
-        await db.execute('DELETE FROM inventory WHERE id = ?', [req.params.id]);
-        res.json({ message: 'Deleted' });
-    } catch (error) { res.status(500).json({ error: 'Delete failed' }); }
+        await db.execute(
+            `UPDATE inventory SET 
+                price = ?, stock_quantity = ?, cost_price = ?, 
+                allocated_qty = ?, allocation_wave = ?, 
+                quick_description = ?, long_description = ?, 
+                tax_rate = ?, shipping_included = ? 
+            WHERE id = ?`, 
+            [
+                price, stock_quantity, cost_price, 
+                allocated_qty || 0, allocation_wave || 'Standard', 
+                quick_description || null, long_description || null, 
+                tax_rate || 0.09, shipping_included || false, 
+                req.params.id
+            ]
+        );
+        res.json({ message: 'Product Updated' });
+    } catch (error) { 
+        res.status(500).json({ error: 'Update failed' }); 
+    }
 });
 
 // ==========================================
