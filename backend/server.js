@@ -1,485 +1,466 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const db = require('./db'); 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Inventory Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 pb-20">
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+    <script src="admin-navbar.js"></script>
 
-// --- CONFIGURATION ---
-const corsOptions = {
-  origin: 'https://kouritensg.github.io', 
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
-app.options(/(.*)/, cors(corsOptions)); 
-app.use(express.json()); 
-
-// ==========================================
-// 1. AUTH SYSTEM
-// ==========================================
-app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  try {
-    const [users] = await db.execute('SELECT * FROM staff WHERE username = ?', [username]);
-    if (users.length === 0) return res.status(400).json({ error: 'Invalid login' });
-
-    const user = users[0];
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) return res.status(400).json({ error: 'Invalid login' });
-
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: '12h' });
-    
-    // Send the role back to the frontend so we can hide/show UI elements
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
-  } catch (error) { res.status(500).json({ error: 'Login error' }); }
-});
-
-// ==========================================
-// STAFF MANAGEMENT ROUTES (NEW)
-// ==========================================
-
-app.get('/api/staff', async (req, res) => {
-    try {
-        // Exclude passwords from the response for security
-        const [rows] = await db.execute('SELECT id, username, role, created_at FROM staff ORDER BY role ASC, username ASC');
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Failed to fetch staff' }); }
-});
-
-app.post('/api/staff', async (req, res) => {
-    const { username, password, role } = req.body;
-    try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        await db.execute(
-            'INSERT INTO staff (username, password_hash, role) VALUES (?, ?, ?)',
-            [username, hashedPassword, role || 'Staff']
-        );
-        res.status(201).json({ message: 'Staff account created' });
-    } catch (error) { 
-        res.status(500).json({ error: 'Username might already exist.' }); 
-    }
-});
-
-app.delete('/api/staff/:id', async (req, res) => {
-    try {
-        await db.execute('DELETE FROM staff WHERE id = ?', [req.params.id]);
-        res.json({ message: 'Staff deleted' });
-    } catch (error) { res.status(500).json({ error: 'Delete failed' }); }
-});
-
-// ==========================================
-// 2. CATEGORY MANAGEMENT (NEW RELATIONAL LOGIC)
-// ==========================================
-app.get('/api/categories', async (req, res) => {
-    try {
-        const [rows] = await db.execute('SELECT * FROM categories ORDER BY name ASC');
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Failed to fetch categories' }); }
-});
-
-app.post('/api/categories', async (req, res) => {
-    const { name } = req.body;
-    try {
-        const [result] = await db.execute('INSERT INTO categories (name) VALUES (?)', [name]);
-        res.status(201).json({ id: result.insertId, message: 'Category added' });
-    } catch (error) { res.status(500).json({ error: 'Category already exists or DB error' }); }
-});
-
-app.delete('/api/categories/:id', async (req, res) => {
-    try {
-        await db.execute('DELETE FROM categories WHERE id = ?', [req.params.id]);
-        res.json({ message: 'Category deleted' });
-    } catch (error) { res.status(500).json({ error: 'Cannot delete. Category might be linked to products.' }); }
-});
-
-// ==========================================
-// 3. SUPPLIER MANAGEMENT
-// ==========================================
-app.get('/api/suppliers', async (req, res) => {
-    try {
-        const [rows] = await db.execute('SELECT * FROM suppliers ORDER BY name ASC');
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Failed to fetch suppliers' }); }
-});
-
-app.post('/api/suppliers', async (req, res) => {
-    const { name, contact_person, email, phone, payment_terms } = req.body;
-    try {
-        const [result] = await db.execute(
-            `INSERT INTO suppliers (name, contact_person, email, phone, payment_terms) VALUES (?, ?, ?, ?, ?)`,
-            [name, contact_person || null, email || null, phone || null, payment_terms || 'Immediate']
-        );
-        res.status(201).json({ id: result.insertId, message: 'Supplier created' });
-    } catch (error) { res.status(500).json({ error: 'Database error' }); }
-});
-
-app.delete('/api/suppliers/:id', async (req, res) => {
-    try {
-        await db.execute('DELETE FROM suppliers WHERE id = ?', [req.params.id]);
-        res.json({ message: 'Supplier deleted' });
-    } catch (error) { res.status(500).json({ error: 'Cannot delete. Supplier might be linked to orders.' }); }
-});
-
-// ==========================================
-// 3. INVENTORY (UPDATED FOR TCG DETAILS)
-// ==========================================
-
-app.get('/api/inventory/status', async (req, res) => {
-    try {
-        // SELECT * automatically picks up your new columns!
-        const [rows] = await db.execute('SELECT * FROM inventory ORDER BY card_name ASC');
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Database Query Failed' }); }
-});
-
-app.post('/api/inventory/add', async (req, res) => {
-    const { 
-        barcode, game_title, product_type, card_id, card_name, 
-        price, cost_price, stock_quantity, packs_per_box, boxes_per_case,
-        allocated_qty, allocation_wave, quick_description, long_description, tax_rate, shipping_included 
-    } = req.body;
-    
-    try {
-        const [result] = await db.execute(
-            `INSERT INTO inventory 
-            (barcode, game_title, product_type, card_id, card_name, price, cost_price, stock_quantity, packs_per_box, boxes_per_case,
-             allocated_qty, allocation_wave, quick_description, long_description, tax_rate, shipping_included) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                barcode || null, game_title, product_type, card_id || null, card_name, 
-                price || 0, cost_price || 0, stock_quantity || 0, packs_per_box || 1, boxes_per_case || 1,
-                allocated_qty || 0, allocation_wave || 'Standard', quick_description || null, long_description || null, tax_rate || 0.09, shipping_included || false
-            ]
-        );
-
-        const [newProduct] = await db.execute('SELECT * FROM inventory WHERE id = ?', [result.insertId]);
-        res.status(201).json({ message: 'Product registered!', product: newProduct[0] });
-    } catch (error) { 
-        res.status(500).json({ error: error.message }); 
-    }
-});
-
-// DELETE Product
-app.delete('/api/inventory/:id', async (req, res) => {
-    try {
-        await db.execute('DELETE FROM inventory WHERE id = ?', [req.params.id]);
-        res.json({ message: 'Product deleted successfully' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to delete product' });
-    }
-});
-
-app.put('/api/inventory/:id', async (req, res) => {
-    const { 
-        price, stock_quantity, cost_price, allocated_qty, allocation_wave, 
-        quick_description, long_description, tax_rate, shipping_included 
-    } = req.body;
-
-    try {
-        await db.execute(
-            `UPDATE inventory SET 
-                price = ?, stock_quantity = ?, cost_price = ?, 
-                allocated_qty = ?, allocation_wave = ?, 
-                quick_description = ?, long_description = ?, 
-                tax_rate = ?, shipping_included = ? 
-            WHERE id = ?`, 
-            [
-                price, stock_quantity, cost_price, 
-                allocated_qty || 0, allocation_wave || 'Standard', 
-                quick_description || null, long_description || null, 
-                tax_rate || 0.09, shipping_included || false, 
-                req.params.id
-            ]
-        );
-        res.json({ message: 'Product Updated' });
-    } catch (error) { 
-        res.status(500).json({ error: 'Update failed' }); 
-    }
-});
-
-// ==========================================
-// 5. PURCHASING MODULE
-// ==========================================
-app.post('/api/purchase-orders', async (req, res) => {
-    const { supplier_id, po_number, items, payment_status, total_cost, deposit_paid, paid_amount } = req.body;
-    const conn = await db.getConnection();
-    
-    try {
-        await conn.beginTransaction();
+    <div id="inventory-list-container" class="max-w-7xl mx-auto px-4 mt-8">
         
-        // Use current date if none provided
-        const orderDate = new Date().toISOString().slice(0, 10); 
-        const finalPONumber = po_number || `PO-${Date.now()}`;
+        <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-600 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h2 class="text-2xl font-bold">📦 Inventory Master List</h2>
+                <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Click any product row to view details</p>
+            </div>
+            <div class="flex gap-2 w-full md:w-auto">
+                <input type="text" id="search-inventory" onkeyup="filterInventory()" placeholder="Search card, box, or ID..." 
+                       class="p-2 border rounded shadow-sm w-full md:w-64 outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="openProductModal()" class="bg-blue-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-blue-700 transition whitespace-nowrap">
+                    + Add Product
+                </button>
+            </div>
+        </div>
 
-        // UPDATED: Matches your current DB structure
-        const [po] = await conn.execute(
-            `INSERT INTO purchase_orders 
-            (supplier_id, po_number, order_date, status, payment_status, total_cost, deposit_paid, paid_amount) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, 
-            [
-                supplier_id, 
-                finalPONumber, 
-                orderDate, 
-                'Ordered', 
-                payment_status || 'Pending', 
-                total_cost || 0, 
-                deposit_paid || 0, 
-                paid_amount || 0
-            ]
-        );
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[500px]">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50 border-b text-[10px] uppercase font-bold text-gray-400 tracking-widest">
+                    <tr>
+                        <th class="p-4">Product Name</th>
+                        <th class="p-4">Game / Category</th>
+                        <th class="p-4 w-32 text-center">Live Stock</th>
+                        <th class="p-4 w-32 text-right">Retail Price</th>
+                    </tr>
+                </thead>
+                <tbody id="inventory-list-body"></tbody>
+            </table>
+            <div id="loading-state" class="p-12 text-center text-gray-400 font-bold animate-pulse">⏳ Loading inventory data...</div>
+            <div id="empty-state" class="p-12 text-center text-gray-400 hidden">No products found matching your search.</div>
+        </div>
+    </div>
 
-        // Insert items into po_items
-        for (const i of items) {
-            await conn.execute(
-                'INSERT INTO po_items (po_id, inventory_id, ordered_qty, unit_cost) VALUES (?, ?, ?, ?)', 
-                [po.insertId, i.inventory_id, i.qty, i.cost]
-            );
-        }
+    <div id="inventory-details-view" class="hidden max-w-5xl mx-auto px-4 mt-8 animate-fade-in">
+        
+        <div class="flex justify-between items-center mb-6">
+            <button onclick="hideDetails()" class="bg-white border border-gray-300 hover:bg-gray-100 px-5 py-2 rounded shadow-sm font-bold text-sm transition text-gray-600">
+                ← Return to Inventory List
+            </button>
+            <div class="flex gap-2">
+                <button onclick="deleteProduct()" class="bg-red-100 text-red-600 border border-red-200 px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-red-200 transition">
+                    Delete
+                </button>
+                <button onclick="openProductModal(true)" class="bg-yellow-500 text-white px-6 py-2 rounded font-bold text-sm shadow hover:bg-yellow-600 transition">
+                    Edit Product
+                </button>
+            </div>
+        </div>
 
-        await conn.commit();
-        res.status(201).json({ message: 'PO Created', po_number: finalPONumber });
-    } catch (e) { 
-        await conn.rollback(); 
-        console.error("PO Error:", e.message); // This will show the exact DB error in your Render logs
-        res.status(500).json({ error: e.message }); 
-    } finally { 
-        conn.release(); 
-    }
-});
+        <div class="bg-white border border-gray-300 shadow-sm rounded-lg overflow-hidden">
+            <div class="grid grid-cols-2 border-b border-gray-300">
+                <div class="p-5 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Item Name</div>
+                    <div class="text-2xl font-bold text-gray-800" id="det-card-name"></div>
+                </div>
+                <div class="p-5">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Item IP</div>
+                    <div class="text-2xl font-bold text-blue-600" id="det-game-title"></div>
+                </div>
+            </div>
 
-app.get('/api/purchase-orders', async (req, res) => {
-    try {
-        const [rows] = await db.execute(`
-            SELECT po.*, s.name as supplier_name,
-            (SELECT SUM(poi.ordered_qty * poi.unit_cost) FROM po_items poi WHERE poi.po_id = po.id) as total_value
-            FROM purchase_orders po LEFT JOIN suppliers s ON po.supplier_id = s.id ORDER BY po.order_date DESC`);
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
+            <div class="grid grid-cols-4 border-b border-gray-300 bg-gray-50">
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Total Units</div>
+                    <div class="text-xl font-bold text-gray-800" id="det-stock"></div>
+                </div>
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Selling Price (Per Unit)</div>
+                    <div class="text-xl font-bold text-green-600" id="det-price"></div>
+                </div>
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Allocated QTY</div>
+                    <div class="text-xl font-bold text-orange-500" id="det-allocated"></div>
+                </div>
+                <div class="p-4">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Allocation Wave</div>
+                    <div class="text-xl font-bold text-gray-800" id="det-wave"></div>
+                </div>
+            </div>
 
-app.put('/api/purchase-orders/:id/receive', async (req, res) => {
-    const { items } = req.body;
-    const conn = await db.getConnection();
-    try {
-        await conn.beginTransaction();
-        for (let item of items) {
-            await conn.execute('UPDATE po_items SET received_qty = received_qty + ? WHERE id = ?', [item.qty_received, item.po_item_id]);
-            await conn.execute('UPDATE inventory SET stock_quantity = stock_quantity + ? WHERE id = ?', [item.qty_received, item.inventory_id]);
-        }
-        await conn.commit();
-        res.json({ message: "Stock Updated" });
-    } catch (e) { await conn.rollback(); res.status(500).json({ error: e.message }); } finally { conn.release(); }
-});
+            <div class="p-4 border-b border-gray-300">
+                <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Inventory ID</div>
+                <div class="text-sm font-mono font-bold text-gray-500" id="det-card-id"></div>
+            </div>
 
-app.get('/api/purchase-orders/:id', async (req, res) => {
-    try {
-        const [rows] = await db.execute(`
-            SELECT poi.*, i.card_name, i.game_title 
-            FROM po_items poi JOIN inventory i ON poi.inventory_id = i.id WHERE poi.po_id = ?`, 
-            [req.params.id]
-        );
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Failed' }); }
-});
+            <div class="grid grid-cols-3 border-b border-gray-300 bg-gray-50">
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Cost Per Unit</div>
+                    <div class="text-lg font-bold text-gray-800" id="det-cost-unit"></div>
+                </div>
+                <div class="p-4 border-r border-gray-300">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Tax</div>
+                    <div class="text-lg font-bold text-gray-800" id="det-tax-info"></div>
+                </div>
+                <div class="p-4">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Cost After Tax</div>
+                    <div class="text-lg font-bold text-gray-800" id="det-cost-tax"></div>
+                </div>
+            </div>
 
-// ==========================================
-// 6. SALES & PREORDERS
-// ==========================================
-app.post('/api/sales', async (req, res) => {
-    const { customer_id, order_type, payment_method, items, custom_status, deposit_amount } = req.body;
-    const conn = await db.getConnection();
-    try {
-        await conn.beginTransaction();
-        const total = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
-        const [orderResult] = await conn.execute(
-            `INSERT INTO customer_orders (customer_id, order_type, status, total_amount, deposit_amount, payment_method) VALUES (?, ?, ?, ?, ?, ?)`,
-            [customer_id, order_type, custom_status || 'Paid', total, deposit_amount || 0, payment_method]
-        );
-        for (const item of items) {
-            await conn.execute('INSERT INTO customer_order_items (order_id, inventory_id, quantity, unit_price) VALUES (?, ?, ?, ?)', [orderResult.insertId, item.id, item.qty, item.price]);
-            if (order_type === 'In-Stock') {
-                await conn.execute('UPDATE inventory SET stock_quantity = stock_quantity - ? WHERE id = ?', [item.qty, item.id]);
+            <div class="grid grid-cols-2 border-b border-gray-300">
+                <div class="p-5 border-r border-gray-300 flex flex-col justify-center bg-white">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Shipping Included?</div>
+                    <div class="text-lg font-bold text-gray-800" id="det-shipping"></div>
+                </div>
+                <div class="grid grid-rows-4 bg-white">
+                    <div class="p-3 border-b border-gray-300 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Packaging Configuration</div>
+                    <div class="p-3 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Base</span>
+                        <span class="font-bold text-gray-800 font-mono" id="calc-unit">-</span>
+                    </div>
+                    <div class="p-3 border-b border-gray-300 flex justify-between items-center hover:bg-gray-50">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Display (Box)</span>
+                        <span class="font-bold text-gray-800 font-mono" id="calc-box">-</span>
+                    </div>
+                    <div class="p-3 flex justify-between items-center hover:bg-gray-50">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Master Case</span>
+                        <span class="font-bold text-gray-800 font-mono" id="calc-case">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2">
+                <div class="p-5 border-r border-gray-300 bg-gray-50">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Quick Description</div>
+                    <div class="text-sm text-gray-700 leading-relaxed min-h-[100px] whitespace-pre-wrap" id="det-quick-desc"></div>
+                </div>
+                <div class="p-5 bg-gray-50">
+                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Long Description</div>
+                    <div class="text-sm text-gray-700 leading-relaxed min-h-[100px] whitespace-pre-wrap" id="det-long-desc"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="product-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-[100] p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b sticky top-0 bg-white flex justify-between items-center z-10">
+                <h3 class="text-xl font-bold text-gray-800" id="modal-title">Add New Product</h3>
+                <button onclick="closeProductModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </div>
+            
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4 md:col-span-2">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item Name *</label>
+                            <input type="text" id="frm-name" class="w-full p-2 border rounded font-bold text-gray-800 outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item IP (Game) *</label>
+                            <input type="text" id="frm-ip" class="w-full p-2 border rounded font-bold text-blue-600 outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Inventory ID (Set/Barcode)</label>
+                        <input type="text" id="frm-id" class="w-full p-2 border rounded font-mono text-gray-600 outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div class="space-y-4 border p-4 rounded bg-gray-50">
+                    <h4 class="font-bold text-sm text-gray-700 border-b pb-2">Market & Allocation</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Total Units</label>
+                            <input type="number" id="frm-stock" class="w-full p-2 border rounded font-bold">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Selling Price / Unit ($)</label>
+                            <input type="number" step="0.01" id="frm-price" class="w-full p-2 border rounded font-bold text-green-600">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Allocated Qty</label>
+                            <input type="number" id="frm-allocated" class="w-full p-2 border rounded font-bold text-orange-500">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Allocation Wave</label>
+                            <input type="text" id="frm-wave" class="w-full p-2 border rounded font-bold">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4 border p-4 rounded bg-gray-50">
+                    <h4 class="font-bold text-sm text-gray-700 border-b pb-2">Financials & Packaging</h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Cost Per Unit ($)</label>
+                            <input type="number" step="0.01" id="frm-cost" class="w-full p-2 border rounded font-bold">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Tax Rate (e.g., 0.09 for 9%)</label>
+                            <input type="number" step="0.01" id="frm-tax" class="w-full p-2 border rounded font-bold">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Units per Display/Box</label>
+                            <input type="number" id="frm-packs" class="w-full p-2 border rounded font-bold">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Boxes per Case</label>
+                            <input type="number" id="frm-cases" class="w-full p-2 border rounded font-bold">
+                        </div>
+                        <div class="col-span-2 flex items-center gap-2 mt-2">
+                            <input type="checkbox" id="frm-shipping" class="w-4 h-4 text-blue-600">
+                            <label class="text-sm font-bold text-gray-700">Shipping Included in Cost?</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4 md:col-span-2">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quick Description</label>
+                        <input type="text" id="frm-quick-desc" class="w-full p-2 border rounded text-gray-700 outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Long Description</label>
+                        <textarea id="frm-long-desc" rows="3" class="w-full p-2 border rounded text-gray-700 outline-none focus:border-blue-500"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 border-t bg-gray-50 flex justify-end gap-3 sticky bottom-0 rounded-b-lg">
+                <button onclick="closeProductModal()" class="px-6 py-2 rounded font-bold text-gray-500 hover:bg-gray-200 transition">Cancel</button>
+                <button onclick="saveProduct()" id="btn-save-product" class="bg-blue-600 text-white px-8 py-2 rounded font-bold shadow hover:bg-blue-700 transition">Save Product</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+        let globalInventory = [];
+        let currentEditingId = null; 
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
+            loadInventory();
+        });
+
+        // ------------------ DATA LOADING ------------------
+        async function loadInventory() {
+            try {
+                const res = await fetch(`${API_URL}/inventory/status`);
+                globalInventory = await res.json();
+                document.getElementById('loading-state').classList.add('hidden');
+                renderInventoryList(globalInventory);
+            } catch (error) {
+                document.getElementById('loading-state').innerText = "❌ Failed to connect to database.";
             }
         }
-        await conn.commit();
-        res.status(201).json({ message: 'Order recorded!' });
-    } catch (error) { await conn.rollback(); res.status(500).json({ error: error.message }); } finally { conn.release(); }
-});
 
-app.get('/api/sales/history', async (req, res) => {
-    try {
-        const [rows] = await db.execute(`
-            SELECT o.*, c.name as customer_name FROM customer_orders o 
-            JOIN customers c ON o.customer_id = c.id ORDER BY o.order_date DESC`);
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Failed' }); }
-});
+        function renderInventoryList(items) {
+            const tbody = document.getElementById('inventory-list-body');
+            const emptyState = document.getElementById('empty-state');
+            
+            if (items.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
 
-app.get('/api/sales/preorders', async (req, res) => {
-    try {
-        const [rows] = await db.execute(`
-            SELECT o.id, o.order_date, c.name as customer_name, c.mobile_number, o.total_amount, o.deposit_amount, o.status,
-                   GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items_summary,
-                   GROUP_CONCAT(DISTINCT i.game_title) as game_tags
-            FROM customer_orders o 
-            JOIN customers c ON o.customer_id = c.id 
-            JOIN customer_order_items oi ON o.id = oi.order_id 
-            JOIN inventory i ON oi.inventory_id = i.id
-            WHERE o.order_type = 'Preorder' AND o.status != 'Fulfilled'
-            GROUP BY o.id ORDER BY o.order_date ASC`);
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: 'Failed' }); }
-});
-
-app.put('/api/sales/:id/payment', async (req, res) => {
-    const { amount } = req.body;
-    const conn = await db.getConnection();
-    try {
-        await conn.beginTransaction();
-        const [rows] = await conn.execute('SELECT total_amount, deposit_amount FROM customer_orders WHERE id = ?', [req.params.id]);
-        const newTotalPaid = parseFloat(rows[0].deposit_amount || 0) + parseFloat(amount);
-        const newStatus = newTotalPaid >= (parseFloat(rows[0].total_amount) - 0.01) ? 'Paid' : 'Partial';
-        await conn.execute('UPDATE customer_orders SET deposit_amount = ?, status = ? WHERE id = ?', [newTotalPaid, newStatus, req.params.id]);
-        await conn.commit();
-        res.json({ message: 'Payment recorded' });
-    } catch (e) { await conn.rollback(); res.status(500).json({ error: e.message }); } finally { conn.release(); }
-});
-
-
-// ==========================================
-// CUSTOMER MANAGEMENT
-// ==========================================
-
-// Get all customers (with optional search)
-app.get('/api/customers', async (req, res) => {
-    const { search } = req.query;
-    try {
-        let query = 'SELECT * FROM customers';
-        let params = [];
-        
-        if (search) {
-            query += ' WHERE name LIKE ? OR email LIKE ? OR mobile_number LIKE ? OR bandai_id LIKE ? OR bushiroad_id LIKE ?';
-            const searchVal = `%${search}%`;
-            params = [searchVal, searchVal, searchVal, searchVal, searchVal];
+            emptyState.classList.add('hidden');
+            tbody.innerHTML = items.map(item => `
+                <tr class="hover:bg-blue-50 cursor-pointer transition border-b group" onclick="showItemDetails(${item.id})">
+                    <td class="p-4">
+                        <div class="font-bold text-gray-800 group-hover:text-blue-600 transition">${item.card_name || ''}</div>
+                        <div class="text-[10px] text-gray-400 uppercase tracking-wider mt-1">${item.card_id || ''}</div>
+                    </td>
+                    <td class="p-4"><span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold">${item.game_title || ''}</span></td>
+                    <td class="p-4 text-center"><span class="font-bold ${item.stock_quantity <= 0 ? 'text-red-500' : 'text-blue-600'}">${item.stock_quantity ?? '0'}</span></td>
+                    <td class="p-4 text-right font-mono font-bold text-gray-700">${item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : ''}</td>
+                </tr>
+            `).join('');
         }
-        
-        query += ' ORDER BY name ASC';
-        const [rows] = await db.execute(query, params);
-        res.json(rows);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch customers' });
-    }
-});
 
-// Add new customer
-app.post('/api/customers', async (req, res) => {
-    const { name, email, mobile_number, bandai_id, bushiroad_id } = req.body;
-    try {
-        const [result] = await db.execute(
-            `INSERT INTO customers (name, email, mobile_number, bandai_id, bushiroad_id, status, loyalty_points) 
-             VALUES (?, ?, ?, ?, ?, 'Active', 0)`,
-            [name, email || null, mobile_number || null, bandai_id || null, bushiroad_id || null]
-        );
-        res.status(201).json({ id: result.insertId, message: 'Customer created' });
-    } catch (error) {
-        res.status(500).json({ error: 'Database error or duplicate entry' });
-    }
-});
+        function filterInventory() {
+            const query = document.getElementById('search-inventory').value.toLowerCase();
+            const filtered = globalInventory.filter(item => 
+                (item.card_name && item.card_name.toLowerCase().includes(query)) ||
+                (item.game_title && item.game_title.toLowerCase().includes(query)) ||
+                (item.card_id && item.card_id.toLowerCase().includes(query))
+            );
+            renderInventoryList(filtered);
+        }
 
-// Get detailed purchase history for a specific customer
-app.get('/api/customers/:id/history', async (req, res) => {
-    try {
-        const [rows] = await db.execute(`
-            SELECT o.*, 
-                   GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items
-            FROM customer_orders o
-            JOIN customer_order_items oi ON o.id = oi.order_id
-            JOIN inventory i ON oi.inventory_id = i.id
-            WHERE o.customer_id = ?
-            GROUP BY o.id
-            ORDER BY o.order_date DESC`, 
-            [req.params.id]
-        );
-        res.json(rows);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch history' });
-    }
-});
+        // ------------------ VIEW DETAILS ------------------
+        function showItemDetails(id) {
+            const item = globalInventory.find(i => i.id === id);
+            if (!item) return;
 
-// Delete customer
-app.delete('/api/customers/:id', async (req, res) => {
-    try {
-        await db.execute('DELETE FROM customers WHERE id = ?', [req.params.id]);
-        res.json({ message: 'Customer deleted' });
-    } catch (error) {
-        res.status(500).json({ error: 'Cannot delete: Customer has existing orders.' });
-    }
-});
+            currentEditingId = id; 
 
-// ==========================================
-// UPDATED PURCHASING ROUTES
-// ==========================================
+            document.getElementById('inventory-list-container').classList.add('hidden');
+            document.getElementById('inventory-details-view').classList.remove('hidden');
 
-// 1. Get Purchase Order History (Including Invoice Data)
-app.get('/api/purchase-orders', async (req, res) => {
-    try {
-        const [rows] = await db.execute(`
-            SELECT 
-                po.id, 
-                po.po_number, 
-                po.status, 
-                po.order_date,
-                po.payment_status,
-                po.total_cost,
-                po.paid_amount,
-                po.invoice_no,
-                po.payment_date,
-                COALESCE(s.name, 'Unknown Supplier') as supplier_name,
-                -- Calculated value from items (for reference)
-                (SELECT SUM(poi.ordered_qty * poi.unit_cost) FROM po_items poi WHERE poi.po_id = po.id) as original_value
-            FROM purchase_orders po 
-            LEFT JOIN suppliers s ON po.supplier_id = s.id 
-            ORDER BY po.order_date DESC`
-        );
-        res.json(rows);
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
+            document.getElementById('det-card-name').innerText = item.card_name || '';
+            document.getElementById('det-game-title').innerText = item.game_title || '';
+            document.getElementById('det-stock').innerText = item.stock_quantity ?? '';
+            document.getElementById('det-price').innerText = item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : '';
+            document.getElementById('det-allocated').innerText = item.allocated_qty ?? '';
+            document.getElementById('det-wave').innerText = item.allocation_wave || '';
+            document.getElementById('det-card-id').innerText = item.card_id || '';
 
-// 2. New Route: Record Payment & Invoice
-app.put('/api/purchase-orders/:id/payment', async (req, res) => {
-    const { invoice_no, payment_date, amount_paid, final_total_cost } = req.body;
-    try {
-        // Update the PO header with actual financial data
-        await db.execute(
-            `UPDATE purchase_orders 
-             SET invoice_no = ?, 
-                 payment_date = ?, 
-                 paid_amount = paid_amount + ?, 
-                 total_cost = ?,
-                 payment_status = CASE WHEN (paid_amount + ?) >= ? THEN 'Fully Paid' ELSE 'Partial' END
-             WHERE id = ?`,
-            [
-                invoice_no || null, 
-                payment_date || null, 
-                parseFloat(amount_paid) || 0, 
-                parseFloat(final_total_cost), 
-                parseFloat(amount_paid) || 0, 
-                parseFloat(final_total_cost), 
-                req.params.id
-            ]
-        );
-        res.json({ message: 'Payment recorded successfully' });
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
+            const unitCost = item.cost_price != null ? parseFloat(item.cost_price) : null;
+            const taxRate = item.tax_rate != null ? parseFloat(item.tax_rate) : null;
 
-// --- KEEP ALIVE ---
-setInterval(async () => { try { await db.execute('SELECT 1'); } catch(e){} }, 300000);
+            document.getElementById('det-cost-unit').innerText = unitCost != null ? `$${unitCost.toFixed(2)}` : '';
+            document.getElementById('det-tax-info').innerText = taxRate != null ? `${(taxRate * 100).toFixed(2)}%` : '';
+            document.getElementById('det-cost-tax').innerText = (unitCost != null && taxRate != null) ? `$${(unitCost * (1 + taxRate)).toFixed(2)}` : '';
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+            let shippingText = '';
+            if (item.shipping_included === 1 || item.shipping_included === true) shippingText = 'Yes';
+            else if (item.shipping_included === 0 || item.shipping_included === false) shippingText = 'No';
+            document.getElementById('det-shipping').innerText = shippingText;
+
+            const packs = item.packs_per_box != null ? parseInt(item.packs_per_box) : 1;
+            const boxes = item.boxes_per_case != null ? parseInt(item.boxes_per_case) : 1;
+            
+            document.getElementById('calc-unit').innerText = `1 Base Unit`;
+            document.getElementById('calc-box').innerText = `${packs} Units / Box`;
+            document.getElementById('calc-case').innerText = `${boxes} Boxes / Case`;
+
+            document.getElementById('det-quick-desc').innerText = item.quick_description || '';
+            document.getElementById('det-long-desc').innerText = item.long_description || '';
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function hideDetails() {
+            currentEditingId = null;
+            document.getElementById('inventory-list-container').classList.remove('hidden');
+            document.getElementById('inventory-details-view').classList.add('hidden');
+            document.getElementById('search-inventory').value = '';
+            renderInventoryList(globalInventory);
+        }
+
+        // ------------------ CRUD MODAL OPERATIONS ------------------
+        function openProductModal(isEdit = false) {
+            document.getElementById('product-modal').classList.remove('hidden');
+            
+            if (isEdit && currentEditingId) {
+                document.getElementById('modal-title').innerText = "Edit Product";
+                document.getElementById('btn-save-product').innerText = "Update Details";
+                document.getElementById('btn-save-product').classList.replace('bg-blue-600', 'bg-yellow-500');
+                document.getElementById('btn-save-product').classList.replace('hover:bg-blue-700', 'hover:bg-yellow-600');
+                
+                const item = globalInventory.find(i => i.id === currentEditingId);
+                if(item) {
+                    document.getElementById('frm-name').value = item.card_name || '';
+                    document.getElementById('frm-ip').value = item.game_title || '';
+                    document.getElementById('frm-id').value = item.card_id || '';
+                    document.getElementById('frm-stock').value = item.stock_quantity ?? '';
+                    document.getElementById('frm-price').value = item.price ?? '';
+                    document.getElementById('frm-allocated').value = item.allocated_qty ?? '';
+                    document.getElementById('frm-wave').value = item.allocation_wave || '';
+                    document.getElementById('frm-cost').value = item.cost_price ?? '';
+                    document.getElementById('frm-tax').value = item.tax_rate ?? '';
+                    document.getElementById('frm-packs').value = item.packs_per_box ?? '';
+                    document.getElementById('frm-cases').value = item.boxes_per_case ?? '';
+                    document.getElementById('frm-shipping').checked = item.shipping_included === 1 || item.shipping_included === true;
+                    document.getElementById('frm-quick-desc').value = item.quick_description || '';
+                    document.getElementById('frm-long-desc').value = item.long_description || '';
+                }
+            } else {
+                currentEditingId = null;
+                document.getElementById('modal-title').innerText = "Add New Product";
+                document.getElementById('btn-save-product').innerText = "Save Product";
+                document.getElementById('btn-save-product').classList.replace('bg-yellow-500', 'bg-blue-600');
+                document.getElementById('btn-save-product').classList.replace('hover:bg-yellow-600', 'hover:bg-blue-700');
+                
+                ['frm-name', 'frm-ip', 'frm-id', 'frm-stock', 'frm-price', 'frm-allocated', 'frm-wave', 'frm-cost', 'frm-tax', 'frm-packs', 'frm-cases', 'frm-quick-desc', 'frm-long-desc'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('frm-shipping').checked = false;
+            }
+        }
+
+        function closeProductModal() {
+            document.getElementById('product-modal').classList.add('hidden');
+        }
+
+        async function saveProduct() {
+            const btn = document.getElementById('btn-save-product');
+            btn.disabled = true;
+            btn.innerText = "Saving...";
+
+            const payload = {
+                card_name: document.getElementById('frm-name').value,
+                game_title: document.getElementById('frm-ip').value,
+                card_id: document.getElementById('frm-id').value,
+                stock_quantity: parseInt(document.getElementById('frm-stock').value) || 0,
+                price: parseFloat(document.getElementById('frm-price').value) || 0,
+                allocated_qty: parseInt(document.getElementById('frm-allocated').value) || 0,
+                allocation_wave: document.getElementById('frm-wave').value,
+                cost_price: parseFloat(document.getElementById('frm-cost').value) || 0,
+                tax_rate: parseFloat(document.getElementById('frm-tax').value) || 0,
+                packs_per_box: parseInt(document.getElementById('frm-packs').value) || 1,
+                boxes_per_case: parseInt(document.getElementById('frm-cases').value) || 1,
+                shipping_included: document.getElementById('frm-shipping').checked,
+                quick_description: document.getElementById('frm-quick-desc').value,
+                long_description: document.getElementById('frm-long-desc').value
+            };
+
+            if (!payload.card_name || !payload.game_title) {
+                alert("Item Name and Item IP are required!");
+                btn.disabled = false;
+                btn.innerText = currentEditingId ? "Update Details" : "Save Product";
+                return;
+            }
+
+            try {
+                const method = currentEditingId ? 'PUT' : 'POST';
+                const endpoint = currentEditingId ? `${API_URL}/inventory/${currentEditingId}` : `${API_URL}/inventory/add`;
+                
+                const res = await fetch(endpoint, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    alert(currentEditingId ? "Product updated!" : "Product added!");
+                    closeProductModal();
+                    if (currentEditingId) hideDetails(); 
+                    loadInventory(); 
+                } else {
+                    const data = await res.json();
+                    alert("Error: " + data.error);
+                }
+            } catch (error) {
+                alert("Failed to connect to server.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = currentEditingId ? "Update Details" : "Save Product";
+            }
+        }
+
+        async function deleteProduct() {
+            if (!currentEditingId) return;
+            if (!confirm("Are you sure you want to permanently delete this product? This action cannot be undone.")) return;
+
+            try {
+                const res = await fetch(`${API_URL}/inventory/${currentEditingId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    alert("Product deleted.");
+                    hideDetails(); 
+                    loadInventory(); 
+                } else {
+                    const data = await res.json();
+                    alert("Error: " + data.error);
+                }
+            } catch (error) {
+                alert("Failed to connect to server.");
+            }
+        }
+    </script>
+</body>
+</html>
