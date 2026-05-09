@@ -5,158 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>K10 Admin - Inventory</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { font-family: 'Segoe UI', system-ui, sans-serif; }
-
-        /* ── View transitions ── */
-        #family-view, #tree-view { transition: opacity 0.18s ease; }
-        .fade-in { animation: fadeIn 0.2s ease forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* ── Family cards ── */
-        .family-card {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 1.25rem 1.5rem;
-            cursor: pointer;
-            transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
-        }
-        .family-card:hover {
-            border-color: #3b82f6;
-            box-shadow: 0 4px 16px rgba(59,130,246,0.12);
-            transform: translateY(-2px);
-        }
-
-        /* ── Tree rows ── */
-        .product-row {
-            border-bottom: 1px solid #f3f4f6;
-            transition: background 0.1s;
-        }
-        .product-row:hover { background: #f9fafb; }
-        .product-row:last-child { border-bottom: none; }
-
-        /* indent levels */
-        .depth-0 { padding-left: 1rem; }
-        .depth-1 { padding-left: 2.5rem; }
-        .depth-2 { padding-left: 4.5rem; }
-
-        /* tree connector lines */
-        .tree-line { position: relative; }
-        .tree-line::before {
-            content: '';
-            position: absolute;
-            left: -16px;
-            top: 50%;
-            width: 12px;
-            height: 1px;
-            background: #d1d5db;
-        }
-        .tree-line::after {
-            content: '';
-            position: absolute;
-            left: -16px;
-            top: -50%;
-            width: 1px;
-            height: 100%;
-            background: #d1d5db;
-        }
-
-        /* ── Badges ── */
-        .badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.04em; }
-        .badge-blue   { background: #eff6ff; color: #1d4ed8; }
-        .badge-green  { background: #f0fdf4; color: #166534; }
-        .badge-amber  { background: #fffbeb; color: #92400e; }
-        .badge-gray   { background: #f3f4f6; color: #4b5563; }
-        .badge-teal   { background: #f0fdfa; color: #0f6e56; }
-        .badge-red    { background: #fef2f2; color: #991b1b; }
-        .badge-purple { background: #f5f3ff; color: #5b21b6; }
-
-        /* ── Buttons ── */
-        .btn-primary { background: #2563eb; color: white; border-radius: 8px; font-weight: 600; font-size: 13px; padding: 7px 16px; transition: background 0.15s; }
-        .btn-primary:hover { background: #1d4ed8; }
-        .btn-danger  { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px; font-weight: 600; font-size: 12px; padding: 5px 12px; transition: background 0.15s; }
-        .btn-danger:hover  { background: #fee2e2; }
-        .btn-ghost  { background: #f3f4f6; color: #374151; border-radius: 8px; font-weight: 600; font-size: 12px; padding: 5px 12px; transition: background 0.15s; }
-        .btn-ghost:hover  { background: #e5e7eb; }
-        .btn-teal { background: #f0fdfa; color: #0f6e56; border: 1px solid #99f6e4; border-radius: 8px; font-weight: 600; font-size: 12px; padding: 5px 12px; transition: background 0.15s; }
-        .btn-teal:hover { background: #ccfbf1; }
-
-        /* ── Breakdown panel ── */
-        .breakdown-panel {
-            background: #fffbeb;
-            border: 1px solid #fde68a;
-            border-radius: 10px;
-            padding: 12px 16px;
-            margin-top: 8px;
-            display: none;
-        }
-        .breakdown-panel.open { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-
-        /* ── Modal ── */
-        .modal-backdrop {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.45);
-            display: flex; align-items: center; justify-content: center;
-            z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.2s;
-        }
-        .modal-backdrop.open { opacity: 1; pointer-events: all; }
-        .modal-box {
-            background: white; border-radius: 16px; padding: 1.75rem;
-            width: 100%; max-width: 520px; margin: 1rem;
-            transform: translateY(16px); transition: transform 0.2s;
-        }
-        .modal-backdrop.open .modal-box { transform: translateY(0); }
-
-        /* ── Toast ── */
-        #toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
-        .toast { padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; color: white; opacity: 0; transform: translateY(8px); transition: all 0.25s; }
-        .toast.show { opacity: 1; transform: translateY(0); }
-        .toast.success { background: #16a34a; }
-        .toast.error   { background: #dc2626; }
-
-        /* ── Form inputs ── */
-        input[type=text], input[type=number], select, textarea {
-            border: 1px solid #d1d5db; border-radius: 8px;
-            padding: 8px 10px; font-size: 13px; width: 100%;
-            outline: none; transition: border-color 0.15s, box-shadow 0.15s;
-        }
-        input:focus, select:focus, textarea:focus {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
-        }
-
-        /* stock indicator dot */
-        .stock-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
-        .stock-dot.ok    { background: #16a34a; }
-        .stock-dot.low   { background: #f59e0b; }
-        .stock-dot.zero  { background: #ef4444; }
-    </style>
+    <link rel="stylesheet" href="inventory-styles.css">
 </head>
-<body class="bg-gray-50 font-sans">
+<body>
 
 <script src="admin-navbar.js"></script>
 
-<!-- ══════════════════════════════════════════
-     FAMILY LIST VIEW
-══════════════════════════════════════════ -->
+<!-- FAMILY LIST VIEW -->
 <div id="family-view" class="max-w-6xl mx-auto px-4 mt-8 pb-16">
-
-    <!-- Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Inventory</h1>
             <p class="text-sm text-gray-500 mt-0.5">Select a product family to manage</p>
         </div>
-        <button onclick="openAddProductModal()" class="btn-primary flex items-center gap-2">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <button onclick="openAddProductModal()" class="btn-primary">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             Add Product
         </button>
     </div>
-
-    <!-- Search + filter bar -->
     <div class="flex flex-col sm:flex-row gap-3 mb-6">
-        <input type="text" id="family-search" placeholder="Search families..." class="sm:w-64">
-        <select id="family-game-filter" class="sm:w-48">
+        <input type="text" id="family-search" placeholder="Search families..." style="max-width:260px">
+        <select id="family-game-filter" style="max-width:200px">
             <option value="">All Games</option>
             <option value="One Piece">One Piece</option>
             <option value="Pokemon">Pokemon</option>
@@ -168,22 +37,16 @@
             <option value="Other">Other</option>
         </select>
     </div>
-
-    <!-- Family grid -->
     <div id="family-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="col-span-full text-center py-16 text-gray-400 text-sm">Loading families...</div>
     </div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     TREE DETAIL VIEW
-══════════════════════════════════════════ -->
+<!-- TREE DETAIL VIEW -->
 <div id="tree-view" class="hidden max-w-6xl mx-auto px-4 mt-8 pb-16">
-
-    <!-- Back + header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div class="flex items-center gap-3">
-            <button onclick="showFamilyView()" class="btn-ghost flex items-center gap-1.5">
+            <button onclick="showFamilyView()" class="btn-ghost">
                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
                 Back
             </button>
@@ -192,16 +55,14 @@
                 <p class="text-sm text-gray-500 mt-0.5" id="tree-subtitle">—</p>
             </div>
         </div>
-        <button onclick="openAddProductModal()" class="btn-primary flex items-center gap-2">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <button onclick="openAddProductModal()" class="btn-primary">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             Add Product
         </button>
     </div>
-
-    <!-- Product tree card -->
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div class="bg-gray-50 border-b px-5 py-3 flex justify-between items-center">
-            <span class="text-xs font-bold text-gray-500 uppercase tracking-wide" id="tree-count">— products</span>
+            <span class="text-xs font-bold text-gray-500 uppercase tracking-wide" id="tree-count">—</span>
             <button onclick="loadFamilyTree(currentFamily)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
         </div>
         <div id="tree-body"></div>
@@ -210,21 +71,107 @@
     </div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     ADD PRODUCT MODAL
-══════════════════════════════════════════ -->
+<!-- EDIT DRAWER -->
+<div id="drawer-backdrop" class="drawer-backdrop" onclick="closeDrawer()"></div>
+<div id="edit-drawer" class="drawer">
+    <div class="drawer-header">
+        <div>
+            <p class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Editing</p>
+            <h2 class="text-base font-bold text-gray-900" id="drawer-title">—</h2>
+            <div id="drawer-badges" class="flex flex-wrap gap-1.5 mt-2"></div>
+        </div>
+        <button onclick="closeDrawer()" class="drawer-header-close" aria-label="Close">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+    </div>
+    <div class="drawer-body">
+        <input type="hidden" id="drawer-id">
+
+        <!-- Pricing -->
+        <div class="drawer-section">
+            <p class="section-heading">
+                <span class="section-icon green">$</span>Pricing
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Cost Price ($)</label>
+                    <input type="number" id="d-cost" placeholder="0.00" step="0.01" min="0">
+                    <p class="text-[10px] text-gray-400 mt-1">What you paid per unit</p>
+                </div>
+                <div>
+                    <label class="field-label">Sell Price ($)</label>
+                    <input type="number" id="d-price" placeholder="0.00" step="0.01" min="0">
+                    <p class="text-[10px] text-gray-400 mt-1">What customers pay</p>
+                </div>
+            </div>
+            <div id="margin-box" class="margin-box hidden">
+                <div class="flex justify-between items-center text-xs mb-1.5">
+                    <span class="text-gray-500">Gross margin</span>
+                    <span id="margin-pct" class="font-bold">—</span>
+                </div>
+                <div class="profit-bar"><div id="margin-fill" class="profit-bar-fill" style="width:0%"></div></div>
+                <div class="text-[10px] text-gray-400 mt-1.5">Profit per unit: <strong id="margin-profit">—</strong></div>
+            </div>
+        </div>
+
+        <hr class="drawer-divider">
+
+        <!-- Stock -->
+        <div class="drawer-section">
+            <p class="section-heading">
+                <span class="section-icon blue">
+                    <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8l-2 4h12l-2-4z"/></svg>
+                </span>Stock
+            </p>
+            <label class="field-label">Stock Quantity</label>
+            <input type="number" id="d-stock" placeholder="0" min="0">
+            <p class="text-[10px] text-gray-400 mt-1">Manual override — use Break Down for bundles</p>
+        </div>
+
+        <hr class="drawer-divider">
+
+        <!-- Description -->
+        <div class="drawer-section">
+            <p class="section-heading">
+                <span class="section-icon purple">
+                    <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </span>Description
+            </p>
+            <label class="field-label">Quick Description</label>
+            <input type="text" id="d-desc" placeholder="Short note shown on cards">
+        </div>
+
+        <hr class="drawer-divider">
+
+        <!-- Read-only info -->
+        <div class="drawer-section">
+            <p class="section-heading">Product Info</p>
+            <div class="space-y-2">
+                <div><label class="field-label">Set Name</label><div class="field-ro" id="d-set">—</div></div>
+                <div><label class="field-label">Category</label><div class="field-ro" id="d-cat">—</div></div>
+                <div><label class="field-label">Game</label><div class="field-ro" id="d-game">—</div></div>
+            </div>
+        </div>
+    </div>
+    <div class="drawer-footer">
+        <button onclick="closeDrawer()" class="btn-ghost">Cancel</button>
+        <button onclick="saveDrawer()" class="btn-primary">Save Changes</button>
+    </div>
+</div>
+
+<!-- ADD PRODUCT MODAL -->
 <div id="add-modal" class="modal-backdrop">
     <div class="modal-box">
-        <div class="flex justify-between items-center mb-5">
-            <h2 class="text-lg font-bold text-gray-900">Add Product</h2>
-            <button onclick="closeAddProductModal()" class="text-gray-400 hover:text-gray-600">
+        <div class="modal-header">
+            <h2 class="modal-title">Add Product</h2>
+            <button onclick="closeAddProductModal()" class="modal-close">
                 <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
         <div class="space-y-3">
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Game *</label>
+                    <label class="field-label">Game *</label>
                     <select id="add-game">
                         <option value="One Piece">One Piece</option>
                         <option value="Pokemon">Pokemon</option>
@@ -237,243 +184,158 @@
                     </select>
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Set Name * <span class="normal-case text-gray-400 font-normal">(e.g. OP17)</span></label>
+                    <label class="field-label">Set Name * <span class="normal-case font-normal text-gray-400">(e.g. OP17)</span></label>
                     <input type="text" id="add-set-name" placeholder="OP17">
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Category *</label>
-                    <select id="add-category">
-                        <option value="">Loading...</option>
-                    </select>
+                    <label class="field-label">Category *</label>
+                    <select id="add-category"><option value="">Loading...</option></select>
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Card / Set ID</label>
+                    <label class="field-label">Card / Set ID</label>
                     <input type="text" id="add-card-id" placeholder="OP17-001">
                 </div>
             </div>
             <div>
-                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Product Name *</label>
+                <label class="field-label">Product Name *</label>
                 <input type="text" id="add-name" placeholder="e.g. OP17 Booster Box">
             </div>
             <div class="grid grid-cols-3 gap-3">
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Cost Price ($)</label>
-                    <input type="number" id="add-cost" placeholder="0.00" step="0.01">
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Sell Price ($)</label>
-                    <input type="number" id="add-price" placeholder="0.00" step="0.01">
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Stock Qty</label>
-                    <input type="number" id="add-stock" placeholder="0">
-                </div>
+                <div><label class="field-label">Cost ($)</label><input type="number" id="add-cost" placeholder="0.00" step="0.01"></div>
+                <div><label class="field-label">Sell ($)</label><input type="number" id="add-price" placeholder="0.00" step="0.01"></div>
+                <div><label class="field-label">Stock</label><input type="number" id="add-stock" placeholder="0"></div>
             </div>
             <div>
-                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Barcode</label>
+                <label class="field-label">Barcode</label>
                 <input type="text" id="add-barcode" placeholder="Optional">
             </div>
-            <div class="flex items-center gap-3 pt-1">
-                <label class="flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" id="add-is-bundle" class="w-4 h-4 rounded">
-                    <span class="text-sm text-gray-700 font-medium">This is a bundle product</span>
-                    <span class="badge badge-blue">contains children</span>
-                </label>
-            </div>
+            <label class="flex items-center gap-2 cursor-pointer select-none pt-1">
+                <input type="checkbox" id="add-is-bundle" class="w-4 h-4">
+                <span class="text-sm text-gray-700 font-medium">This is a bundle product</span>
+                <span class="badge badge-blue">contains children</span>
+            </label>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
+        <div class="modal-footer">
             <button onclick="closeAddProductModal()" class="btn-ghost">Cancel</button>
             <button onclick="addProduct()" class="btn-primary">Save Product</button>
         </div>
     </div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     EDIT PRODUCT MODAL
-══════════════════════════════════════════ -->
-<div id="edit-modal" class="modal-backdrop">
-    <div class="modal-box">
-        <div class="flex justify-between items-center mb-5">
-            <h2 class="text-lg font-bold text-gray-900">Edit Product</h2>
-            <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">
-                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
-        </div>
-        <input type="hidden" id="edit-id">
-        <div class="space-y-3">
-            <div>
-                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Product Name</label>
-                <input type="text" id="edit-name" disabled class="bg-gray-50 text-gray-500">
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Set Name</label>
-                    <input type="text" id="edit-set-name" placeholder="e.g. OP17">
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Category</label>
-                    <select id="edit-category"></select>
-                </div>
-            </div>
-            <div class="grid grid-cols-3 gap-3">
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Cost Price ($)</label>
-                    <input type="number" id="edit-cost" step="0.01">
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Sell Price ($)</label>
-                    <input type="number" id="edit-price" step="0.01">
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Stock Qty</label>
-                    <input type="number" id="edit-stock">
-                </div>
-            </div>
-            <div>
-                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Quick Description</label>
-                <input type="text" id="edit-description" placeholder="Optional short description">
-            </div>
-        </div>
-        <div class="flex justify-end gap-3 mt-6">
-            <button onclick="closeEditModal()" class="btn-ghost">Cancel</button>
-            <button onclick="saveEdit()" class="btn-primary">Save Changes</button>
-        </div>
-    </div>
-</div>
-
-<!-- ══════════════════════════════════════════
-     ADD CHILD BUNDLE MODAL
-══════════════════════════════════════════ -->
+<!-- ADD BUNDLE CHILD MODAL -->
 <div id="bundle-modal" class="modal-backdrop">
     <div class="modal-box">
-        <div class="flex justify-between items-center mb-5">
+        <div class="modal-header">
             <div>
-                <h2 class="text-lg font-bold text-gray-900">Add Bundle Child</h2>
+                <h2 class="modal-title">Add Bundle Child</h2>
                 <p class="text-sm text-gray-500 mt-0.5">Link a child product to <strong id="bundle-parent-name">—</strong></p>
             </div>
-            <button onclick="closeBundleModal()" class="text-gray-400 hover:text-gray-600">
+            <button onclick="closeBundleModal()" class="modal-close">
                 <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
         <input type="hidden" id="bundle-parent-id">
         <div class="space-y-3">
             <div>
-                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Child Product *</label>
-                <select id="bundle-child-id">
-                    <option value="">Select a product...</option>
-                </select>
+                <label class="field-label">Child Product *</label>
+                <select id="bundle-child-id"><option value="">Select a product...</option></select>
             </div>
             <div>
-                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Quantity per Parent *</label>
+                <label class="field-label">Quantity per Parent *</label>
                 <input type="number" id="bundle-qty" value="1" min="1">
             </div>
             <div>
-                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Notes</label>
+                <label class="field-label">Notes</label>
                 <input type="text" id="bundle-notes" placeholder="Optional note">
             </div>
         </div>
-        <div class="flex justify-end gap-3 mt-6">
+        <div class="modal-footer">
             <button onclick="closeBundleModal()" class="btn-ghost">Cancel</button>
             <button onclick="saveBundleChild()" class="btn-primary">Link Child</button>
         </div>
     </div>
 </div>
 
-<!-- Toast container -->
 <div id="toast-container"></div>
 
 <script>
 const API_URL = 'https://k10system.onrender.com/api';
-let categories = [];
-let allProducts = []; // flat list for bundle child picker
+let categories   = [];
+let allProducts  = [];
 let currentFamily = null;
-let familyData = [];
+let familyData   = [];
 
-// ══════════════════════════════
-// INIT
-// ══════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
-    if (!localStorage.getItem('k10_token')) window.location.href = 'admin.html';
+    if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
     await loadCategories();
     await loadFamilies();
-
     document.getElementById('family-search').addEventListener('input', renderFamilyGrid);
     document.getElementById('family-game-filter').addEventListener('change', renderFamilyGrid);
+    document.getElementById('d-cost').addEventListener('input', calcMargin);
+    document.getElementById('d-price').addEventListener('input', calcMargin);
 });
 
-// ══════════════════════════════
-// CATEGORIES
-// ══════════════════════════════
 async function loadCategories() {
     try {
         const res = await fetch(`${API_URL}/categories`);
         categories = await res.json();
-        const opts = '<option value="">-- Select --</option>' + categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        const opts = '<option value="">-- Select --</option>' +
+            categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
         document.getElementById('add-category').innerHTML = opts;
-        document.getElementById('edit-category').innerHTML = opts;
     } catch(e) { console.error('Failed to load categories'); }
 }
 
-// ══════════════════════════════
-// FAMILY LIST VIEW
-// ══════════════════════════════
 async function loadFamilies() {
     try {
         const res = await fetch(`${API_URL}/inventory/families`);
         familyData = await res.json();
         renderFamilyGrid();
     } catch(e) {
-        document.getElementById('family-grid').innerHTML = `<div class="col-span-full text-center py-16 text-red-400 text-sm">Failed to load inventory.</div>`;
+        document.getElementById('family-grid').innerHTML =
+            `<div class="col-span-full text-center py-16 text-red-400 text-sm">Failed to load inventory.</div>`;
     }
 }
 
 function renderFamilyGrid() {
     const search = document.getElementById('family-search').value.toLowerCase();
     const game   = document.getElementById('family-game-filter').value;
-
     const filtered = familyData.filter(f => {
-        const matchSearch = !search || f.set_name.toLowerCase().includes(search) || (f.game_title||'').toLowerCase().includes(search);
-        const matchGame   = !game   || f.game_title === game;
-        return matchSearch && matchGame;
+        const ms = !search || f.set_name.toLowerCase().includes(search) || (f.game_title||'').toLowerCase().includes(search);
+        const mg = !game   || f.game_title === game;
+        return ms && mg;
     });
-
     const grid = document.getElementById('family-grid');
-    if (filtered.length === 0) {
+    if (!filtered.length) {
         grid.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-sm">No families found.</div>`;
         return;
     }
-
     grid.innerHTML = filtered.map(f => {
-        const stockColor = f.total_stock > 50 ? 'text-green-600' : f.total_stock > 0 ? 'text-amber-600' : 'text-red-400';
-        const gameIcon = getGameIcon(f.game_title);
+        const sc = f.total_stock > 50 ? 'text-green-600' : f.total_stock > 0 ? 'text-amber-600' : 'text-red-400';
         return `
-        <div class="family-card fade-in" onclick="openFamily('${escapeAttr(f.set_name)}', '${escapeAttr(f.game_title||'')}')">
+        <div class="family-card fade-in" onclick="openFamily('${esc(f.set_name)}', '${esc(f.game_title||'')}')">
             <div class="flex items-start justify-between mb-3">
-                <div class="text-2xl">${gameIcon}</div>
+                <div class="text-2xl">${gameIcon(f.game_title)}</div>
                 <span class="badge badge-gray">${f.game_title || 'Other'}</span>
             </div>
             <h3 class="text-lg font-bold text-gray-900 mb-1">${f.set_name}</h3>
-            <div class="flex items-center gap-3 text-sm">
+            <div class="flex items-center gap-3 text-sm flex-wrap">
                 <span class="text-gray-500">${f.total_products} product${f.total_products != 1 ? 's' : ''}</span>
                 <span class="text-gray-300">·</span>
-                <span class="font-semibold ${stockColor}">${f.total_stock} in stock</span>
+                <span class="font-semibold ${sc}">${f.total_stock} in stock</span>
                 ${f.bundle_count > 0 ? `<span class="badge badge-blue">${f.bundle_count} bundle${f.bundle_count != 1 ? 's' : ''}</span>` : ''}
             </div>
         </div>`;
     }).join('');
 }
 
-// ══════════════════════════════
-// TREE DETAIL VIEW
-// ══════════════════════════════
 async function openFamily(setName, gameTitle) {
     currentFamily = setName;
     document.getElementById('family-view').classList.add('hidden');
     document.getElementById('tree-view').classList.remove('hidden');
     document.getElementById('tree-view').classList.add('fade-in');
-    document.getElementById('tree-title').textContent = setName;
+    document.getElementById('tree-title').textContent    = setName;
     document.getElementById('tree-subtitle').textContent = gameTitle || '';
     await loadFamilyTree(setName);
 }
@@ -482,7 +344,6 @@ function showFamilyView() {
     currentFamily = null;
     document.getElementById('tree-view').classList.add('hidden');
     document.getElementById('family-view').classList.remove('hidden');
-    document.getElementById('family-view').classList.add('fade-in');
     loadFamilies();
 }
 
@@ -490,137 +351,109 @@ async function loadFamilyTree(setName) {
     const body    = document.getElementById('tree-body');
     const loading = document.getElementById('tree-loading');
     const empty   = document.getElementById('tree-empty');
-
     body.innerHTML = '';
     loading.classList.remove('hidden');
     empty.classList.add('hidden');
-
     try {
         const res = await fetch(`${API_URL}/inventory/family/${encodeURIComponent(setName)}`);
         const products = await res.json();
-        allProducts = products; // for child picker
-
+        allProducts = products;
         loading.classList.add('hidden');
         document.getElementById('tree-count').textContent = `${products.length} product${products.length !== 1 ? 's' : ''}`;
-
-        if (products.length === 0) { empty.classList.remove('hidden'); return; }
-
+        if (!products.length) { empty.classList.remove('hidden'); return; }
         body.innerHTML = products.map(p => renderProductRow(p, products)).join('');
-
-        // initialise breakdown panels
         document.querySelectorAll('.breakdown-toggle').forEach(btn => {
-            btn.addEventListener('click', e => {
-                const panel = document.getElementById(`bd-panel-${btn.dataset.id}`);
-                panel.classList.toggle('open');
+            btn.addEventListener('click', () => {
+                document.getElementById(`bd-panel-${btn.dataset.id}`).classList.toggle('open');
             });
         });
-
-    } catch(e) {
-        loading.textContent = 'Failed to load products.';
-    }
+    } catch(e) { loading.textContent = 'Failed to load products.'; }
 }
 
 function renderProductRow(p, allProds) {
     const stockDot  = p.stock_quantity > 10 ? 'ok' : p.stock_quantity > 0 ? 'low' : 'zero';
     const stockText = p.stock_quantity > 0 ? p.stock_quantity : 'Out of stock';
-    const isRoot    = !p.parent_id;
-    const depthClass = isRoot ? 'depth-0' : 'depth-1';
 
-    // Find parent name if it's a child
     let parentLabel = '';
     if (p.parent_id) {
         const parent = allProds.find(x => x.id === p.parent_id);
-        parentLabel = parent ? `<span class="text-[10px] text-gray-400 ml-1">via ${parent.card_name} × ${p.qty_in_parent}</span>` : '';
+        if (parent) parentLabel = `<span class="text-[10px] text-gray-400">via ${parent.card_name} × ${p.qty_in_parent}</span>`;
     }
 
-    // Shared stock badge — if this product appears as child of multiple parents
     const parentCount = allProds.filter(x => x.children && x.children.some(c => c.child_product_id === p.id)).length;
-    const sharedBadge = parentCount > 1
-        ? `<span class="badge badge-teal ml-1">shared stock</span>`
-        : '';
+    const sharedBadge = parentCount > 1 ? `<span class="badge badge-teal">shared stock</span>` : '';
 
-    // Children rows
-    let childRows = '';
-    if (p.children && p.children.length > 0) {
-        childRows = p.children.map(c => `
-            <div class="product-row depth-1 py-2.5 px-5 flex items-center gap-3 text-sm text-gray-600 bg-gray-50/50">
-                <div class="tree-line flex-1 flex items-center gap-2 pl-4">
-                    <svg width="12" height="12" fill="none" stroke="#9ca3af" stroke-width="2" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
-                    <span class="font-medium text-gray-700">${c.child_name}</span>
-                    <span class="badge badge-gray">× ${c.quantity_per_parent}</span>
-                    <span class="text-xs text-gray-400">${c.child_stock} in stock</span>
-                </div>
-                <button onclick="removeBundleChild(${c.bundle_id}, '${escapeAttr(currentFamily)}')" 
-                    class="text-red-300 hover:text-red-500 transition ml-auto" title="Remove relationship">
-                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                </button>
-            </div>`).join('');
-    }
+    const childRows = (p.children || []).map(c => `
+        <div class="product-row-child">
+            <svg width="12" height="12" fill="none" stroke="#9ca3af" stroke-width="2" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+            <span class="font-medium text-gray-700 flex-1">${c.child_name}</span>
+            <span class="badge badge-gray">× ${c.quantity_per_parent}</span>
+            <span class="text-xs text-gray-400">${c.child_stock} in stock</span>
+            <button onclick="removeBundleChild(${c.bundle_id}, '${esc(currentFamily)}')"
+                class="text-red-300 hover:text-red-500 ml-auto" title="Remove relationship">
+                <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>`).join('');
 
-    // Breakdown panel (only for bundles with children)
     let breakdownBlock = '';
     if (p.is_bundle && p.children && p.children.length > 0) {
         const childSummary = p.children.map(c => `${c.quantity_per_parent}× ${c.child_name}`).join(', ');
         breakdownBlock = `
-            <div class="px-5 pb-3">
-                <div id="bd-panel-${p.id}" class="breakdown-panel">
-                    <svg width="16" height="16" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    <span class="text-xs text-amber-800 flex-1">Breaking down adds <strong>${childSummary}</strong> per unit.</span>
-                    <div class="flex items-center gap-2">
-                        <label class="text-xs text-gray-600 whitespace-nowrap">Qty to break</label>
-                        <input type="number" id="bd-qty-${p.id}" value="1" min="1" max="${p.stock_quantity}" 
-                            style="width:60px; padding:4px 8px; font-size:12px;">
-                        <button onclick="doBreakdown(${p.id})" 
-                            class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
-                            Break Down
-                        </button>
-                    </div>
+        <div class="px-5 pb-3">
+            <div id="bd-panel-${p.id}" class="breakdown-panel">
+                <svg width="15" height="15" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span class="text-xs text-amber-800 flex-1">Breaking down adds <strong>${childSummary}</strong> per unit.</span>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs text-gray-600 whitespace-nowrap">Qty to break</label>
+                    <input type="number" id="bd-qty-${p.id}" value="1" min="1" max="${p.stock_quantity}"
+                        style="width:60px;padding:4px 8px;font-size:12px;">
+                    <button onclick="doBreakdown(${p.id})"
+                        class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                        Break Down
+                    </button>
                 </div>
-            </div>`;
+            </div>
+        </div>`;
     }
 
     return `
     <div class="product-row fade-in">
-        <div class="${depthClass} py-3 px-5 flex flex-wrap items-center gap-3">
+        <div class="py-3 px-4 flex flex-wrap items-center gap-3">
             <div class="flex-1 min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                     <span class="font-semibold text-gray-900">${p.card_name}</span>
                     ${p.is_bundle ? `<span class="badge badge-blue">bundle</span>` : ''}
                     ${p.category_name ? `<span class="badge badge-gray">${p.category_name}</span>` : ''}
-                    ${sharedBadge}
-                    ${parentLabel}
+                    ${sharedBadge}${parentLabel}
                 </div>
                 ${p.quick_description ? `<p class="text-xs text-gray-400 mt-0.5">${p.quick_description}</p>` : ''}
             </div>
-
-            <!-- Stock -->
-            <div class="text-sm text-right min-w-[80px]">
+            <div class="text-right min-w-[90px]">
+                <div class="text-sm font-bold text-gray-900">$${parseFloat(p.price || 0).toFixed(2)}</div>
+                ${parseFloat(p.cost_price || 0) > 0
+                    ? `<div class="text-[10px] text-gray-400">cost $${parseFloat(p.cost_price).toFixed(2)}</div>`
+                    : `<div class="text-[10px] text-gray-300">no cost set</div>`}
+            </div>
+            <div class="text-sm min-w-[90px] text-right">
                 <span class="stock-dot ${stockDot}"></span>
                 <span class="font-semibold text-gray-800">${stockText}</span>
             </div>
-
-            <!-- Price -->
-            <div class="text-sm font-semibold text-gray-700 min-w-[60px] text-right">
-                $${parseFloat(p.price || 0).toFixed(2)}
-            </div>
-
-            <!-- Actions -->
-            <div class="flex items-center gap-2 ml-auto">
+            <div class="flex items-center gap-2 flex-wrap">
                 ${p.is_bundle ? `
-                <button class="btn-teal breakdown-toggle" data-id="${p.id}" title="Break down">
-                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="display:inline;vertical-align:-2px;margin-right:4px;"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                <button class="btn-teal breakdown-toggle" data-id="${p.id}">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                     Break Down
-                </button>` : ''}
-                ${p.is_bundle ? `
-                <button onclick="openBundleModal(${p.id}, '${escapeAttr(p.card_name)}')" class="btn-ghost" title="Add child product">
-                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="display:inline;vertical-align:-2px;margin-right:3px;"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+                <button onclick="openBundleModal(${p.id}, '${esc(p.card_name)}')" class="btn-ghost">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
                     Add Child
                 </button>` : ''}
-                <button onclick="openEditModal(${p.id})" class="btn-ghost" title="Edit">
-                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <button onclick="openDrawer(${p.id})" class="btn-ghost">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Edit
                 </button>
-                <button onclick="deleteProduct(${p.id})" class="btn-danger" title="Delete">
-                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                <button onclick="deleteProduct(${p.id})" class="btn-danger">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
                 </button>
             </div>
         </div>
@@ -629,118 +462,119 @@ function renderProductRow(p, allProds) {
     </div>`;
 }
 
-// ══════════════════════════════
+// EDIT DRAWER
+function openDrawer(id) {
+    const p = allProducts.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('drawer-id').value           = p.id;
+    document.getElementById('drawer-title').textContent  = p.card_name;
+    document.getElementById('d-cost').value              = parseFloat(p.cost_price || 0).toFixed(2);
+    document.getElementById('d-price').value             = parseFloat(p.price || 0).toFixed(2);
+    document.getElementById('d-stock').value             = p.stock_quantity || 0;
+    document.getElementById('d-desc').value              = p.quick_description || '';
+    document.getElementById('d-set').textContent         = p.set_name || '—';
+    document.getElementById('d-cat').textContent         = p.category_name || '—';
+    document.getElementById('d-game').textContent        = p.game_title || '—';
+    const badges = document.getElementById('drawer-badges');
+    badges.innerHTML = '';
+    if (p.is_bundle)     badges.innerHTML += `<span class="badge badge-blue">bundle</span>`;
+    if (p.category_name) badges.innerHTML += `<span class="badge badge-gray">${p.category_name}</span>`;
+    calcMargin();
+    document.getElementById('drawer-backdrop').classList.add('open');
+    document.getElementById('edit-drawer').classList.add('open');
+}
+function closeDrawer() {
+    document.getElementById('drawer-backdrop').classList.remove('open');
+    document.getElementById('edit-drawer').classList.remove('open');
+}
+function calcMargin() {
+    const cost  = parseFloat(document.getElementById('d-cost').value)  || 0;
+    const price = parseFloat(document.getElementById('d-price').value) || 0;
+    const box   = document.getElementById('margin-box');
+    if (price > 0) {
+        box.classList.remove('hidden');
+        const margin = (price - cost) / price * 100;
+        const pct    = Math.max(0, Math.min(100, margin));
+        const pctEl  = document.getElementById('margin-pct');
+        pctEl.textContent = `${margin.toFixed(1)}%`;
+        pctEl.style.color = margin >= 30 ? '#16a34a' : margin >= 10 ? '#f59e0b' : '#ef4444';
+        document.getElementById('margin-fill').style.cssText =
+            `width:${pct}%;background:${margin >= 30 ? '#16a34a' : margin >= 10 ? '#f59e0b' : '#ef4444'}`;
+        document.getElementById('margin-profit').textContent = `$${(price - cost).toFixed(2)}`;
+    } else { box.classList.add('hidden'); }
+}
+async function saveDrawer() {
+    const id = document.getElementById('drawer-id').value;
+    const p  = allProducts.find(x => x.id == id);
+    const data = {
+        price:             parseFloat(document.getElementById('d-price').value) || 0,
+        cost_price:        parseFloat(document.getElementById('d-cost').value)  || 0,
+        stock_quantity:    parseInt(document.getElementById('d-stock').value)   || 0,
+        quick_description: document.getElementById('d-desc').value.trim(),
+        set_name:          p?.set_name    || '',
+        category_id:       p?.category_id || null,
+        is_bundle:         p?.is_bundle   || 0
+    };
+    try {
+        const res = await fetch(`${API_URL}/inventory/${id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Product updated!', 'success');
+        closeDrawer();
+        await loadFamilyTree(currentFamily);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
 // BREAKDOWN
-// ══════════════════════════════
 async function doBreakdown(parentId) {
     const qty = parseInt(document.getElementById(`bd-qty-${parentId}`).value) || 1;
     try {
         const res = await fetch(`${API_URL}/inventory/breakdown`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ parent_id: parentId, quantity: qty })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
         await loadFamilyTree(currentFamily);
-    } catch(e) {
-        showToast(e.message, 'error');
-    }
+    } catch(e) { showToast(e.message, 'error'); }
 }
 
-// ══════════════════════════════
 // ADD PRODUCT
-// ══════════════════════════════
 function openAddProductModal() {
-    // Pre-fill set name if we're inside a family view
     if (currentFamily) document.getElementById('add-set-name').value = currentFamily;
     document.getElementById('add-modal').classList.add('open');
 }
-function closeAddProductModal() {
-    document.getElementById('add-modal').classList.remove('open');
-}
-
+function closeAddProductModal() { document.getElementById('add-modal').classList.remove('open'); }
 async function addProduct() {
     const data = {
-        game_title:    document.getElementById('add-game').value,
-        set_name:      document.getElementById('add-set-name').value.trim(),
-        category_id:   document.getElementById('add-category').value,
-        card_id:       document.getElementById('add-card-id').value,
-        card_name:     document.getElementById('add-name').value.trim(),
-        cost_price:    document.getElementById('add-cost').value,
-        price:         document.getElementById('add-price').value,
-        stock_quantity:document.getElementById('add-stock').value,
-        barcode:       document.getElementById('add-barcode').value,
-        is_bundle:     document.getElementById('add-is-bundle').checked ? 1 : 0
+        game_title:     document.getElementById('add-game').value,
+        set_name:       document.getElementById('add-set-name').value.trim(),
+        category_id:    document.getElementById('add-category').value,
+        card_id:        document.getElementById('add-card-id').value,
+        card_name:      document.getElementById('add-name').value.trim(),
+        cost_price:     document.getElementById('add-cost').value,
+        price:          document.getElementById('add-price').value,
+        stock_quantity: document.getElementById('add-stock').value,
+        barcode:        document.getElementById('add-barcode').value,
+        is_bundle:      document.getElementById('add-is-bundle').checked ? 1 : 0
     };
     if (!data.card_name || !data.set_name) return showToast('Product name and set name are required', 'error');
-
     try {
         const res = await fetch(`${API_URL}/inventory/add`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Product added!', 'success');
         closeAddProductModal();
-        if (currentFamily) await loadFamilyTree(currentFamily);
-        else await loadFamilies();
+        if (currentFamily) await loadFamilyTree(currentFamily); else await loadFamilies();
     } catch(e) { showToast(e.message, 'error'); }
 }
 
-// ══════════════════════════════
-// EDIT PRODUCT
-// ══════════════════════════════
-function openEditModal(id) {
-    const p = allProducts.find(x => x.id === id);
-    if (!p) return;
-    document.getElementById('edit-id').value          = p.id;
-    document.getElementById('edit-name').value        = p.card_name;
-    document.getElementById('edit-set-name').value    = p.set_name || '';
-    document.getElementById('edit-cost').value        = p.cost_price || 0;
-    document.getElementById('edit-price').value       = p.price || 0;
-    document.getElementById('edit-stock').value       = p.stock_quantity || 0;
-    document.getElementById('edit-description').value = p.quick_description || '';
-    // set category
-    const catSel = document.getElementById('edit-category');
-    catSel.value = p.category_id || '';
-    document.getElementById('edit-modal').classList.add('open');
-}
-function closeEditModal() {
-    document.getElementById('edit-modal').classList.remove('open');
-}
-
-async function saveEdit() {
-    const id = document.getElementById('edit-id').value;
-    const data = {
-        set_name:         document.getElementById('edit-set-name').value.trim(),
-        category_id:      document.getElementById('edit-category').value,
-        cost_price:       document.getElementById('edit-cost').value,
-        price:            document.getElementById('edit-price').value,
-        stock_quantity:   document.getElementById('edit-stock').value,
-        quick_description:document.getElementById('edit-description').value
-    };
-    try {
-        const res = await fetch(`${API_URL}/inventory/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error);
-        showToast('Product updated!', 'success');
-        closeEditModal();
-        if (currentFamily) await loadFamilyTree(currentFamily);
-        else await loadFamilies();
-    } catch(e) { showToast(e.message, 'error'); }
-}
-
-// ══════════════════════════════
-// DELETE PRODUCT
-// ══════════════════════════════
+// DELETE
 async function deleteProduct(id) {
     if (!confirm('Delete this product? This cannot be undone.')) return;
     try {
@@ -748,21 +582,16 @@ async function deleteProduct(id) {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Product deleted', 'success');
-        if (currentFamily) await loadFamilyTree(currentFamily);
-        else await loadFamilies();
+        if (currentFamily) await loadFamilyTree(currentFamily); else await loadFamilies();
     } catch(e) { showToast(e.message, 'error'); }
 }
 
-// ══════════════════════════════
-// BUNDLE CHILD MANAGEMENT
-// ══════════════════════════════
+// BUNDLE CHILDREN
 function openBundleModal(parentId, parentName) {
-    document.getElementById('bundle-parent-id').value   = parentId;
+    document.getElementById('bundle-parent-id').value = parentId;
     document.getElementById('bundle-parent-name').textContent = parentName;
-    document.getElementById('bundle-qty').value         = 1;
-    document.getElementById('bundle-notes').value       = '';
-
-    // Populate child picker with all products except the parent itself
+    document.getElementById('bundle-qty').value   = 1;
+    document.getElementById('bundle-notes').value = '';
     const opts = '<option value="">Select a product...</option>' +
         allProducts.filter(p => p.id !== parentId).map(p =>
             `<option value="${p.id}">${p.card_name} (stock: ${p.stock_quantity})</option>`
@@ -770,23 +599,16 @@ function openBundleModal(parentId, parentName) {
     document.getElementById('bundle-child-id').innerHTML = opts;
     document.getElementById('bundle-modal').classList.add('open');
 }
-function closeBundleModal() {
-    document.getElementById('bundle-modal').classList.remove('open');
-}
-
+function closeBundleModal() { document.getElementById('bundle-modal').classList.remove('open'); }
 async function saveBundleChild() {
     const parentId = document.getElementById('bundle-parent-id').value;
     const childId  = document.getElementById('bundle-child-id').value;
     const qty      = document.getElementById('bundle-qty').value;
     const notes    = document.getElementById('bundle-notes').value;
-
     if (!childId) return showToast('Please select a child product', 'error');
-    if (!qty || qty < 1) return showToast('Quantity must be at least 1', 'error');
-
     try {
         const res = await fetch(`${API_URL}/bundles`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ parent_product_id: parentId, child_product_id: childId, quantity_per_parent: qty, notes })
         });
         const json = await res.json();
@@ -796,7 +618,6 @@ async function saveBundleChild() {
         await loadFamilyTree(currentFamily);
     } catch(e) { showToast(e.message, 'error'); }
 }
-
 async function removeBundleChild(bundleId, setName) {
     if (!confirm('Remove this bundle relationship?')) return;
     try {
@@ -808,22 +629,17 @@ async function removeBundleChild(bundleId, setName) {
     } catch(e) { showToast(e.message, 'error'); }
 }
 
-// ══════════════════════════════
 // HELPERS
-// ══════════════════════════════
-function getGameIcon(title) {
+function gameIcon(title) {
     if (!title) return '🃏';
     if (title.includes('One Piece')) return '🏴‍☠️';
     if (title.includes('Pokemon'))   return '⚡';
     if (title.includes('Hololive'))  return '🎤';
     if (title.includes('Digimon'))   return '👾';
+    if (title.includes('Dragon'))    return '🐉';
     return '🃏';
 }
-
-function escapeAttr(str) {
-    return (str || '').replace(/'/g, "\\'");
-}
-
+function esc(str) { return (str || '').replace(/'/g, "\\'"); }
 function showToast(msg, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -831,10 +647,7 @@ function showToast(msg, type = 'success') {
     toast.textContent = type === 'success' ? `✓ ${msg}` : `✕ ${msg}`;
     container.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('show'));
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
 }
 </script>
 </body>
