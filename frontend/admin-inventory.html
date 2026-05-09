@@ -423,18 +423,46 @@ function renderProductRow(p, allProds) {
     let breakdownBlock = '';
     if (p.is_bundle && p.children && p.children.length > 0) {
         const childSummary = p.children.map(c => `${c.quantity_per_parent}× ${c.child_name}`).join(', ');
+        
+        const childCostInputs = p.children.map(c => {
+            let defaultCost = p.children.length === 1 && p.cost_price ? (parseFloat(p.cost_price) / c.quantity_per_parent).toFixed(2) : '';
+            return `
+            <div class="flex items-center justify-between gap-2 mt-2 w-full">
+                <label class="text-xs text-gray-700 truncate" title="${c.child_name}">${c.child_name} Cost:</label>
+                <div class="flex items-center gap-1">
+                    <span class="text-gray-400 text-xs">$</span>
+                    <input type="number" step="0.01" min="0" 
+                        class="bd-child-cost-${p.id}" 
+                        data-child-id="${c.child_product_id}" 
+                        value="${defaultCost}"
+                        placeholder="Cost per unit"
+                        style="width:80px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                </div>
+            </div>`;
+        }).join('');
+
         breakdownBlock = `
         <div class="px-5 pb-3">
-            <div id="bd-panel-${p.id}" class="breakdown-panel">
-                <svg width="15" height="15" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <span class="text-xs text-amber-800 flex-1">Breaking down adds <strong>${childSummary}</strong> per unit.</span>
-                <div class="flex items-center gap-2">
-                    <label class="text-xs text-gray-600 whitespace-nowrap">Qty to break</label>
-                    <input type="number" id="bd-qty-${p.id}" value="1" min="1" max="${p.stock_quantity}"
-                        style="width:60px;padding:4px 8px;font-size:12px;">
+            <div id="bd-panel-${p.id}" class="breakdown-panel flex-col items-start gap-3">
+                <div class="flex items-start gap-2 w-full">
+                    <svg width="15" height="15" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24" class="mt-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span class="text-xs text-amber-800 flex-1">Breaking down adds <strong>${childSummary}</strong> per unit.</span>
+                </div>
+                
+                <div class="w-full bg-white/60 p-2 rounded border border-amber-200">
+                    <div class="text-[10px] text-gray-500 font-semibold uppercase mb-1">Set Child Cost (per unit)</div>
+                    ${childCostInputs}
+                </div>
+
+                <div class="flex items-center gap-2 w-full justify-between mt-1">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-600 whitespace-nowrap">Qty to break:</label>
+                        <input type="number" id="bd-qty-${p.id}" value="1" min="1" max="${p.stock_quantity}"
+                            style="width:60px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                    </div>
                     <button onclick="doBreakdown(${p.id})"
-                        class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
-                        Break Down
+                        class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
+                        Confirm Breakdown
                     </button>
                 </div>
             </div>
@@ -685,10 +713,22 @@ async function saveDrawer() {
 // BREAKDOWN
 async function doBreakdown(parentId) {
     const qty = parseInt(document.getElementById(`bd-qty-${parentId}`).value) || 1;
+    
+    // Gather child costs
+    const childCostInputs = document.querySelectorAll(`.bd-child-cost-${parentId}`);
+    const customCosts = {};
+    childCostInputs.forEach(input => {
+        const childId = input.getAttribute('data-child-id');
+        const costValue = parseFloat(input.value);
+        if (!isNaN(costValue)) {
+            customCosts[childId] = costValue;
+        }
+    });
+
     try {
         const res = await fetch(`${API_URL}/inventory/breakdown`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ parent_id: parentId, quantity: qty })
+            body: JSON.stringify({ parent_id: parentId, quantity: qty, custom_costs: customCosts })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);

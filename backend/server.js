@@ -393,7 +393,7 @@ app.delete('/api/bundles/:id', async (req, res) => {
 
 // Manual breakdown — one level at a time, transactional
 app.post('/api/inventory/breakdown', async (req, res) => {
-  const { parent_id, quantity } = req.body;
+  const { parent_id, quantity, custom_costs } = req.body;
 
   if (!parent_id || !quantity || quantity < 1) {
     return res.status(400).json({ error: 'Invalid breakdown request' });
@@ -458,6 +458,11 @@ app.post('/api/inventory/breakdown', async (req, res) => {
       for (let child of children) {
         let childQtyToCreate = deduction.qty * child.quantity_per_parent;
         let childCostPrice = (parseFloat(deduction.cost_price) / child.quantity_per_parent).toFixed(2);
+        
+        if (custom_costs && custom_costs[child.child_product_id] !== undefined) {
+          childCostPrice = parseFloat(custom_costs[child.child_product_id]).toFixed(2);
+        }
+        
         let newWaveName = `Breakdown from ${deduction.wave_name}`;
 
         // Insert new child wave
