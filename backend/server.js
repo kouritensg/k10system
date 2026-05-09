@@ -472,6 +472,12 @@ app.post('/api/inventory/breakdown', async (req, res) => {
           [child.child_product_id, newWaveName, childCostPrice, childQtyToCreate, childQtyToCreate, new Date().toISOString().slice(0, 10)]
         );
 
+        // Update the main inventory record's cost_price for this child
+        await conn.execute(
+          `UPDATE inventory SET cost_price = ? WHERE id = ?`,
+          [childCostPrice, child.child_product_id]
+        );
+
         // Log the breakdown with wave linkage
         await conn.execute(
           `INSERT INTO bundle_breakdown_log (parent_product_id, child_product_id, quantity_broken, parent_wave_id, child_wave_id)
