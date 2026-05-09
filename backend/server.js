@@ -412,27 +412,75 @@ app.post('/api/inventory/breakdown', async (req, res) => {
       throw new Error(`Insufficient stock. Only ${parent.stock_quantity} unit(s) available`);
     }
 
-    // 2. Deduct from parent
-    await conn.execute(
-      'UPDATE inventory SET stock_quantity = stock_quantity - ? WHERE id = ?',
-      [quantity, parent_id]
+    // 2. Get children
+    const [children] = await conn.execute(
+      'SELECT child_product_id, quantity_per_parent FROM product_bundles WHERE parent_product_id = ?',
+      [parent_id]
+    );
+    if (children.length === 0) throw new Error('Product has no children configured for breakdown');
+
+    // 3. Get active waves for parent
+    const [parentWaves] = await conn.execute(
+      'SELECT id, remaining_qty, cost_price, wave_name, arrival_date FROM fifo WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0 ORDER BY arrival_date ASC, id ASC',
+      [parent_id]
     );
 
-    // 3. Add to each direct child only (one level)
-    await conn.execute(`
-      UPDATE inventory i
-      JOIN product_bundles pb ON pb.child_product_id = i.id
-      SET i.stock_quantity = i.stock_quantity + (pb.quantity_per_parent * ?)
-      WHERE pb.parent_product_id = ?
-    `, [quantity, parent_id]);
+    let remainingToBreak = quantity;
+    const waveDeductions = [];
 
-    // 4. Log each child movement
-    await conn.execute(`
-      INSERT INTO bundle_breakdown_log (parent_product_id, child_product_id, quantity_broken)
-      SELECT ?, child_product_id, ?
-      FROM product_bundles
-      WHERE parent_product_id = ?
-    `, [parent_id, quantity, parent_id]);
+    for (let wave of parentWaves) {
+      if (remainingToBreak <= 0) break;
+      
+      let deductQty = Math.min(wave.remaining_qty, remainingToBreak);
+      remainingToBreak -= deductQty;
+      waveDeductions.push({
+        wave_id: wave.id,
+        cost_price: wave.cost_price,
+        qty: deductQty,
+        wave_name: wave.wave_name,
+        arrival_date: wave.arrival_date
+      });
+    }
+
+    if (remainingToBreak > 0) {
+      throw new Error('Not enough remaining quantity in active parent waves to break down this amount. Please verify wave stocks.');
+    }
+
+    // 4. Process deductions and generate child waves
+    for (let deduction of waveDeductions) {
+      // Deduct from parent wave
+      await conn.execute(
+        'UPDATE fifo SET remaining_qty = remaining_qty - ? WHERE id = ?',
+        [deduction.qty, deduction.wave_id]
+      );
+
+      // Create child waves and log
+      for (let child of children) {
+        let childQtyToCreate = deduction.qty * child.quantity_per_parent;
+        let childCostPrice = (parseFloat(deduction.cost_price) / child.quantity_per_parent).toFixed(2);
+        let newWaveName = `Breakdown from ${deduction.wave_name}`;
+
+        // Insert new child wave
+        const [childWaveResult] = await conn.execute(
+          `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
+          [child.child_product_id, newWaveName, childCostPrice, childQtyToCreate, childQtyToCreate, new Date().toISOString().slice(0, 10)]
+        );
+
+        // Log the breakdown with wave linkage
+        await conn.execute(
+          `INSERT INTO bundle_breakdown_log (parent_product_id, child_product_id, quantity_broken, parent_wave_id, child_wave_id)
+           VALUES (?, ?, ?, ?, ?)`,
+          [parent_id, child.child_product_id, deduction.qty, deduction.wave_id, childWaveResult.insertId]
+        );
+      }
+    }
+
+    // 5. Sync total stocks
+    await syncInventoryStock(parent_id, conn);
+    for (let child of children) {
+      await syncInventoryStock(child.child_product_id, conn);
+    }
 
     await conn.commit();
     res.json({ message: `Successfully broke down ${quantity} × ${parent.card_name}` });
