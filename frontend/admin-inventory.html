@@ -3,552 +3,839 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K10 Admin - Inventory Management</title>
+    <title>K10 Admin - Inventory</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+        /* ── View transitions ── */
+        #family-view, #tree-view { transition: opacity 0.18s ease; }
+        .fade-in { animation: fadeIn 0.2s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ── Family cards ── */
+        .family-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            cursor: pointer;
+            transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
+        }
+        .family-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 4px 16px rgba(59,130,246,0.12);
+            transform: translateY(-2px);
+        }
+
+        /* ── Tree rows ── */
+        .product-row {
+            border-bottom: 1px solid #f3f4f6;
+            transition: background 0.1s;
+        }
+        .product-row:hover { background: #f9fafb; }
+        .product-row:last-child { border-bottom: none; }
+
+        /* indent levels */
+        .depth-0 { padding-left: 1rem; }
+        .depth-1 { padding-left: 2.5rem; }
+        .depth-2 { padding-left: 4.5rem; }
+
+        /* tree connector lines */
+        .tree-line { position: relative; }
+        .tree-line::before {
+            content: '';
+            position: absolute;
+            left: -16px;
+            top: 50%;
+            width: 12px;
+            height: 1px;
+            background: #d1d5db;
+        }
+        .tree-line::after {
+            content: '';
+            position: absolute;
+            left: -16px;
+            top: -50%;
+            width: 1px;
+            height: 100%;
+            background: #d1d5db;
+        }
+
+        /* ── Badges ── */
+        .badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .badge-blue   { background: #eff6ff; color: #1d4ed8; }
+        .badge-green  { background: #f0fdf4; color: #166534; }
+        .badge-amber  { background: #fffbeb; color: #92400e; }
+        .badge-gray   { background: #f3f4f6; color: #4b5563; }
+        .badge-teal   { background: #f0fdfa; color: #0f6e56; }
+        .badge-red    { background: #fef2f2; color: #991b1b; }
+        .badge-purple { background: #f5f3ff; color: #5b21b6; }
+
+        /* ── Buttons ── */
+        .btn-primary { background: #2563eb; color: white; border-radius: 8px; font-weight: 600; font-size: 13px; padding: 7px 16px; transition: background 0.15s; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-danger  { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px; font-weight: 600; font-size: 12px; padding: 5px 12px; transition: background 0.15s; }
+        .btn-danger:hover  { background: #fee2e2; }
+        .btn-ghost  { background: #f3f4f6; color: #374151; border-radius: 8px; font-weight: 600; font-size: 12px; padding: 5px 12px; transition: background 0.15s; }
+        .btn-ghost:hover  { background: #e5e7eb; }
+        .btn-teal { background: #f0fdfa; color: #0f6e56; border: 1px solid #99f6e4; border-radius: 8px; font-weight: 600; font-size: 12px; padding: 5px 12px; transition: background 0.15s; }
+        .btn-teal:hover { background: #ccfbf1; }
+
+        /* ── Breakdown panel ── */
+        .breakdown-panel {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-top: 8px;
+            display: none;
+        }
+        .breakdown-panel.open { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+        /* ── Modal ── */
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-backdrop.open { opacity: 1; pointer-events: all; }
+        .modal-box {
+            background: white; border-radius: 16px; padding: 1.75rem;
+            width: 100%; max-width: 520px; margin: 1rem;
+            transform: translateY(16px); transition: transform 0.2s;
+        }
+        .modal-backdrop.open .modal-box { transform: translateY(0); }
+
+        /* ── Toast ── */
+        #toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+        .toast { padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; color: white; opacity: 0; transform: translateY(8px); transition: all 0.25s; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { background: #16a34a; }
+        .toast.error   { background: #dc2626; }
+
+        /* ── Form inputs ── */
+        input[type=text], input[type=number], select, textarea {
+            border: 1px solid #d1d5db; border-radius: 8px;
+            padding: 8px 10px; font-size: 13px; width: 100%;
+            outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+        }
+
+        /* stock indicator dot */
+        .stock-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+        .stock-dot.ok    { background: #16a34a; }
+        .stock-dot.low   { background: #f59e0b; }
+        .stock-dot.zero  { background: #ef4444; }
+    </style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-800 pb-20">
+<body class="bg-gray-50 font-sans">
 
-    <script src="admin-navbar.js"></script>
+<script src="admin-navbar.js"></script>
 
-    <div id="inventory-list-container" class="max-w-7xl mx-auto px-4 mt-8">
-        <div class="bg-white p-6 rounded-lg shadow border-l-4 border-blue-600 mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-                <h2 class="text-2xl font-bold">📦 Inventory Master List</h2>
-                <p class="text-xs text-gray-400 font-bold uppercase tracking-widest">Click any product row to view details</p>
-            </div>
-            
-            <div class="flex flex-wrap gap-2 w-full md:w-auto items-center">
-                
-                <select id="filter-ip" onchange="filterInventory()" class="p-2 border rounded shadow-sm w-full md:w-48 outline-none focus:ring-2 focus:ring-blue-500 bg-white font-bold text-gray-700 cursor-pointer">
-                    <option value="all">All IP / Categories</option>
-                    </select>
+<!-- ══════════════════════════════════════════
+     FAMILY LIST VIEW
+══════════════════════════════════════════ -->
+<div id="family-view" class="max-w-6xl mx-auto px-4 mt-8 pb-16">
 
-                <input type="text" id="search-inventory" onkeyup="filterInventory()" placeholder="Search card, box, or ID..." 
-                       class="p-2 border rounded shadow-sm w-full md:w-64 outline-none focus:ring-2 focus:ring-blue-500">
-                <button onclick="openProductModal()" class="bg-blue-600 text-white font-bold px-4 py-2 rounded shadow hover:bg-blue-700 transition whitespace-nowrap">
-                    + Add Product
-                </button>
-            </div>
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Inventory</h1>
+            <p class="text-sm text-gray-500 mt-0.5">Select a product family to manage</p>
         </div>
-
-        <div class="bg-white rounded-lg shadow overflow-hidden min-h-[500px]">
-            <table class="w-full text-left border-collapse">
-                <thead class="bg-gray-50 border-b text-[10px] uppercase font-bold text-gray-400 tracking-widest">
-                    <tr>
-                        <th class="p-4">Product Name</th>
-                        <th class="p-4">Game / Category</th>
-                        <th class="p-4 w-32 text-right">Retail Price</th>
-                    </tr>
-                </thead>
-                <tbody id="inventory-list-body"></tbody>
-            </table>
-            <div id="loading-state" class="p-12 text-center text-gray-400 font-bold animate-pulse">⏳ Loading inventory data...</div>
-            <div id="empty-state" class="p-12 text-center text-gray-400 hidden">No products found matching your search.</div>
-        </div>
+        <button onclick="openAddProductModal()" class="btn-primary flex items-center gap-2">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Add Product
+        </button>
     </div>
 
-    <div id="inventory-details-view" class="hidden max-w-5xl mx-auto px-4 mt-8 animate-fade-in">
-        <div class="flex justify-between items-center mb-6">
-            <button onclick="hideDetails()" class="bg-white border border-gray-300 hover:bg-gray-100 px-5 py-2 rounded shadow-sm font-bold text-sm transition text-gray-600">
-                ← Return to Inventory List
+    <!-- Search + filter bar -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+        <input type="text" id="family-search" placeholder="Search families..." class="sm:w-64">
+        <select id="family-game-filter" class="sm:w-48">
+            <option value="">All Games</option>
+            <option value="One Piece">One Piece</option>
+            <option value="Pokemon">Pokemon</option>
+            <option value="Hololive">Hololive</option>
+            <option value="Digimon">Digimon</option>
+            <option value="Dragon Ball">Dragon Ball</option>
+            <option value="Union Arena">Union Arena</option>
+            <option value="Accessories">Accessories</option>
+            <option value="Other">Other</option>
+        </select>
+    </div>
+
+    <!-- Family grid -->
+    <div id="family-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="col-span-full text-center py-16 text-gray-400 text-sm">Loading families...</div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TREE DETAIL VIEW
+══════════════════════════════════════════ -->
+<div id="tree-view" class="hidden max-w-6xl mx-auto px-4 mt-8 pb-16">
+
+    <!-- Back + header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div class="flex items-center gap-3">
+            <button onclick="showFamilyView()" class="btn-ghost flex items-center gap-1.5">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+                Back
             </button>
-            <div class="flex gap-2">
-                <button onclick="openWaveModal()" class="bg-blue-50 text-blue-600 border border-blue-200 px-6 py-2 rounded font-bold text-sm shadow-sm hover:bg-blue-100 transition">
-                    + Add Wave (FIFO)
-                </button>
-                <button id="btn-dynamic-edit" onclick="openProductModal(true)" class="bg-yellow-500 text-white px-6 py-2 rounded font-bold text-sm shadow hover:bg-yellow-600 transition">
-                    Edit Master Product
-                </button>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900" id="tree-title">—</h1>
+                <p class="text-sm text-gray-500 mt-0.5" id="tree-subtitle">—</p>
             </div>
         </div>
-
-        <div class="bg-white border border-gray-300 shadow-sm rounded-lg overflow-hidden font-sans">
-            <div class="grid grid-cols-2 border-b border-gray-300">
-                <div class="p-6 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Item Name</div>
-                    <div class="text-2xl font-extrabold text-gray-900" id="det-card-name"></div>
-                </div>
-                <div class="p-6">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Item IP</div>
-                    <div class="text-2xl font-extrabold text-blue-600" id="det-game-title"></div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-4 border-b border-gray-300 bg-gray-50/30">
-                <div class="p-5 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Total Units</div>
-                    <div class="text-xl font-bold text-gray-900" id="det-stock">0</div>
-                </div>
-                <div class="p-5 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Selling Price (Per Unit)</div>
-                    <div class="text-xl font-bold text-green-600" id="det-price"></div>
-                </div>
-                <div class="p-5 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Allocated Qty</div>
-                    <div class="text-xl font-bold text-orange-500" id="det-allocated">0</div>
-                </div>
-                <div class="p-5 relative group">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Allocation Wave</div>
-                    <select id="wave-selector" onchange="switchWave(this.value)" class="w-full bg-transparent text-xl font-bold text-gray-900 outline-none cursor-pointer border-b border-dashed border-gray-300 pb-1 appearance-none hover:border-blue-500 transition"></select>
-                    <div class="absolute right-6 bottom-6 pointer-events-none text-gray-400 text-xs">▼</div>
-                </div>
-            </div>
-
-            <div class="p-5 border-b border-gray-300">
-                <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Inventory ID</div>
-                <div class="text-sm font-mono font-bold text-gray-600" id="det-card-id"></div>
-            </div>
-
-            <div class="grid grid-cols-3 border-b border-gray-300">
-                <div class="p-6 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Cost Per Unit</div>
-                    <div class="text-xl font-bold text-gray-900" id="det-cost-unit"></div>
-                </div>
-                <div class="p-6 border-r border-gray-300">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Tax</div>
-                    <div class="text-xl font-bold text-gray-900" id="det-tax-info"></div>
-                </div>
-                <div class="p-6 bg-gray-50/50">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Cost After Tax</div>
-                    <div class="text-xl font-bold text-gray-900" id="det-cost-tax"></div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 border-b border-gray-300">
-                <div class="p-6 border-r border-gray-300 flex flex-col justify-center">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Shipping Included?</div>
-                    <div class="text-xl font-bold text-gray-900" id="det-shipping"></div>
-                </div>
-                <div class="grid grid-rows-4">
-                    <div class="p-4 border-b border-gray-300 text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center justify-center bg-gray-50/50">Packaging Configuration</div>
-                    <div class="p-4 border-b border-gray-300 flex justify-between items-center">
-                        <span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Base</span>
-                        <span class="font-mono font-bold text-gray-900 text-sm">1 Base Unit</span>
-                    </div>
-                    <div class="p-4 border-b border-gray-300 flex justify-between items-center">
-                        <span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Display (Box)</span>
-                        <span class="font-mono font-bold text-gray-900 text-sm" id="calc-box">-</span>
-                    </div>
-                    <div class="p-4 flex justify-between items-center">
-                        <span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Master Case</span>
-                        <span class="font-mono font-bold text-gray-900 text-sm" id="calc-case">-</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2">
-                <div class="p-6 border-r border-gray-300 bg-gray-50/30">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Quick Description</div>
-                    <div class="text-sm text-gray-600 leading-relaxed min-h-[100px] whitespace-pre-wrap" id="det-quick-desc"></div>
-                </div>
-                <div class="p-6 bg-gray-50/30">
-                    <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-2">Long Description</div>
-                    <div class="text-sm text-gray-600 leading-relaxed min-h-[100px] whitespace-pre-wrap" id="det-long-desc"></div>
-                </div>
-            </div>
-        </div>
+        <button onclick="openAddProductModal()" class="btn-primary flex items-center gap-2">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Add Product
+        </button>
     </div>
 
-    <div id="product-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-[100] p-4">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div class="p-6 border-b sticky top-0 bg-white flex justify-between items-center z-10">
-                <h3 class="text-xl font-bold text-gray-800" id="modal-title">Master Product Data</h3>
-                <button onclick="closeProductModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
-            </div>
-            
-            <div class="p-6 space-y-6">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item Name *</label>
-                        <input type="text" id="frm-name" class="w-full p-2 border rounded font-bold text-gray-800 outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Item IP (Game) *</label>
-                        <input type="text" id="frm-ip" class="w-full p-2 border rounded font-bold text-blue-600 outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Inventory ID (Set/Barcode)</label>
-                        <input type="text" id="frm-id" class="w-full p-2 border rounded font-mono text-gray-600 outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Retail Selling Price ($)</label>
-                        <input type="number" step="0.01" id="frm-price" class="w-full p-2 border rounded font-bold text-green-600 outline-none">
-                    </div>
-                </div>
+    <!-- Product tree card -->
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="bg-gray-50 border-b px-5 py-3 flex justify-between items-center">
+            <span class="text-xs font-bold text-gray-500 uppercase tracking-wide" id="tree-count">— products</span>
+            <button onclick="loadFamilyTree(currentFamily)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
+        </div>
+        <div id="tree-body"></div>
+        <div id="tree-loading" class="py-16 text-center text-gray-400 text-sm">Loading...</div>
+        <div id="tree-empty" class="hidden py-16 text-center text-gray-400 text-sm">No products in this family.</div>
+    </div>
+</div>
 
-                <div class="border p-4 rounded bg-gray-50 grid grid-cols-3 gap-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Tax Rate (e.g., 0.09)</label>
-                        <input type="number" step="0.01" id="frm-tax" class="w-full p-2 border rounded font-bold outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Packs per Box</label>
-                        <input type="number" id="frm-packs" class="w-full p-2 border rounded font-bold outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Boxes per Case</label>
-                        <input type="number" id="frm-cases" class="w-full p-2 border rounded font-bold outline-none">
-                    </div>
-                    <div class="col-span-3 flex items-center gap-2 mt-2">
-                        <input type="checkbox" id="frm-shipping" class="w-4 h-4 text-blue-600">
-                        <label class="text-sm font-bold text-gray-700">Does wholesale cost usually include shipping?</label>
-                    </div>
-                </div>
-
+<!-- ══════════════════════════════════════════
+     ADD PRODUCT MODAL
+══════════════════════════════════════════ -->
+<div id="add-modal" class="modal-backdrop">
+    <div class="modal-box">
+        <div class="flex justify-between items-center mb-5">
+            <h2 class="text-lg font-bold text-gray-900">Add Product</h2>
+            <button onclick="closeAddProductModal()" class="text-gray-400 hover:text-gray-600">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quick Description</label>
-                    <input type="text" id="frm-quick-desc" class="w-full p-2 border rounded text-gray-700 outline-none mb-4">
-                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Long Description</label>
-                    <textarea id="frm-long-desc" rows="3" class="w-full p-2 border rounded text-gray-700 outline-none"></textarea>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Game *</label>
+                    <select id="add-game">
+                        <option value="One Piece">One Piece</option>
+                        <option value="Pokemon">Pokemon</option>
+                        <option value="Hololive">Hololive</option>
+                        <option value="Digimon">Digimon</option>
+                        <option value="Dragon Ball">Dragon Ball</option>
+                        <option value="Union Arena">Union Arena</option>
+                        <option value="Accessories">Accessories</option>
+                        <option value="Other">Other</option>
+                    </select>
                 </div>
-            </div>
-
-            <div class="p-6 border-t bg-gray-50 flex justify-end gap-3 sticky bottom-0 rounded-b-lg">
-                <button onclick="closeProductModal()" class="px-6 py-2 rounded font-bold text-gray-500 hover:bg-gray-200 transition">Cancel</button>
-                <button onclick="saveProduct()" id="btn-save-product" class="bg-blue-600 text-white px-8 py-2 rounded font-bold shadow hover:bg-blue-700 transition">Save Master Product</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="wave-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden flex items-center justify-center z-[110] p-4">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-lg">
-            <div class="p-5 border-b bg-gray-50 flex justify-between items-center rounded-t-lg">
-                <h3 class="text-lg font-bold text-gray-800" id="wave-modal-title">Add Allocation Wave</h3>
-                <button onclick="closeWaveModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
-            </div>
-            <div class="p-6 space-y-4">
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Wave Name (e.g., Wave 1, Reprints)</label>
-                    <input type="text" id="wave-name" class="w-full p-2 border rounded font-bold outline-none focus:border-blue-500">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Units Arrived (Initial)</label>
-                        <input type="number" id="wave-qty" class="w-full p-2 border rounded font-bold text-blue-600 outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Unit Cost ($)</label>
-                        <input type="number" step="0.01" id="wave-cost" class="w-full p-2 border rounded font-bold outline-none">
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Allocated Preorders</label>
-                        <input type="number" id="wave-allocated" class="w-full p-2 border rounded font-bold text-orange-500 outline-none" value="0">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-gray-400 uppercase">Arrival Date</label>
-                        <input type="date" id="wave-date" class="w-full p-2 border rounded font-bold text-gray-600 outline-none">
-                    </div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Set Name * <span class="normal-case text-gray-400 font-normal">(e.g. OP17)</span></label>
+                    <input type="text" id="add-set-name" placeholder="OP17">
                 </div>
             </div>
-            <div class="p-5 border-t flex justify-end gap-3">
-                <button onclick="closeWaveModal()" class="px-5 py-2 rounded font-bold text-gray-500 hover:bg-gray-100 transition">Cancel</button>
-                <button onclick="submitWave()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-blue-700 transition">Save Wave</button>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Category *</label>
+                    <select id="add-category">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Card / Set ID</label>
+                    <input type="text" id="add-card-id" placeholder="OP17-001">
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Product Name *</label>
+                <input type="text" id="add-name" placeholder="e.g. OP17 Booster Box">
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Cost Price ($)</label>
+                    <input type="number" id="add-cost" placeholder="0.00" step="0.01">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Sell Price ($)</label>
+                    <input type="number" id="add-price" placeholder="0.00" step="0.01">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Stock Qty</label>
+                    <input type="number" id="add-stock" placeholder="0">
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Barcode</label>
+                <input type="text" id="add-barcode" placeholder="Optional">
+            </div>
+            <div class="flex items-center gap-3 pt-1">
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" id="add-is-bundle" class="w-4 h-4 rounded">
+                    <span class="text-sm text-gray-700 font-medium">This is a bundle product</span>
+                    <span class="badge badge-blue">contains children</span>
+                </label>
             </div>
         </div>
+        <div class="flex justify-end gap-3 mt-6">
+            <button onclick="closeAddProductModal()" class="btn-ghost">Cancel</button>
+            <button onclick="addProduct()" class="btn-primary">Save Product</button>
+        </div>
     </div>
+</div>
 
-    <script>
-        var API_BASE = 'https://k10system.onrender.com/api';
-        var globalInventory = [];
-        var currentEditingId = null; 
-        var currentBatches = [];
-        var currentEditingWaveId = null;
+<!-- ══════════════════════════════════════════
+     EDIT PRODUCT MODAL
+══════════════════════════════════════════ -->
+<div id="edit-modal" class="modal-backdrop">
+    <div class="modal-box">
+        <div class="flex justify-between items-center mb-5">
+            <h2 class="text-lg font-bold text-gray-900">Edit Product</h2>
+            <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <input type="hidden" id="edit-id">
+        <div class="space-y-3">
+            <div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Product Name</label>
+                <input type="text" id="edit-name" disabled class="bg-gray-50 text-gray-500">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Set Name</label>
+                    <input type="text" id="edit-set-name" placeholder="e.g. OP17">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Category</label>
+                    <select id="edit-category"></select>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Cost Price ($)</label>
+                    <input type="number" id="edit-cost" step="0.01">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Sell Price ($)</label>
+                    <input type="number" id="edit-price" step="0.01">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Stock Qty</label>
+                    <input type="number" id="edit-stock">
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Quick Description</label>
+                <input type="text" id="edit-description" placeholder="Optional short description">
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-6">
+            <button onclick="closeEditModal()" class="btn-ghost">Cancel</button>
+            <button onclick="saveEdit()" class="btn-primary">Save Changes</button>
+        </div>
+    </div>
+</div>
 
-        // AUTH CHECK
-        const token = localStorage.getItem('k10_token');
-        if (!token) { window.location.href = 'admin.html'; } 
-        else { loadInventory(); }
+<!-- ══════════════════════════════════════════
+     ADD CHILD BUNDLE MODAL
+══════════════════════════════════════════ -->
+<div id="bundle-modal" class="modal-backdrop">
+    <div class="modal-box">
+        <div class="flex justify-between items-center mb-5">
+            <div>
+                <h2 class="text-lg font-bold text-gray-900">Add Bundle Child</h2>
+                <p class="text-sm text-gray-500 mt-0.5">Link a child product to <strong id="bundle-parent-name">—</strong></p>
+            </div>
+            <button onclick="closeBundleModal()" class="text-gray-400 hover:text-gray-600">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <input type="hidden" id="bundle-parent-id">
+        <div class="space-y-3">
+            <div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Child Product *</label>
+                <select id="bundle-child-id">
+                    <option value="">Select a product...</option>
+                </select>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Quantity per Parent *</label>
+                <input type="number" id="bundle-qty" value="1" min="1">
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase block mb-1">Notes</label>
+                <input type="text" id="bundle-notes" placeholder="Optional note">
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-6">
+            <button onclick="closeBundleModal()" class="btn-ghost">Cancel</button>
+            <button onclick="saveBundleChild()" class="btn-primary">Link Child</button>
+        </div>
+    </div>
+</div>
 
-        async function loadInventory() {
-            try {
-                const res = await fetch(`${API_BASE}/inventory/status`);
-                if (!res.ok) throw new Error("HTTP error");
-                
-                globalInventory = await res.json();
-                document.getElementById('loading-state').classList.add('hidden');
-                
-                populateCategoryFilter(); // <--- NEW: Setup the dropdown options
-                renderInventoryList(globalInventory);
-            } catch (error) {
-                document.getElementById('loading-state').innerText = "❌ Failed to connect to database.";
-            }
-        }
+<!-- Toast container -->
+<div id="toast-container"></div>
 
-        // --- NEW: POPULATE IP FILTER DROPDOWN ---
-        function populateCategoryFilter() {
-            const select = document.getElementById('filter-ip');
-            
-            // 1. Get all game_titles, remove empty/null ones, get unique values, and sort alphabetically
-            const uniqueIPs = [...new Set(globalInventory.map(item => item.game_title))]
-                                .filter(ip => ip && ip.trim() !== '')
-                                .sort();
-            
-            // 2. Build the HTML options
-            select.innerHTML = '<option value="all">All IP / Categories</option>' + 
-                               uniqueIPs.map(ip => `<option value="${ip}">${ip}</option>`).join('');
-        }
+<script>
+const API_URL = 'https://k10system.onrender.com/api';
+let categories = [];
+let allProducts = []; // flat list for bundle child picker
+let currentFamily = null;
+let familyData = [];
 
-        function renderInventoryList(items) {
-            const tbody = document.getElementById('inventory-list-body');
-            const emptyState = document.getElementById('empty-state');
-            if (items.length === 0) {
-                tbody.innerHTML = '';
-                emptyState.classList.remove('hidden');
-                return;
-            }
-            emptyState.classList.add('hidden');
-            tbody.innerHTML = items.map(item => `
-                <tr class="hover:bg-blue-50 cursor-pointer transition border-b group" onclick="showItemDetails(${item.id})">
-                    <td class="p-4">
-                        <div class="font-bold text-gray-800 group-hover:text-blue-600 transition">${item.card_name || ''}</div>
-                        <div class="text-[10px] text-gray-400 uppercase tracking-wider mt-1">${item.card_id || ''}</div>
-                    </td>
-                    <td class="p-4"><span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold">${item.game_title || ''}</span></td>
-                    <td class="p-4 text-right font-mono font-bold text-gray-700">${item.price != null ? `$${parseFloat(item.price).toFixed(2)}` : ''}</td>
-                </tr>
-            `).join('');
-        }
+// ══════════════════════════════
+// INIT
+// ══════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!localStorage.getItem('k10_token')) window.location.href = 'admin.html';
+    await loadCategories();
+    await loadFamilies();
 
-        // --- UPDATED: FILTER INVENTORY LOGIC ---
-        function filterInventory() {
-            const query = document.getElementById('search-inventory').value.toLowerCase();
-            const selectedIP = document.getElementById('filter-ip').value; // Get dropdown value
+    document.getElementById('family-search').addEventListener('input', renderFamilyGrid);
+    document.getElementById('family-game-filter').addEventListener('change', renderFamilyGrid);
+});
 
-            const filtered = globalInventory.filter(item => {
-                // Check text search match
-                const matchesSearch = (item.card_name && item.card_name.toLowerCase().includes(query)) ||
-                                      (item.game_title && item.game_title.toLowerCase().includes(query)) ||
-                                      (item.card_id && item.card_id.toLowerCase().includes(query));
-                
-                // Check IP category match
-                const matchesIP = selectedIP === 'all' || item.game_title === selectedIP;
+// ══════════════════════════════
+// CATEGORIES
+// ══════════════════════════════
+async function loadCategories() {
+    try {
+        const res = await fetch(`${API_URL}/categories`);
+        categories = await res.json();
+        const opts = '<option value="">-- Select --</option>' + categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        document.getElementById('add-category').innerHTML = opts;
+        document.getElementById('edit-category').innerHTML = opts;
+    } catch(e) { console.error('Failed to load categories'); }
+}
 
-                return matchesSearch && matchesIP;
+// ══════════════════════════════
+// FAMILY LIST VIEW
+// ══════════════════════════════
+async function loadFamilies() {
+    try {
+        const res = await fetch(`${API_URL}/inventory/families`);
+        familyData = await res.json();
+        renderFamilyGrid();
+    } catch(e) {
+        document.getElementById('family-grid').innerHTML = `<div class="col-span-full text-center py-16 text-red-400 text-sm">Failed to load inventory.</div>`;
+    }
+}
+
+function renderFamilyGrid() {
+    const search = document.getElementById('family-search').value.toLowerCase();
+    const game   = document.getElementById('family-game-filter').value;
+
+    const filtered = familyData.filter(f => {
+        const matchSearch = !search || f.set_name.toLowerCase().includes(search) || (f.game_title||'').toLowerCase().includes(search);
+        const matchGame   = !game   || f.game_title === game;
+        return matchSearch && matchGame;
+    });
+
+    const grid = document.getElementById('family-grid');
+    if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-sm">No families found.</div>`;
+        return;
+    }
+
+    grid.innerHTML = filtered.map(f => {
+        const stockColor = f.total_stock > 50 ? 'text-green-600' : f.total_stock > 0 ? 'text-amber-600' : 'text-red-400';
+        const gameIcon = getGameIcon(f.game_title);
+        return `
+        <div class="family-card fade-in" onclick="openFamily('${escapeAttr(f.set_name)}', '${escapeAttr(f.game_title||'')}')">
+            <div class="flex items-start justify-between mb-3">
+                <div class="text-2xl">${gameIcon}</div>
+                <span class="badge badge-gray">${f.game_title || 'Other'}</span>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-1">${f.set_name}</h3>
+            <div class="flex items-center gap-3 text-sm">
+                <span class="text-gray-500">${f.total_products} product${f.total_products != 1 ? 's' : ''}</span>
+                <span class="text-gray-300">·</span>
+                <span class="font-semibold ${stockColor}">${f.total_stock} in stock</span>
+                ${f.bundle_count > 0 ? `<span class="badge badge-blue">${f.bundle_count} bundle${f.bundle_count != 1 ? 's' : ''}</span>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ══════════════════════════════
+// TREE DETAIL VIEW
+// ══════════════════════════════
+async function openFamily(setName, gameTitle) {
+    currentFamily = setName;
+    document.getElementById('family-view').classList.add('hidden');
+    document.getElementById('tree-view').classList.remove('hidden');
+    document.getElementById('tree-view').classList.add('fade-in');
+    document.getElementById('tree-title').textContent = setName;
+    document.getElementById('tree-subtitle').textContent = gameTitle || '';
+    await loadFamilyTree(setName);
+}
+
+function showFamilyView() {
+    currentFamily = null;
+    document.getElementById('tree-view').classList.add('hidden');
+    document.getElementById('family-view').classList.remove('hidden');
+    document.getElementById('family-view').classList.add('fade-in');
+    loadFamilies();
+}
+
+async function loadFamilyTree(setName) {
+    const body    = document.getElementById('tree-body');
+    const loading = document.getElementById('tree-loading');
+    const empty   = document.getElementById('tree-empty');
+
+    body.innerHTML = '';
+    loading.classList.remove('hidden');
+    empty.classList.add('hidden');
+
+    try {
+        const res = await fetch(`${API_URL}/inventory/family/${encodeURIComponent(setName)}`);
+        const products = await res.json();
+        allProducts = products; // for child picker
+
+        loading.classList.add('hidden');
+        document.getElementById('tree-count').textContent = `${products.length} product${products.length !== 1 ? 's' : ''}`;
+
+        if (products.length === 0) { empty.classList.remove('hidden'); return; }
+
+        body.innerHTML = products.map(p => renderProductRow(p, products)).join('');
+
+        // initialise breakdown panels
+        document.querySelectorAll('.breakdown-toggle').forEach(btn => {
+            btn.addEventListener('click', e => {
+                const panel = document.getElementById(`bd-panel-${btn.dataset.id}`);
+                panel.classList.toggle('open');
             });
-            
-            renderInventoryList(filtered);
-        }
+        });
 
-        // --- PRODUCT DETAILS & FIFO SELECTION ---
-        async function showItemDetails(id) {
-            const currentItem = globalInventory.find(i => i.id === id);
-            if (!currentItem) return;
-            currentEditingId = id;
+    } catch(e) {
+        loading.textContent = 'Failed to load products.';
+    }
+}
 
-            document.getElementById('inventory-list-container').classList.add('hidden');
-            document.getElementById('inventory-details-view').classList.remove('hidden');
+function renderProductRow(p, allProds) {
+    const stockDot  = p.stock_quantity > 10 ? 'ok' : p.stock_quantity > 0 ? 'low' : 'zero';
+    const stockText = p.stock_quantity > 0 ? p.stock_quantity : 'Out of stock';
+    const isRoot    = !p.parent_id;
+    const depthClass = isRoot ? 'depth-0' : 'depth-1';
 
-            document.getElementById('det-card-name').innerText = currentItem.card_name || '';
-            document.getElementById('det-game-title').innerText = currentItem.game_title || '';
-            document.getElementById('det-price').innerText = currentItem.price != null ? `$${parseFloat(currentItem.price).toFixed(2)}` : '$0.00';
-            document.getElementById('det-card-id').innerText = currentItem.card_id || currentItem.barcode || 'N/A';
-            
-            const tax = parseFloat(currentItem.tax_rate || 0);
-            document.getElementById('det-tax-info').innerText = `${(tax * 100).toFixed(2)}%`;
-            
-            let shipTxt = (currentItem.shipping_included == 1 || currentItem.shipping_included === true) ? 'Yes' : 'No';
-            document.getElementById('det-shipping').innerText = shipTxt;
+    // Find parent name if it's a child
+    let parentLabel = '';
+    if (p.parent_id) {
+        const parent = allProds.find(x => x.id === p.parent_id);
+        parentLabel = parent ? `<span class="text-[10px] text-gray-400 ml-1">via ${parent.card_name} × ${p.qty_in_parent}</span>` : '';
+    }
 
-            const packs = parseInt(currentItem.packs_per_box || 1);
-            const boxes = parseInt(currentItem.boxes_per_case || 1);
-            document.getElementById('calc-box').innerText = `${packs} Units / Box`;
-            document.getElementById('calc-case').innerText = `${boxes} Boxes / Case`;
+    // Shared stock badge — if this product appears as child of multiple parents
+    const parentCount = allProds.filter(x => x.children && x.children.some(c => c.child_product_id === p.id)).length;
+    const sharedBadge = parentCount > 1
+        ? `<span class="badge badge-teal ml-1">shared stock</span>`
+        : '';
 
-            document.getElementById('det-quick-desc').innerText = currentItem.quick_description || '';
-            document.getElementById('det-long-desc').innerText = currentItem.long_description || '';
+    // Children rows
+    let childRows = '';
+    if (p.children && p.children.length > 0) {
+        childRows = p.children.map(c => `
+            <div class="product-row depth-1 py-2.5 px-5 flex items-center gap-3 text-sm text-gray-600 bg-gray-50/50">
+                <div class="tree-line flex-1 flex items-center gap-2 pl-4">
+                    <svg width="12" height="12" fill="none" stroke="#9ca3af" stroke-width="2" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                    <span class="font-medium text-gray-700">${c.child_name}</span>
+                    <span class="badge badge-gray">× ${c.quantity_per_parent}</span>
+                    <span class="text-xs text-gray-400">${c.child_stock} in stock</span>
+                </div>
+                <button onclick="removeBundleChild(${c.bundle_id}, '${escapeAttr(currentFamily)}')" 
+                    class="text-red-300 hover:text-red-500 transition ml-auto" title="Remove relationship">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>`).join('');
+    }
 
-            try {
-                const res = await fetch(`${API_BASE}/inventory/${id}/batches`);
-                currentBatches = await res.json();
-                
-                const selector = document.getElementById('wave-selector');
-                
-                if (!currentBatches || currentBatches.length === 0) {
-                    selector.innerHTML = `<option value="summary">Standard (No Waves)</option>`;
-                    selector.disabled = true;
-                    document.getElementById('det-stock').innerText = '0';
-                    document.getElementById('det-allocated').innerText = '0';
-                    document.getElementById('det-cost-unit').innerText = "$0.00";
-                    document.getElementById('det-cost-tax').innerText = "$0.00";
-                    
-                    switchWave('summary'); 
-                } else {
-                    selector.disabled = false;
-                    selector.innerHTML = `
-                        <option value="summary">Summary (All Waves)</option>
-                        ${currentBatches.map((b, index) => `<option value="${index}">${b.wave_name}</option>`).join('')}
-                    `;
-                    switchWave('summary');
-                }
-            } catch(e) { console.error("Error fetching batches", e); }
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+    // Breakdown panel (only for bundles with children)
+    let breakdownBlock = '';
+    if (p.is_bundle && p.children && p.children.length > 0) {
+        const childSummary = p.children.map(c => `${c.quantity_per_parent}× ${c.child_name}`).join(', ');
+        breakdownBlock = `
+            <div class="px-5 pb-3">
+                <div id="bd-panel-${p.id}" class="breakdown-panel">
+                    <svg width="16" height="16" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span class="text-xs text-amber-800 flex-1">Breaking down adds <strong>${childSummary}</strong> per unit.</span>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-600 whitespace-nowrap">Qty to break</label>
+                        <input type="number" id="bd-qty-${p.id}" value="1" min="1" max="${p.stock_quantity}" 
+                            style="width:60px; padding:4px 8px; font-size:12px;">
+                        <button onclick="doBreakdown(${p.id})" 
+                            class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+                            Break Down
+                        </button>
+                    </div>
+                </div>
+            </div>`;
+    }
 
-        // --- THE DYNAMIC EDIT BUTTON LOGIC ---
-        function switchWave(value) {
-            const tax = parseFloat(globalInventory.find(i => i.id === currentEditingId)?.tax_rate || 0);
-            const editBtn = document.getElementById('btn-dynamic-edit');
+    return `
+    <div class="product-row fade-in">
+        <div class="${depthClass} py-3 px-5 flex flex-wrap items-center gap-3">
+            <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-semibold text-gray-900">${p.card_name}</span>
+                    ${p.is_bundle ? `<span class="badge badge-blue">bundle</span>` : ''}
+                    ${p.category_name ? `<span class="badge badge-gray">${p.category_name}</span>` : ''}
+                    ${sharedBadge}
+                    ${parentLabel}
+                </div>
+                ${p.quick_description ? `<p class="text-xs text-gray-400 mt-0.5">${p.quick_description}</p>` : ''}
+            </div>
 
-            if (value === 'summary') {
-                editBtn.innerText = "Edit Master Product";
-                editBtn.onclick = () => openProductModal(true);
+            <!-- Stock -->
+            <div class="text-sm text-right min-w-[80px]">
+                <span class="stock-dot ${stockDot}"></span>
+                <span class="font-semibold text-gray-800">${stockText}</span>
+            </div>
 
-                let totalStock = 0; let totalAllocated = 0; let totalValue = 0;
-                currentBatches.forEach(b => {
-                    const qty = parseInt(b.remaining_qty || 0);
-                    const cost = parseFloat(b.cost_price || 0);
-                    totalStock += qty;
-                    totalAllocated += parseInt(b.allocated_qty || 0);
-                    totalValue += (qty * cost);
-                });
+            <!-- Price -->
+            <div class="text-sm font-semibold text-gray-700 min-w-[60px] text-right">
+                $${parseFloat(p.price || 0).toFixed(2)}
+            </div>
 
-                const avgCost = totalStock > 0 ? (totalValue / totalStock) : 0;
-                document.getElementById('det-stock').innerText = totalStock;
-                document.getElementById('det-allocated').innerText = totalAllocated;
-                document.getElementById('det-cost-unit').innerText = `$${avgCost.toFixed(2)}`;
-                document.getElementById('det-cost-tax').innerText = `$${(avgCost * (1 + tax)).toFixed(2)}`;
-            } else {
-                editBtn.innerText = "Edit Wave Details";
-                editBtn.onclick = () => openWaveModal(true, parseInt(value));
+            <!-- Actions -->
+            <div class="flex items-center gap-2 ml-auto">
+                ${p.is_bundle ? `
+                <button class="btn-teal breakdown-toggle" data-id="${p.id}" title="Break down">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="display:inline;vertical-align:-2px;margin-right:4px;"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    Break Down
+                </button>` : ''}
+                ${p.is_bundle ? `
+                <button onclick="openBundleModal(${p.id}, '${escapeAttr(p.card_name)}')" class="btn-ghost" title="Add child product">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="display:inline;vertical-align:-2px;margin-right:3px;"><path d="M12 5v14M5 12h14"/></svg>
+                    Add Child
+                </button>` : ''}
+                <button onclick="openEditModal(${p.id})" class="btn-ghost" title="Edit">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button onclick="deleteProduct(${p.id})" class="btn-danger" title="Delete">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                </button>
+            </div>
+        </div>
+        ${childRows}
+        ${breakdownBlock}
+    </div>`;
+}
 
-                const batch = currentBatches[parseInt(value)];
-                if(!batch) return;
-                const waveCost = parseFloat(batch.cost_price || 0);
-                document.getElementById('det-stock').innerText = batch.remaining_qty || 0;
-                document.getElementById('det-allocated').innerText = batch.allocated_qty || 0;
-                document.getElementById('det-cost-unit').innerText = `$${waveCost.toFixed(2)}`;
-                document.getElementById('det-cost-tax').innerText = `$${(waveCost * (1 + tax)).toFixed(2)}`;
-            }
-        }
+// ══════════════════════════════
+// BREAKDOWN
+// ══════════════════════════════
+async function doBreakdown(parentId) {
+    const qty = parseInt(document.getElementById(`bd-qty-${parentId}`).value) || 1;
+    try {
+        const res = await fetch(`${API_URL}/inventory/breakdown`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parent_id: parentId, quantity: qty })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast(data.message, 'success');
+        await loadFamilyTree(currentFamily);
+    } catch(e) {
+        showToast(e.message, 'error');
+    }
+}
 
-        function hideDetails() {
-            currentEditingId = null;
-            document.getElementById('inventory-list-container').classList.remove('hidden');
-            document.getElementById('inventory-details-view').classList.add('hidden');
-            document.getElementById('search-inventory').value = '';
-            document.getElementById('filter-ip').value = 'all'; // Reset filter
-            renderInventoryList(globalInventory);
-        }
+// ══════════════════════════════
+// ADD PRODUCT
+// ══════════════════════════════
+function openAddProductModal() {
+    // Pre-fill set name if we're inside a family view
+    if (currentFamily) document.getElementById('add-set-name').value = currentFamily;
+    document.getElementById('add-modal').classList.add('open');
+}
+function closeAddProductModal() {
+    document.getElementById('add-modal').classList.remove('open');
+}
 
-        // --- MASTER PRODUCT MODAL ---
-        function openProductModal(isEdit = false) {
-            document.getElementById('product-modal').classList.remove('hidden');
-            
-            if (isEdit && currentEditingId) {
-                document.getElementById('modal-title').innerText = "Edit Master Product";
-                const item = globalInventory.find(i => i.id === currentEditingId);
-                if(item) {
-                    document.getElementById('frm-name').value = item.card_name || '';
-                    document.getElementById('frm-ip').value = item.game_title || '';
-                    document.getElementById('frm-id').value = item.card_id || '';
-                    document.getElementById('frm-price').value = item.price ?? '';
-                    document.getElementById('frm-tax').value = item.tax_rate ?? '';
-                    document.getElementById('frm-packs').value = item.packs_per_box ?? '';
-                    document.getElementById('frm-cases').value = item.boxes_per_case ?? '';
-                    document.getElementById('frm-shipping').checked = item.shipping_included === 1 || item.shipping_included === true;
-                    document.getElementById('frm-quick-desc').value = item.quick_description || '';
-                    document.getElementById('frm-long-desc').value = item.long_description || '';
-                }
-            } else {
-                currentEditingId = null;
-                document.getElementById('modal-title').innerText = "Add New Product";
-                ['frm-name', 'frm-ip', 'frm-id', 'frm-price', 'frm-tax', 'frm-packs', 'frm-cases', 'frm-quick-desc', 'frm-long-desc'].forEach(id => document.getElementById(id).value = '');
-                document.getElementById('frm-shipping').checked = false;
-            }
-        }
+async function addProduct() {
+    const data = {
+        game_title:    document.getElementById('add-game').value,
+        set_name:      document.getElementById('add-set-name').value.trim(),
+        category_id:   document.getElementById('add-category').value,
+        card_id:       document.getElementById('add-card-id').value,
+        card_name:     document.getElementById('add-name').value.trim(),
+        cost_price:    document.getElementById('add-cost').value,
+        price:         document.getElementById('add-price').value,
+        stock_quantity:document.getElementById('add-stock').value,
+        barcode:       document.getElementById('add-barcode').value,
+        is_bundle:     document.getElementById('add-is-bundle').checked ? 1 : 0
+    };
+    if (!data.card_name || !data.set_name) return showToast('Product name and set name are required', 'error');
 
-        function closeProductModal() { document.getElementById('product-modal').classList.add('hidden'); }
+    try {
+        const res = await fetch(`${API_URL}/inventory/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Product added!', 'success');
+        closeAddProductModal();
+        if (currentFamily) await loadFamilyTree(currentFamily);
+        else await loadFamilies();
+    } catch(e) { showToast(e.message, 'error'); }
+}
 
-        async function saveProduct() {
-            const payload = {
-                card_name: document.getElementById('frm-name').value,
-                game_title: document.getElementById('frm-ip').value,
-                card_id: document.getElementById('frm-id').value,
-                price: parseFloat(document.getElementById('frm-price').value) || 0,
-                tax_rate: parseFloat(document.getElementById('frm-tax').value) || 0,
-                packs_per_box: parseInt(document.getElementById('frm-packs').value) || 1,
-                boxes_per_case: parseInt(document.getElementById('frm-cases').value) || 1,
-                shipping_included: document.getElementById('frm-shipping').checked,
-                quick_description: document.getElementById('frm-quick-desc').value,
-                long_description: document.getElementById('frm-long-desc').value
-            };
+// ══════════════════════════════
+// EDIT PRODUCT
+// ══════════════════════════════
+function openEditModal(id) {
+    const p = allProducts.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('edit-id').value          = p.id;
+    document.getElementById('edit-name').value        = p.card_name;
+    document.getElementById('edit-set-name').value    = p.set_name || '';
+    document.getElementById('edit-cost').value        = p.cost_price || 0;
+    document.getElementById('edit-price').value       = p.price || 0;
+    document.getElementById('edit-stock').value       = p.stock_quantity || 0;
+    document.getElementById('edit-description').value = p.quick_description || '';
+    // set category
+    const catSel = document.getElementById('edit-category');
+    catSel.value = p.category_id || '';
+    document.getElementById('edit-modal').classList.add('open');
+}
+function closeEditModal() {
+    document.getElementById('edit-modal').classList.remove('open');
+}
 
-            if (!payload.card_name) return alert("Item Name is required!");
+async function saveEdit() {
+    const id = document.getElementById('edit-id').value;
+    const data = {
+        set_name:         document.getElementById('edit-set-name').value.trim(),
+        category_id:      document.getElementById('edit-category').value,
+        cost_price:       document.getElementById('edit-cost').value,
+        price:            document.getElementById('edit-price').value,
+        stock_quantity:   document.getElementById('edit-stock').value,
+        quick_description:document.getElementById('edit-description').value
+    };
+    try {
+        const res = await fetch(`${API_URL}/inventory/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Product updated!', 'success');
+        closeEditModal();
+        if (currentFamily) await loadFamilyTree(currentFamily);
+        else await loadFamilies();
+    } catch(e) { showToast(e.message, 'error'); }
+}
 
-            try {
-                const method = currentEditingId ? 'PUT' : 'POST';
-                const endpoint = currentEditingId ? `${API_BASE}/inventory/${currentEditingId}` : `${API_BASE}/inventory/add`;
-                
-                const res = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+// ══════════════════════════════
+// DELETE PRODUCT
+// ══════════════════════════════
+async function deleteProduct(id) {
+    if (!confirm('Delete this product? This cannot be undone.')) return;
+    try {
+        const res = await fetch(`${API_URL}/inventory/${id}`, { method: 'DELETE' });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Product deleted', 'success');
+        if (currentFamily) await loadFamilyTree(currentFamily);
+        else await loadFamilies();
+    } catch(e) { showToast(e.message, 'error'); }
+}
 
-                if (res.ok) {
-                    closeProductModal();
-                    await loadInventory();
-                    if (currentEditingId) showItemDetails(currentEditingId);
-                } else { alert("Error saving Master Product."); }
-            } catch (error) { alert("Server connection failed."); }
-        }
+// ══════════════════════════════
+// BUNDLE CHILD MANAGEMENT
+// ══════════════════════════════
+function openBundleModal(parentId, parentName) {
+    document.getElementById('bundle-parent-id').value   = parentId;
+    document.getElementById('bundle-parent-name').textContent = parentName;
+    document.getElementById('bundle-qty').value         = 1;
+    document.getElementById('bundle-notes').value       = '';
 
-        // --- WAVE MODAL (Add & Edit) ---
-        function openWaveModal(isEdit = false, index = null) {
-            document.getElementById('wave-modal').classList.remove('hidden');
-            
-            if (isEdit && index !== null) {
-                const batch = currentBatches[index];
-                currentEditingWaveId = batch.id;
-                document.getElementById('wave-modal-title').innerText = "Edit Allocation Wave";
-                document.getElementById('wave-name').value = batch.wave_name;
-                document.getElementById('wave-qty').value = batch.initial_qty;
-                document.getElementById('wave-cost').value = batch.cost_price;
-                document.getElementById('wave-allocated').value = batch.allocated_qty;
-                const dateParts = batch.arrival_date ? batch.arrival_date.split('T')[0] : '';
-                document.getElementById('wave-date').value = dateParts; 
-            } else {
-                currentEditingWaveId = null;
-                document.getElementById('wave-modal-title').innerText = "Add Allocation Wave";
-                document.getElementById('wave-name').value = '';
-                document.getElementById('wave-qty').value = '';
-                document.getElementById('wave-cost').value = '';
-                document.getElementById('wave-allocated').value = '0';
-                document.getElementById('wave-date').valueAsDate = new Date();
-            }
-        }
-        
-        function closeWaveModal() { document.getElementById('wave-modal').classList.add('hidden'); }
+    // Populate child picker with all products except the parent itself
+    const opts = '<option value="">Select a product...</option>' +
+        allProducts.filter(p => p.id !== parentId).map(p =>
+            `<option value="${p.id}">${p.card_name} (stock: ${p.stock_quantity})</option>`
+        ).join('');
+    document.getElementById('bundle-child-id').innerHTML = opts;
+    document.getElementById('bundle-modal').classList.add('open');
+}
+function closeBundleModal() {
+    document.getElementById('bundle-modal').classList.remove('open');
+}
 
-        async function submitWave() {
-            if(!currentEditingId) return;
+async function saveBundleChild() {
+    const parentId = document.getElementById('bundle-parent-id').value;
+    const childId  = document.getElementById('bundle-child-id').value;
+    const qty      = document.getElementById('bundle-qty').value;
+    const notes    = document.getElementById('bundle-notes').value;
 
-            const payload = {
-                wave_name: document.getElementById('wave-name').value || 'Standard',
-                initial_qty: parseInt(document.getElementById('wave-qty').value) || 0,
-                cost_price: parseFloat(document.getElementById('wave-cost').value) || 0,
-                allocated_qty: parseInt(document.getElementById('wave-allocated').value) || 0,
-                arrival_date: document.getElementById('wave-date').value
-            };
+    if (!childId) return showToast('Please select a child product', 'error');
+    if (!qty || qty < 1) return showToast('Quantity must be at least 1', 'error');
 
-            try {
-                const method = currentEditingWaveId ? 'PUT' : 'POST';
-                const endpoint = currentEditingWaveId 
-                    ? `${API_BASE}/batches/${currentEditingWaveId}` 
-                    : `${API_BASE}/inventory/${currentEditingId}/batches`;
+    try {
+        const res = await fetch(`${API_URL}/bundles`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parent_product_id: parentId, child_product_id: childId, quantity_per_parent: qty, notes })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Child product linked!', 'success');
+        closeBundleModal();
+        await loadFamilyTree(currentFamily);
+    } catch(e) { showToast(e.message, 'error'); }
+}
 
-                const res = await fetch(endpoint, {
-                    method: method,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                if (res.ok) {
-                    closeWaveModal();
-                    showItemDetails(currentEditingId); 
-                } else {
-                    alert("Error saving wave.");
-                }
-            } catch (e) { alert("Server connection failed"); }
-        }
-    </script>
+async function removeBundleChild(bundleId, setName) {
+    if (!confirm('Remove this bundle relationship?')) return;
+    try {
+        const res = await fetch(`${API_URL}/bundles/${bundleId}`, { method: 'DELETE' });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Relationship removed', 'success');
+        await loadFamilyTree(setName);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ══════════════════════════════
+// HELPERS
+// ══════════════════════════════
+function getGameIcon(title) {
+    if (!title) return '🃏';
+    if (title.includes('One Piece')) return '🏴‍☠️';
+    if (title.includes('Pokemon'))   return '⚡';
+    if (title.includes('Hololive'))  return '🎤';
+    if (title.includes('Digimon'))   return '👾';
+    return '🃏';
+}
+
+function escapeAttr(str) {
+    return (str || '').replace(/'/g, "\\'");
+}
+
+function showToast(msg, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = type === 'success' ? `✓ ${msg}` : `✕ ${msg}`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+</script>
 </body>
 </html>
