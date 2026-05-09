@@ -484,8 +484,13 @@ function renderProductRow(p, allProds) {
             <div class="text-right min-w-[90px]">
                 <div class="text-sm font-bold text-gray-900">$${parseFloat(p.price || 0).toFixed(2)}</div>
                 ${parseFloat(p.cost_price || 0) > 0
-                    ? `<div class="text-[10px] text-gray-400">cost $${parseFloat(p.cost_price).toFixed(2)}</div>`
+                    ? `<div class="text-[10px] text-gray-500 font-medium cursor-help" title="Weighted average based on active waves">avg cost $${parseFloat(p.cost_price).toFixed(2)}</div>`
                     : `<div class="text-[10px] text-gray-300">no cost set</div>`}
+                ${p.waves && p.waves.length > 0 
+                    ? `<div class="text-[9px] text-gray-400 mt-0.5 leading-tight text-right flex flex-col items-end">
+                        ${p.waves.map((w, i) => `<span title="${esc(w.wave_name)} (${w.remaining_qty} in stock)">W${i+1}: $${parseFloat(w.cost_price).toFixed(2)}</span>`).join('')}
+                      </div>`
+                    : ''}
             </div>
             <div class="text-sm min-w-[90px] text-right">
                 <span class="stock-dot ${stockDot}"></span>

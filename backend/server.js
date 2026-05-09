@@ -190,9 +190,25 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
       childMap[c.parent_product_id].push(c);
     });
 
+    // Get active waves for products in this family
+    const [waves] = await db.execute(`
+      SELECT inventory_id, wave_name, cost_price, remaining_qty 
+      FROM fifo 
+      WHERE is_active = TRUE AND remaining_qty > 0 AND inventory_id IN (
+        SELECT id FROM inventory WHERE set_name = ?
+      )
+    `, [req.params.set_name]);
+
+    const waveMap = {};
+    waves.forEach(w => {
+      if (!waveMap[w.inventory_id]) waveMap[w.inventory_id] = [];
+      waveMap[w.inventory_id].push(w);
+    });
+
     const result = rows.map(r => ({
       ...r,
-      children: childMap[r.id] || []
+      children: childMap[r.id] || [],
+      waves: waveMap[r.id] || []
     }));
 
     res.json(result);
@@ -262,14 +278,25 @@ app.get('/api/inventory/:id/waves', async (req, res) => {
 
 async function syncInventoryStock(inventory_id, conn) {
   const [[result]] = await conn.execute(
-    'SELECT SUM(remaining_qty) as total_stock FROM fifo WHERE inventory_id = ? AND is_active = TRUE',
+    'SELECT SUM(remaining_qty) as total_stock, SUM(remaining_qty * cost_price) as total_value FROM fifo WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0',
     [inventory_id]
   );
+  
   const totalStock = result.total_stock || 0;
-  await conn.execute(
-    'UPDATE inventory SET stock_quantity = ? WHERE id = ?',
-    [totalStock, inventory_id]
-  );
+  
+  if (totalStock > 0) {
+    const averageCost = result.total_value / totalStock;
+    await conn.execute(
+      'UPDATE inventory SET stock_quantity = ?, cost_price = ? WHERE id = ?',
+      [totalStock, averageCost, inventory_id]
+    );
+  } else {
+    await conn.execute(
+      'UPDATE inventory SET stock_quantity = ? WHERE id = ?',
+      [totalStock, inventory_id]
+    );
+  }
+  
   return totalStock;
 }
 
@@ -470,12 +497,6 @@ app.post('/api/inventory/breakdown', async (req, res) => {
           `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active)
            VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
           [child.child_product_id, newWaveName, childCostPrice, childQtyToCreate, childQtyToCreate, new Date().toISOString().slice(0, 10)]
-        );
-
-        // Update the main inventory record's cost_price for this child
-        await conn.execute(
-          `UPDATE inventory SET cost_price = ? WHERE id = ?`,
-          [childCostPrice, child.child_product_id]
         );
 
         // Log the breakdown with wave linkage
