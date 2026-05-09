@@ -247,6 +247,100 @@ app.delete('/api/inventory/:id', async (req, res) => {
 });
 
 // ==========================================
+// 4.5 FIFO WAVES
+// ==========================================
+
+app.get('/api/inventory/:id/waves', async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      'SELECT * FROM fifo WHERE inventory_id = ? AND is_active = TRUE ORDER BY arrival_date ASC, id ASC',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch waves' }); }
+});
+
+async function syncInventoryStock(inventory_id, conn) {
+  const [[result]] = await conn.execute(
+    'SELECT SUM(remaining_qty) as total_stock FROM fifo WHERE inventory_id = ? AND is_active = TRUE',
+    [inventory_id]
+  );
+  const totalStock = result.total_stock || 0;
+  await conn.execute(
+    'UPDATE inventory SET stock_quantity = ? WHERE id = ?',
+    [totalStock, inventory_id]
+  );
+  return totalStock;
+}
+
+app.post('/api/inventory/:id/waves', async (req, res) => {
+  const { wave_name, cost_price, initial_qty, arrival_date } = req.body;
+  const inventory_id = req.params.id;
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [result] = await conn.execute(
+      `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
+      [inventory_id, wave_name || 'Standard', cost_price || 0, initial_qty || 0, initial_qty || 0, arrival_date || new Date().toISOString().slice(0,10)]
+    );
+    const newTotal = await syncInventoryStock(inventory_id, conn);
+    await conn.commit();
+    res.status(201).json({ id: result.insertId, message: 'Wave added', total_stock: newTotal });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ error: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+app.put('/api/inventory/waves/:wave_id', async (req, res) => {
+  const { wave_name, cost_price, remaining_qty, arrival_date } = req.body;
+  const wave_id = req.params.wave_id;
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [[wave]] = await conn.execute('SELECT inventory_id FROM fifo WHERE id = ?', [wave_id]);
+    if (!wave) throw new Error('Wave not found');
+
+    await conn.execute(
+      `UPDATE fifo SET wave_name = ?, cost_price = ?, remaining_qty = ?, arrival_date = ?
+       WHERE id = ?`,
+      [wave_name, cost_price, remaining_qty, arrival_date, wave_id]
+    );
+    const newTotal = await syncInventoryStock(wave.inventory_id, conn);
+    await conn.commit();
+    res.json({ message: 'Wave updated', total_stock: newTotal });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ error: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+app.delete('/api/inventory/waves/:wave_id', async (req, res) => {
+  const wave_id = req.params.wave_id;
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [[wave]] = await conn.execute('SELECT inventory_id FROM fifo WHERE id = ?', [wave_id]);
+    if (!wave) throw new Error('Wave not found');
+
+    await conn.execute('UPDATE fifo SET is_active = FALSE WHERE id = ?', [wave_id]);
+    const newTotal = await syncInventoryStock(wave.inventory_id, conn);
+    await conn.commit();
+    res.json({ message: 'Wave removed', total_stock: newTotal });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ error: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ==========================================
 // 5. BUNDLE MANAGEMENT
 // ==========================================
 
