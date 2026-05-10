@@ -141,9 +141,10 @@
                         <div><label class="text-[10px] font-bold text-gray-500 uppercase">Wave Name</label><input type="text" id="w-name" class="w-full text-xs p-1.5 border border-gray-300 rounded" placeholder="e.g. Wave 1"></div>
                         <div><label class="text-[10px] font-bold text-gray-500 uppercase">Arrival Date</label><input type="date" id="w-date" class="w-full text-xs p-1.5 border border-gray-300 rounded"></div>
                     </div>
-                    <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="grid grid-cols-3 gap-2 mb-2">
                         <div><label class="text-[10px] font-bold text-gray-500 uppercase">Cost ($)</label><input type="number" id="w-cost" class="w-full text-xs p-1.5 border border-gray-300 rounded" step="0.01"></div>
                         <div><label class="text-[10px] font-bold text-gray-500 uppercase">Initial Qty</label><input type="number" id="w-qty" class="w-full text-xs p-1.5 border border-gray-300 rounded"></div>
+                        <div><label class="text-[10px] font-bold text-gray-500 uppercase">Invoice #</label><input type="text" id="w-invoice" class="w-full text-xs p-1.5 border border-gray-300 rounded" placeholder="Optional"></div>
                     </div>
                     <div class="flex justify-end gap-2 mt-2">
                         <button onclick="hideAddWaveForm()" class="text-xs px-3 py-1.5 text-gray-600 hover:bg-gray-200 rounded font-medium">Cancel</button>
@@ -573,7 +574,10 @@ function renderWaves() {
     list.innerHTML = currentWaves.map(w => `
         <div class="bg-white border border-gray-200 rounded p-2 text-xs flex flex-col gap-1.5" id="wave-row-${w.id}">
             <div class="flex justify-between items-start">
-                <span class="font-bold text-gray-800">${esc(w.wave_name)}</span>
+                <div class="flex flex-col">
+                    <span class="font-bold text-gray-800">${esc(w.wave_name)}</span>
+                    ${w.invoice_number ? `<span class="text-[10px] text-gray-500">Inv: ${esc(w.invoice_number)}</span>` : ''}
+                </div>
                 <span class="text-gray-500">${w.arrival_date ? w.arrival_date.split('T')[0] : ''}</span>
             </div>
             <div class="flex justify-between items-center mt-1">
@@ -590,9 +594,10 @@ function renderWaves() {
                 <div><label class="text-[10px] text-gray-500">Name</label><input type="text" id="ew-name-${w.id}" value="${esc(w.wave_name)}" class="w-full p-1 border rounded"></div>
                 <div><label class="text-[10px] text-gray-500">Date</label><input type="date" id="ew-date-${w.id}" value="${w.arrival_date ? w.arrival_date.split('T')[0] : ''}" class="w-full p-1 border rounded"></div>
             </div>
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-3 gap-2">
                 <div><label class="text-[10px] text-gray-500">Cost</label><input type="number" step="0.01" id="ew-cost-${w.id}" value="${w.cost_price}" class="w-full p-1 border rounded"></div>
-                <div><label class="text-[10px] text-gray-500">Remaining Qty</label><input type="number" id="ew-qty-${w.id}" value="${w.remaining_qty}" class="w-full p-1 border rounded"></div>
+                <div><label class="text-[10px] text-gray-500">Qty</label><input type="number" id="ew-qty-${w.id}" value="${w.remaining_qty}" class="w-full p-1 border rounded"></div>
+                <div><label class="text-[10px] text-gray-500">Invoice #</label><input type="text" id="ew-invoice-${w.id}" value="${esc(w.invoice_number)}" class="w-full p-1 border rounded" placeholder="Opt"></div>
             </div>
             <div class="flex justify-end gap-2 mt-1">
                 <button onclick="cancelEditWave(${w.id})" class="text-gray-500 hover:text-gray-700">Cancel</button>
@@ -617,7 +622,8 @@ async function saveNewWave() {
         wave_name: document.getElementById('w-name').value,
         arrival_date: document.getElementById('w-date').value,
         cost_price: parseFloat(document.getElementById('w-cost').value) || 0,
-        initial_qty: parseInt(document.getElementById('w-qty').value) || 0
+        initial_qty: parseInt(document.getElementById('w-qty').value) || 0,
+        invoice_number: document.getElementById('w-invoice').value
     };
     try {
         const res = await fetch(`${API_URL}/inventory/${id}/waves`, {
@@ -647,7 +653,8 @@ async function saveEditWave(waveId) {
         wave_name: document.getElementById(`ew-name-${waveId}`).value,
         arrival_date: document.getElementById(`ew-date-${waveId}`).value,
         cost_price: parseFloat(document.getElementById(`ew-cost-${waveId}`).value) || 0,
-        remaining_qty: parseInt(document.getElementById(`ew-qty-${waveId}`).value) || 0
+        remaining_qty: parseInt(document.getElementById(`ew-qty-${waveId}`).value) || 0,
+        invoice_number: document.getElementById(`ew-invoice-${waveId}`).value
     };
     try {
         const res = await fetch(`${API_URL}/inventory/waves/${waveId}`, {

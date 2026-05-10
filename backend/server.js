@@ -301,15 +301,15 @@ async function syncInventoryStock(inventory_id, conn) {
 }
 
 app.post('/api/inventory/:id/waves', async (req, res) => {
-  const { wave_name, cost_price, initial_qty, arrival_date } = req.body;
+  const { wave_name, cost_price, initial_qty, arrival_date, invoice_number } = req.body;
   const inventory_id = req.params.id;
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
     const [result] = await conn.execute(
-      `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-      [inventory_id, wave_name || 'Standard', cost_price || 0, initial_qty || 0, initial_qty || 0, arrival_date || new Date().toISOString().slice(0,10)]
+      `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number)
+       VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
+      [inventory_id, wave_name || 'Standard', cost_price || 0, initial_qty || 0, initial_qty || 0, arrival_date || new Date().toISOString().slice(0,10), invoice_number || null]
     );
     const newTotal = await syncInventoryStock(inventory_id, conn);
     await conn.commit();
@@ -323,7 +323,7 @@ app.post('/api/inventory/:id/waves', async (req, res) => {
 });
 
 app.put('/api/inventory/waves/:wave_id', async (req, res) => {
-  const { wave_name, cost_price, remaining_qty, arrival_date } = req.body;
+  const { wave_name, cost_price, remaining_qty, arrival_date, invoice_number } = req.body;
   const wave_id = req.params.wave_id;
   const conn = await db.getConnection();
   try {
@@ -332,9 +332,9 @@ app.put('/api/inventory/waves/:wave_id', async (req, res) => {
     if (!wave) throw new Error('Wave not found');
 
     await conn.execute(
-      `UPDATE fifo SET wave_name = ?, cost_price = ?, remaining_qty = ?, arrival_date = ?
+      `UPDATE fifo SET wave_name = ?, cost_price = ?, remaining_qty = ?, arrival_date = ?, invoice_number = ?
        WHERE id = ?`,
-      [wave_name, cost_price, remaining_qty, arrival_date, wave_id]
+      [wave_name, cost_price, remaining_qty, arrival_date, invoice_number || null, wave_id]
     );
     const newTotal = await syncInventoryStock(wave.inventory_id, conn);
     await conn.commit();
@@ -448,7 +448,7 @@ app.post('/api/inventory/breakdown', async (req, res) => {
 
     // 3. Get active waves for parent
     const [parentWaves] = await conn.execute(
-      'SELECT id, remaining_qty, cost_price, wave_name, arrival_date FROM fifo WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0 ORDER BY arrival_date ASC, id ASC',
+      'SELECT id, remaining_qty, cost_price, wave_name, arrival_date, invoice_number FROM fifo WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0 ORDER BY arrival_date ASC, id ASC',
       [parent_id]
     );
 
@@ -465,7 +465,8 @@ app.post('/api/inventory/breakdown', async (req, res) => {
         cost_price: wave.cost_price,
         qty: deductQty,
         wave_name: wave.wave_name,
-        arrival_date: wave.arrival_date
+        arrival_date: wave.arrival_date,
+        invoice_number: wave.invoice_number
       });
     }
 
@@ -491,19 +492,53 @@ app.post('/api/inventory/breakdown', async (req, res) => {
         }
         
         let newWaveName = `Breakdown from ${deduction.wave_name}`;
+        
+        // Check if an active child wave with the exact same name and invoice_number exists
+        let queryStr = 'SELECT id, initial_qty, remaining_qty FROM fifo WHERE inventory_id = ? AND wave_name = ? AND is_active = TRUE';
+        let queryParams = [child.child_product_id, newWaveName];
+        
+        if (deduction.invoice_number === null || deduction.invoice_number === undefined) {
+           queryStr += ' AND invoice_number IS NULL';
+        } else {
+           queryStr += ' AND invoice_number = ?';
+           queryParams.push(deduction.invoice_number);
+        }
+        queryStr += ' LIMIT 1';
 
-        // Insert new child wave
-        const [childWaveResult] = await conn.execute(
-          `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active)
-           VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-          [child.child_product_id, newWaveName, childCostPrice, childQtyToCreate, childQtyToCreate, new Date().toISOString().slice(0, 10)]
-        );
+        const [existingChildWave] = await conn.execute(queryStr, queryParams);
+
+        let childWaveId;
+
+        if (existingChildWave.length > 0) {
+          // Update existing child wave
+          childWaveId = existingChildWave[0].id;
+          await conn.execute(
+            'UPDATE fifo SET initial_qty = initial_qty + ?, remaining_qty = remaining_qty + ? WHERE id = ?',
+            [childQtyToCreate, childQtyToCreate, childWaveId]
+          );
+        } else {
+          // Insert new child wave
+          const [childWaveResult] = await conn.execute(
+            `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number)
+             VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
+            [
+              child.child_product_id, 
+              newWaveName, 
+              childCostPrice, 
+              childQtyToCreate, 
+              childQtyToCreate, 
+              new Date().toISOString().slice(0, 10),
+              deduction.invoice_number || null
+            ]
+          );
+          childWaveId = childWaveResult.insertId;
+        }
 
         // Log the breakdown with wave linkage
         await conn.execute(
           `INSERT INTO bundle_breakdown_log (parent_product_id, child_product_id, quantity_broken, parent_wave_id, child_wave_id)
            VALUES (?, ?, ?, ?, ?)`,
-          [parent_id, child.child_product_id, deduction.qty, deduction.wave_id, childWaveResult.insertId]
+          [parent_id, child.child_product_id, deduction.qty, deduction.wave_id, childWaveId]
         );
       }
     }
