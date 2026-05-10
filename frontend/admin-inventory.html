@@ -426,7 +426,6 @@ function renderProductRow(p, allProds) {
         const childSummary = p.children.map(c => `${c.quantity_per_parent}× ${c.child_name}`).join(', ');
         
         const childCostInputs = p.children.map(c => {
-            let defaultCost = p.children.length === 1 && p.cost_price ? (parseFloat(p.cost_price) / c.quantity_per_parent).toFixed(2) : '';
             return `
             <div class="flex items-center justify-between gap-2 mt-2 w-full">
                 <label class="text-xs text-gray-700 truncate" title="${c.child_name}">${c.child_name} Cost:</label>
@@ -435,9 +434,9 @@ function renderProductRow(p, allProds) {
                     <input type="number" step="0.01" min="0" 
                         class="bd-child-cost-${p.id}" 
                         data-child-id="${c.child_product_id}" 
-                        value="${defaultCost}"
-                        placeholder="Cost per unit"
-                        style="width:80px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                        value=""
+                        placeholder="Auto (FIFO)"
+                        style="width:90px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
                 </div>
             </div>`;
         }).join('');
@@ -447,7 +446,7 @@ function renderProductRow(p, allProds) {
             <div id="bd-panel-${p.id}" class="breakdown-panel flex-col items-start gap-3">
                 <div class="flex items-start gap-2 w-full">
                     <svg width="15" height="15" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24" class="mt-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    <span class="text-xs text-amber-800 flex-1">Breaking down adds <strong>${childSummary}</strong> per unit.</span>
+                    <span class="text-xs text-amber-800 flex-1">Breaking down adds <strong>${childSummary}</strong> per unit (uses oldest active wave).</span>
                 </div>
                 
                 <div class="w-full bg-white/60 p-2 rounded border border-amber-200">
@@ -487,12 +486,11 @@ function renderProductRow(p, allProds) {
                 ${parseFloat(p.cost_price || 0) > 0
                     ? `<div class="text-[10px] text-gray-500 font-medium cursor-help" title="Weighted average based on active waves">avg cost $${parseFloat(p.cost_price).toFixed(2)}</div>`
                     : `<div class="text-[10px] text-gray-300">no cost set</div>`}
-                ${p.waves && p.waves.length > 0 
+                ${p.waves && p.waves.length > 0
                     ? `<div class="text-[9px] text-gray-400 mt-0.5 leading-tight text-right flex flex-col items-end">
-                        ${p.waves.map((w, i) => `<span title="${esc(w.wave_name)} (${w.remaining_qty} in stock)">W${i+1}: $${parseFloat(w.cost_price).toFixed(2)}</span>`).join('')}
+                        ${p.waves.map((w, i) => `<span title="${esc(w.wave_name)} (FIFO #${w.id}) (${w.remaining_qty} in stock)">W${i+1} (FIFO #${w.id}): $${parseFloat(w.cost_price).toFixed(2)}</span>`).join('')}
                       </div>`
-                    : ''}
-            </div>
+                    : ''}            </div>
             <div class="text-sm min-w-[90px] text-right">
                 <span class="stock-dot ${stockDot}"></span>
                 <span class="font-semibold text-gray-800">${stockText}</span>
@@ -575,7 +573,7 @@ function renderWaves() {
         <div class="bg-white border border-gray-200 rounded p-2 text-xs flex flex-col gap-1.5" id="wave-row-${w.id}">
             <div class="flex justify-between items-start">
                 <div class="flex flex-col">
-                    <span class="font-bold text-gray-800">${esc(w.wave_name)}</span>
+                    <span class="font-bold text-gray-800">${esc(w.wave_name)} (FIFO #${w.id})</span>
                     ${w.invoice_number ? `<span class="text-[10px] text-gray-500">Inv: ${esc(w.invoice_number)}</span>` : ''}
                 </div>
                 <span class="text-gray-500">${w.arrival_date ? w.arrival_date.split('T')[0] : ''}</span>

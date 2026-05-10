@@ -192,7 +192,7 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
 
     // Get active waves for products in this family
     const [waves] = await db.execute(`
-      SELECT inventory_id, wave_name, cost_price, remaining_qty 
+      SELECT id, inventory_id, wave_name, cost_price, remaining_qty 
       FROM fifo 
       WHERE is_active = TRUE AND remaining_qty > 0 AND inventory_id IN (
         SELECT id FROM inventory WHERE set_name = ?
