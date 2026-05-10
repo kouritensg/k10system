@@ -71,6 +71,128 @@
     </div>
 </div>
 
+<!-- PRODUCT EDIT VIEW -->
+<div id="product-edit-view" class="hidden max-w-6xl mx-auto px-4 mt-8 pb-16">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div class="flex items-center gap-3">
+            <button onclick="closeFullEdit()" class="btn-ghost">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+                Back to Variant Tree
+            </button>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900" id="pe-title">—</h1>
+                <p class="text-sm text-gray-500 mt-0.5" id="pe-subtitle">—</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="saveFullProduct()" class="btn-primary">Save Changes</button>
+        </div>
+    </div>
+
+    <input type="hidden" id="pe-id">
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column: Product Details Form -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Product Details</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="field-label">Name</label>
+                        <input type="text" id="pe-name" class="w-full p-2 border border-gray-300 rounded text-sm">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="field-label">Cost Price ($)</label>
+                            <input type="number" id="pe-cost" class="w-full p-2 border border-gray-300 rounded text-sm" step="0.01">
+                        </div>
+                        <div>
+                            <label class="field-label">Sell Price ($)</label>
+                            <input type="number" id="pe-price" class="w-full p-2 border border-gray-300 rounded text-sm" step="0.01">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="field-label">Description</label>
+                        <textarea id="pe-desc" rows="3" class="w-full p-2 border border-gray-300 rounded text-sm" placeholder="Quick note..."></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Set</label>
+                            <div id="pe-set" class="text-sm font-medium text-gray-700">—</div>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-400 uppercase">Game</label>
+                            <div id="pe-game" class="text-sm font-medium text-gray-700">—</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-blue-50 rounded-xl border border-blue-100 p-5 shadow-sm">
+                <h3 class="text-sm font-bold text-blue-800 mb-1">Total Stock</h3>
+                <div class="text-3xl font-black text-blue-900" id="pe-stock">0</div>
+                <p class="text-xs text-blue-600 mt-1">Calculated from all active waves.</p>
+            </div>
+        </div>
+
+        <!-- Right Column: Waves Management -->
+        <div class="lg:col-span-2">
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm flex flex-col h-full">
+                <div class="bg-gray-50 border-b px-5 py-4 flex justify-between items-center">
+                    <h3 class="text-base font-bold text-gray-800">Wave History (FIFO)</h3>
+                    <button onclick="showPeAddWave()" class="text-sm bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded font-medium shadow-sm">
+                        + Add Wave
+                    </button>
+                </div>
+                
+                <!-- Add Wave Form Inline -->
+                <div id="pe-add-wave-form" class="hidden bg-yellow-50 border-b border-yellow-200 p-4">
+                    <h4 class="text-sm font-bold text-yellow-800 mb-3">Add New Incoming Wave</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div class="md:col-span-2"><label class="text-xs font-bold text-gray-600">Wave Name</label><input type="text" id="pe-w-name" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                        <div class="md:col-span-2"><label class="text-xs font-bold text-gray-600">Arrival Date</label><input type="date" id="pe-w-date" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                        <div><label class="text-xs font-bold text-gray-600">Cost ($)</label><input type="number" id="pe-w-cost" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white" step="0.01"></div>
+                        <div><label class="text-xs font-bold text-gray-600">Initial Qty</label><input type="number" id="pe-w-qty" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                        <div class="md:col-span-2"><label class="text-xs font-bold text-gray-600">Invoice #</label><input type="text" id="pe-w-invoice" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-3">
+                        <button onclick="hidePeAddWave()" class="text-sm px-3 py-1.5 text-gray-600 hover:bg-yellow-100 rounded font-medium">Cancel</button>
+                        <button onclick="savePeNewWave()" class="text-sm px-4 py-1.5 bg-yellow-500 text-white rounded hover:bg-yellow-600 font-bold shadow-sm">Save Wave</button>
+                    </div>
+                </div>
+
+                <!-- Waves Table -->
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
+                                <th class="p-3 font-semibold">ID / Name</th>
+                                <th class="p-3 font-semibold">Arrival Date</th>
+                                <th class="p-3 font-semibold text-right">Cost ($)</th>
+                                <th class="p-3 font-semibold text-center">Remaining / Initial</th>
+                                <th class="p-3 font-semibold">Invoice</th>
+                                <th class="p-3 font-semibold text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pe-waves-tbody" class="divide-y divide-gray-100 text-sm">
+                            <tr><td colspan="6" class="p-8 text-center text-gray-400">Loading waves...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="bg-gray-50 border-t px-5 py-3 flex justify-between items-center text-sm">
+                    <span class="text-gray-500" id="pe-wave-info">Showing 0 to 0 of 0</span>
+                    <div class="flex items-center gap-1">
+                        <button onclick="pePrevPage()" id="pe-btn-prev" class="px-3 py-1 rounded bg-white border hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                        <button onclick="peNextPage()" id="pe-btn-next" class="px-3 py-1 rounded bg-white border hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- EDIT DRAWER -->
 <div id="drawer-backdrop" class="drawer-backdrop" onclick="closeDrawer()"></div>
 <div id="edit-drawer" class="drawer">
@@ -80,9 +202,14 @@
             <h2 class="text-base font-bold text-gray-900" id="drawer-title">—</h2>
             <div id="drawer-badges" class="flex flex-wrap gap-1.5 mt-2"></div>
         </div>
-        <button onclick="closeDrawer()" class="drawer-header-close" aria-label="Close">
-            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
+        <div class="flex items-center gap-2">
+            <button onclick="openFullEdit()" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded font-medium transition-colors">
+                Advanced Edit
+            </button>
+            <button onclick="closeDrawer()" class="drawer-header-close" aria-label="Close">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
     </div>
     <div class="drawer-body">
         <input type="hidden" id="drawer-id">
@@ -528,6 +655,220 @@ function renderProductRow(p, allProds) {
         ${childRows}
         ${breakdownBlock}
     </div>`;
+}
+
+// ADVANCED EDIT VIEW
+let peCurrentWaves = [];
+let peCurrentPage = 1;
+const PE_WAVES_PER_PAGE = 10;
+
+async function openFullEdit() {
+    const id = parseInt(document.getElementById('drawer-id').value);
+    const p = allProducts.find(x => x.id === id);
+    if (!p) return;
+
+    closeDrawer();
+    document.getElementById('tree-view').classList.add('hidden');
+    document.getElementById('product-edit-view').classList.remove('hidden');
+    document.getElementById('product-edit-view').classList.add('fade-in');
+
+    // Populate Product Details
+    document.getElementById('pe-id').value = p.id;
+    document.getElementById('pe-title').textContent = p.card_name;
+    document.getElementById('pe-subtitle').textContent = p.category_name || '';
+    document.getElementById('pe-name').value = p.card_name;
+    document.getElementById('pe-cost').value = parseFloat(p.cost_price || 0).toFixed(2);
+    document.getElementById('pe-price').value = parseFloat(p.price || 0).toFixed(2);
+    document.getElementById('pe-desc').value = p.quick_description || '';
+    document.getElementById('pe-set').textContent = p.set_name || '—';
+    document.getElementById('pe-game').textContent = p.game_title || '—';
+    document.getElementById('pe-stock').textContent = p.stock_quantity || 0;
+
+    await loadPeWaves(p.id);
+}
+
+function closeFullEdit() {
+    document.getElementById('product-edit-view').classList.add('hidden');
+    document.getElementById('tree-view').classList.remove('hidden');
+}
+
+async function loadPeWaves(productId) {
+    document.getElementById('pe-waves-tbody').innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-400">Loading waves...</td></tr>';
+    peCurrentPage = 1;
+    try {
+        const res = await fetch(`${API_URL}/inventory/${productId}/waves`);
+        peCurrentWaves = await res.json();
+        renderPeWaves();
+    } catch(e) {
+        document.getElementById('pe-waves-tbody').innerHTML = '<tr><td colspan="6" class="p-8 text-center text-red-400">Failed to load waves</td></tr>';
+    }
+}
+
+function renderPeWaves() {
+    const tbody = document.getElementById('pe-waves-tbody');
+    const info = document.getElementById('pe-wave-info');
+    const btnPrev = document.getElementById('pe-btn-prev');
+    const btnNext = document.getElementById('pe-btn-next');
+
+    if (!peCurrentWaves.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-gray-400">No active waves found for this product.</td></tr>';
+        info.textContent = 'Showing 0 to 0 of 0';
+        btnPrev.disabled = true;
+        btnNext.disabled = true;
+        return;
+    }
+
+    const totalPages = Math.ceil(peCurrentWaves.length / PE_WAVES_PER_PAGE);
+    const startIdx = (peCurrentPage - 1) * PE_WAVES_PER_PAGE;
+    const endIdx = startIdx + PE_WAVES_PER_PAGE;
+    const paginatedWaves = peCurrentWaves.slice(startIdx, endIdx);
+
+    tbody.innerHTML = paginatedWaves.map(w => `
+        <tr class="hover:bg-gray-50/50" id="pe-wave-row-${w.id}">
+            <td class="p-3">
+                <div class="font-semibold text-gray-800">${esc(w.wave_name)}</div>
+                <div class="text-[10px] text-gray-400">FIFO #${w.id}</div>
+            </td>
+            <td class="p-3 text-gray-600">${w.arrival_date ? w.arrival_date.split('T')[0] : '—'}</td>
+            <td class="p-3 text-right font-medium">$${parseFloat(w.cost_price).toFixed(2)}</td>
+            <td class="p-3 text-center">
+                <span class="font-bold text-blue-600">${w.remaining_qty}</span>
+                <span class="text-gray-400 text-xs mx-1">/</span>
+                <span class="text-gray-500 text-xs">${w.initial_qty}</span>
+            </td>
+            <td class="p-3 text-gray-500">${esc(w.invoice_number) || '—'}</td>
+            <td class="p-3 text-right">
+                <div class="flex items-center justify-end gap-2">
+                    <button onclick="peEditWave(${w.id})" class="text-blue-500 hover:text-blue-700 font-medium text-xs px-2 py-1">Edit</button>
+                    <button onclick="peDeleteWave(${w.id})" class="text-red-500 hover:text-red-700 font-medium text-xs px-2 py-1">Delete</button>
+                </div>
+            </td>
+        </tr>
+        <tr id="pe-wave-edit-row-${w.id}" class="hidden bg-gray-50 border-b border-gray-200">
+            <td colspan="6" class="p-4">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div class="md:col-span-2"><label class="text-xs font-bold text-gray-600">Wave Name</label><input type="text" id="pe-ew-name-${w.id}" value="${esc(w.wave_name)}" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                    <div class="md:col-span-2"><label class="text-xs font-bold text-gray-600">Arrival Date</label><input type="date" id="pe-ew-date-${w.id}" value="${w.arrival_date ? w.arrival_date.split('T')[0] : ''}" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                    <div><label class="text-xs font-bold text-gray-600">Cost ($)</label><input type="number" id="pe-ew-cost-${w.id}" value="${parseFloat(w.cost_price).toFixed(2)}" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white" step="0.01"></div>
+                    <div><label class="text-xs font-bold text-gray-600">Remaining Qty</label><input type="number" id="pe-ew-qty-${w.id}" value="${w.remaining_qty}" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                    <div class="md:col-span-2"><label class="text-xs font-bold text-gray-600">Invoice #</label><input type="text" id="pe-ew-invoice-${w.id}" value="${esc(w.invoice_number)}" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                </div>
+                <div class="flex justify-end gap-2 mt-3">
+                    <button onclick="peCancelEditWave(${w.id})" class="text-sm px-3 py-1.5 text-gray-600 hover:bg-gray-200 rounded font-medium">Cancel</button>
+                    <button onclick="peSaveEditWave(${w.id})" class="text-sm px-4 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold shadow-sm">Save</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+
+    info.textContent = `Showing ${startIdx + 1} to ${Math.min(endIdx, peCurrentWaves.length)} of ${peCurrentWaves.length}`;
+    btnPrev.disabled = peCurrentPage === 1;
+    btnNext.disabled = peCurrentPage === totalPages;
+}
+
+function pePrevPage() { if (peCurrentPage > 1) { peCurrentPage--; renderPeWaves(); } }
+function peNextPage() { const max = Math.ceil(peCurrentWaves.length / PE_WAVES_PER_PAGE); if (peCurrentPage < max) { peCurrentPage++; renderPeWaves(); } }
+
+function showPeAddWave() {
+    document.getElementById('pe-add-wave-form').classList.remove('hidden');
+    document.getElementById('pe-w-name').value = `Wave ${peCurrentWaves.length + 1}`;
+    document.getElementById('pe-w-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('pe-w-cost').value = document.getElementById('pe-cost').value;
+    document.getElementById('pe-w-qty').value = '';
+}
+function hidePeAddWave() { document.getElementById('pe-add-wave-form').classList.add('hidden'); }
+
+async function savePeNewWave() {
+    const id = document.getElementById('pe-id').value;
+    const data = {
+        wave_name: document.getElementById('pe-w-name').value,
+        arrival_date: document.getElementById('pe-w-date').value,
+        cost_price: parseFloat(document.getElementById('pe-w-cost').value) || 0,
+        initial_qty: parseInt(document.getElementById('pe-w-qty').value) || 0,
+        invoice_number: document.getElementById('pe-w-invoice').value
+    };
+    try {
+        const res = await fetch(`${API_URL}/inventory/${id}/waves`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Wave added', 'success');
+        document.getElementById('pe-stock').textContent = json.total_stock;
+        hidePeAddWave();
+        await loadPeWaves(id);
+        await loadFamilyTree(currentFamily);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+function peEditWave(waveId) {
+    document.getElementById(`pe-wave-row-${waveId}`).classList.add('hidden');
+    document.getElementById(`pe-wave-edit-row-${waveId}`).classList.remove('hidden');
+}
+function peCancelEditWave(waveId) {
+    document.getElementById(`pe-wave-edit-row-${waveId}`).classList.add('hidden');
+    document.getElementById(`pe-wave-row-${waveId}`).classList.remove('hidden');
+}
+
+async function peSaveEditWave(waveId) {
+    const id = document.getElementById('pe-id').value;
+    const data = {
+        wave_name: document.getElementById(`pe-ew-name-${waveId}`).value,
+        arrival_date: document.getElementById(`pe-ew-date-${waveId}`).value,
+        cost_price: parseFloat(document.getElementById(`pe-ew-cost-${waveId}`).value) || 0,
+        remaining_qty: parseInt(document.getElementById(`pe-ew-qty-${waveId}`).value) || 0,
+        invoice_number: document.getElementById(`pe-ew-invoice-${waveId}`).value
+    };
+    try {
+        const res = await fetch(`${API_URL}/inventory/waves/${waveId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Wave updated', 'success');
+        document.getElementById('pe-stock').textContent = json.total_stock;
+        await loadPeWaves(id);
+        await loadFamilyTree(currentFamily);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function peDeleteWave(waveId) {
+    if (!confirm('Delete this wave? This will reduce total stock.')) return;
+    const id = document.getElementById('pe-id').value;
+    try {
+        const res = await fetch(`${API_URL}/inventory/waves/${waveId}`, { method: 'DELETE' });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Wave deleted', 'success');
+        document.getElementById('pe-stock').textContent = json.total_stock;
+        await loadPeWaves(id);
+        await loadFamilyTree(currentFamily);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function saveFullProduct() {
+    const id = document.getElementById('pe-id').value;
+    const p  = allProducts.find(x => x.id == id);
+    const data = {
+        card_name:         document.getElementById('pe-name').value.trim(),
+        price:             parseFloat(document.getElementById('pe-price').value) || 0,
+        cost_price:        parseFloat(document.getElementById('pe-cost').value)  || 0,
+        quick_description: document.getElementById('pe-desc').value.trim(),
+        stock_quantity:    parseInt(document.getElementById('pe-stock').textContent) || 0,
+        set_name:          p?.set_name    || '',
+        category_id:       p?.category_id || null,
+        is_bundle:         p?.is_bundle   || 0
+    };
+    try {
+        const res = await fetch(`${API_URL}/inventory/${id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Product updated!', 'success');
+        document.getElementById('pe-title').textContent = data.card_name;
+        await loadFamilyTree(currentFamily);
+    } catch(e) { showToast(e.message, 'error'); }
 }
 
 // EDIT DRAWER
