@@ -23,19 +23,11 @@
             Add Product
         </button>
     </div>
-    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+    <div class="mb-3">
         <input type="text" id="family-search" placeholder="Search families..." style="max-width:260px">
-        <select id="family-game-filter" style="max-width:200px">
-            <option value="">All Games</option>
-            <option value="One Piece">One Piece</option>
-            <option value="Pokemon">Pokemon</option>
-            <option value="Hololive">Hololive</option>
-            <option value="Digimon">Digimon</option>
-            <option value="Dragon Ball">Dragon Ball</option>
-            <option value="Union Arena">Union Arena</option>
-            <option value="Accessories">Accessories</option>
-            <option value="Other">Other</option>
-        </select>
+    </div>
+    <div class="overflow-x-auto -mx-4 px-4 mb-4">
+        <div id="game-tabs" class="flex gap-0 min-w-max border-b border-gray-200"></div>
     </div>
     <div id="family-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="col-span-full text-center py-16 text-gray-400 text-sm">Loading families...</div>
@@ -329,16 +321,7 @@
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="field-label">Game *</label>
-                    <select id="add-game">
-                        <option value="One Piece">One Piece</option>
-                        <option value="Pokemon">Pokemon</option>
-                        <option value="Hololive">Hololive</option>
-                        <option value="Digimon">Digimon</option>
-                        <option value="Dragon Ball">Dragon Ball</option>
-                        <option value="Union Arena">Union Arena</option>
-                        <option value="Accessories">Accessories</option>
-                        <option value="Other">Other</option>
-                    </select>
+                    <select id="add-game"></select>
                 </div>
                 <div>
                     <label class="field-label">Set Name * <span class="normal-case font-normal text-gray-400">(e.g. OP17)</span></label>
@@ -423,12 +406,36 @@ let categories   = [];
 let allProducts  = [];
 let currentFamily = null;
 let familyData   = [];
+let activeGame   = '';
+
+const GAME_LIST = [
+  { label: 'All',                  value: '' },
+  { label: 'One Piece TCG',        value: 'One Piece' },
+  { label: 'Pokémon TCG',          value: 'Pokemon' },
+  { label: 'Digimon TCG',          value: 'Digimon' },
+  { label: 'Hololive TCG',         value: 'Hololive' },
+  { label: 'Union Arena TCG',      value: 'Union Arena' },
+  { label: 'Dragon Ball TCG',      value: 'Dragon Ball' },
+  { label: 'Gundam TCG',           value: 'Gundam' },
+  { label: 'Ultraman TCG',         value: 'Ultraman' },
+  { label: 'Vanguard TCG',         value: 'Vanguard' },
+  { label: 'Riftbound TCG',        value: 'Riftbound' },
+  { label: 'Cookie Run TCG',       value: 'Cookie Run' },
+  { label: 'Lorcana TCG',          value: 'Lorcana' },
+  { label: 'Force of Will TCG',    value: 'Force of Will' },
+  { label: 'Grand Archive TCG',    value: 'Grand Archive' },
+  { label: 'Pudgy Penguins TCG',   value: 'Pudgy Penguins' },
+  { label: 'Final Fantasy TCG',    value: 'Final Fantasy' },
+  { label: 'Magic: The Gathering', value: 'Magic' },
+  { label: 'Accessories',          value: 'Accessories' },
+  { label: 'Other',                value: 'Other' },
+];
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
+    populateGameSelect('add-game');
     await Promise.all([loadCategories(), loadFamilies()]);
     document.getElementById('family-search').addEventListener('input', renderFamilyGrid);
-    document.getElementById('family-game-filter').addEventListener('change', renderFamilyGrid);
     document.getElementById('d-price').addEventListener('input', calcMargin);
 });
 
@@ -446,6 +453,7 @@ async function loadFamilies() {
     try {
         const res = await fetch(`${API_URL}/inventory/families`);
         familyData = await res.json();
+        renderTabs();
         renderFamilyGrid();
     } catch(e) {
         document.getElementById('family-grid').innerHTML =
@@ -453,12 +461,38 @@ async function loadFamilies() {
     }
 }
 
+function renderTabs() {
+    const container = document.getElementById('game-tabs');
+    container.innerHTML = GAME_LIST.map(g => {
+        const count = g.value ? familyData.filter(f => f.game_title === g.value).length : familyData.length;
+        const isActive = activeGame === g.value;
+        return `<button
+            onclick="setGameTab('${g.value}')"
+            class="game-tab${isActive ? ' game-tab-active' : ''}"
+        >${g.label}${count > 0 ? `<span class="tab-badge">${count}</span>` : ''}</button>`;
+    }).join('');
+}
+
+function setGameTab(value) {
+    activeGame = value;
+    renderTabs();
+    renderFamilyGrid();
+}
+
+function populateGameSelect(selectId) {
+    const el = document.getElementById(selectId);
+    if (!el) return;
+    el.innerHTML = GAME_LIST
+        .filter(g => g.value)
+        .map(g => `<option value="${g.value}">${g.label}</option>`)
+        .join('');
+}
+
 function renderFamilyGrid() {
     const search = document.getElementById('family-search').value.toLowerCase();
-    const game   = document.getElementById('family-game-filter').value;
     const filtered = familyData.filter(f => {
         const ms = !search || f.set_name.toLowerCase().includes(search) || (f.game_title||'').toLowerCase().includes(search);
-        const mg = !game   || f.game_title === game;
+        const mg = !activeGame || f.game_title === activeGame;
         return ms && mg;
     });
     const grid = document.getElementById('family-grid');
@@ -1212,13 +1246,27 @@ async function removeBundleChild(bundleId, setName) {
 
 // HELPERS
 function gameIcon(title) {
-    if (!title) return '🃏';
-    if (title.includes('One Piece')) return '🏴‍☠️';
-    if (title.includes('Pokemon'))   return '⚡';
-    if (title.includes('Hololive'))  return '🎤';
-    if (title.includes('Digimon'))   return '👾';
-    if (title.includes('Dragon'))    return '🐉';
-    return '🃏';
+    const icons = {
+        'One Piece':     '🏴‍☠️',
+        'Pokemon':       '⚡',
+        'Digimon':       '👾',
+        'Hololive':      '🎤',
+        'Union Arena':   '⚔️',
+        'Dragon Ball':   '🐉',
+        'Gundam':        '🤖',
+        'Ultraman':      '🦸',
+        'Vanguard':      '🛡️',
+        'Riftbound':     '🌀',
+        'Cookie Run':    '🍪',
+        'Lorcana':       '✨',
+        'Force of Will': '🌿',
+        'Grand Archive': '📜',
+        'Pudgy Penguins':'🐧',
+        'Final Fantasy': '💎',
+        'Magic':         '🪄',
+        'Accessories':   '🎒',
+    };
+    return icons[title] || '🃏';
 }
 function esc(str) { return (str || '').replace(/'/g, "\\'"); }
 function showToast(msg, type = 'success') {
