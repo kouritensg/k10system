@@ -426,8 +426,7 @@ let familyData   = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
-    await loadCategories();
-    await loadFamilies();
+    await Promise.all([loadCategories(), loadFamilies()]);
     document.getElementById('family-search').addEventListener('input', renderFamilyGrid);
     document.getElementById('family-game-filter').addEventListener('change', renderFamilyGrid);
     document.getElementById('d-price').addEventListener('input', calcMargin);
