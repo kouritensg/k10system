@@ -128,16 +128,39 @@ app.get('/api/inventory/families', async (req, res) => {
   try {
     const [rows] = await db.execute(`
       SELECT
-        set_name,
-        game_title,
-        COUNT(*)            AS total_products,
-        SUM(stock_quantity) AS total_stock,
-        SUM(is_bundle)      AS bundle_count
-      FROM inventory
-      GROUP BY set_name, game_title
-      ORDER BY game_title, set_name ASC`
+        i.set_name,
+        i.game_title,
+        c.name              AS category_name,
+        COUNT(*)            AS category_count,
+        SUM(i.stock_quantity) AS category_stock,
+        SUM(i.is_bundle)    AS category_bundles
+      FROM inventory i
+      LEFT JOIN categories c ON c.id = i.category_id
+      GROUP BY i.set_name, i.game_title, i.category_id, c.name
+      ORDER BY i.game_title, i.set_name, c.name ASC`
     );
-    res.json(rows);
+
+    const familyMap = {};
+    rows.forEach(row => {
+      const key = `${row.set_name}|||${row.game_title}`;
+      if (!familyMap[key]) {
+        familyMap[key] = {
+          set_name: row.set_name,
+          game_title: row.game_title,
+          total_products: 0,
+          total_stock: 0,
+          bundle_count: 0,
+          categories: []
+        };
+      }
+      const f = familyMap[key];
+      f.total_products += Number(row.category_count);
+      f.total_stock    += Number(row.category_stock);
+      f.bundle_count   += Number(row.category_bundles);
+      f.categories.push({ name: row.category_name || 'Uncategorized', stock: Number(row.category_stock) });
+    });
+
+    res.json(Object.values(familyMap));
   } catch (error) { res.status(500).json({ error: 'Failed to fetch families' }); }
 });
 
