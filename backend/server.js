@@ -167,21 +167,31 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
       ORDER BY i.is_bundle DESC, i.id ASC
     `, [req.params.set_name]);
 
-    // Get all children for products in this family
-    const [children] = await db.execute(`
-      SELECT
-        pb.parent_product_id,
-        pb.child_product_id,
-        pb.id AS bundle_id,
-        pb.quantity_per_parent,
-        i.card_name      AS child_name,
-        i.stock_quantity AS child_stock
-      FROM product_bundles pb
-      JOIN inventory i ON i.id = pb.child_product_id
-      WHERE pb.parent_product_id IN (
-        SELECT id FROM inventory WHERE set_name = ?
-      )
-    `, [req.params.set_name]);
+    const productIds = rows.map(r => r.id);
+    if (productIds.length === 0) return res.json([]);
+
+    const placeholders = productIds.map(() => '?').join(',');
+
+    // Run children and waves queries in parallel using already-fetched IDs
+    const [[children], [waves]] = await Promise.all([
+      db.execute(`
+        SELECT
+          pb.parent_product_id,
+          pb.child_product_id,
+          pb.id AS bundle_id,
+          pb.quantity_per_parent,
+          i.card_name      AS child_name,
+          i.stock_quantity AS child_stock
+        FROM product_bundles pb
+        JOIN inventory i ON i.id = pb.child_product_id
+        WHERE pb.parent_product_id IN (${placeholders})
+      `, productIds),
+      db.execute(`
+        SELECT id, inventory_id, wave_name, cost_price, remaining_qty
+        FROM fifo
+        WHERE is_active = TRUE AND remaining_qty > 0 AND inventory_id IN (${placeholders})
+      `, productIds),
+    ]);
 
     // Attach children array to each product
     const childMap = {};
@@ -189,15 +199,6 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
       if (!childMap[c.parent_product_id]) childMap[c.parent_product_id] = [];
       childMap[c.parent_product_id].push(c);
     });
-
-    // Get active waves for products in this family
-    const [waves] = await db.execute(`
-      SELECT id, inventory_id, wave_name, cost_price, remaining_qty 
-      FROM fifo 
-      WHERE is_active = TRUE AND remaining_qty > 0 AND inventory_id IN (
-        SELECT id FROM inventory WHERE set_name = ?
-      )
-    `, [req.params.set_name]);
 
     const waveMap = {};
     waves.forEach(w => {
