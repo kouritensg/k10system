@@ -85,6 +85,9 @@
             </div>
         </div>
         <div class="flex items-center gap-3">
+            <button onclick="refreshFullEditView()" class="text-sm bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded font-medium shadow-sm">
+                ↻ Refresh Data
+            </button>
             <button onclick="saveFullProduct()" class="btn-primary">Save Changes</button>
         </div>
     </div>
@@ -104,7 +107,8 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="field-label">Cost Price ($)</label>
-                            <input type="number" id="pe-cost" class="w-full p-2 border border-gray-300 rounded text-sm" step="0.01">
+                            <input type="number" id="pe-cost" class="w-full p-2 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed" step="0.01" readonly>
+                            <p class="text-[10px] text-gray-400 mt-1">Auto-calculated from waves.</p>
                         </div>
                         <div>
                             <label class="field-label">Sell Price ($)</label>
@@ -222,8 +226,8 @@
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="field-label">Cost Price ($)</label>
-                    <input type="number" id="d-cost" placeholder="0.00" step="0.01" min="0">
-                    <p class="text-[10px] text-gray-400 mt-1">What you paid per unit</p>
+                    <input type="number" id="d-cost" placeholder="0.00" step="0.01" min="0" readonly style="background-color: #f9fafb; color: #6b7280; cursor: not-allowed; opacity: 1;">
+                    <p class="text-[10px] text-gray-400 mt-1">Auto-calculated from waves.</p>
                 </div>
                 <div>
                     <label class="field-label">Sell Price ($)</label>
@@ -426,7 +430,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadFamilies();
     document.getElementById('family-search').addEventListener('input', renderFamilyGrid);
     document.getElementById('family-game-filter').addEventListener('change', renderFamilyGrid);
-    document.getElementById('d-cost').addEventListener('input', calcMargin);
     document.getElementById('d-price').addEventListener('input', calcMargin);
 });
 
@@ -662,17 +665,7 @@ let peCurrentWaves = [];
 let peCurrentPage = 1;
 const PE_WAVES_PER_PAGE = 10;
 
-async function openFullEdit() {
-    const id = parseInt(document.getElementById('drawer-id').value);
-    const p = allProducts.find(x => x.id === id);
-    if (!p) return;
-
-    closeDrawer();
-    document.getElementById('tree-view').classList.add('hidden');
-    document.getElementById('product-edit-view').classList.remove('hidden');
-    document.getElementById('product-edit-view').classList.add('fade-in');
-
-    // Populate Product Details
+function populateFullEditView(p) {
     document.getElementById('pe-id').value = p.id;
     document.getElementById('pe-title').textContent = p.card_name;
     document.getElementById('pe-subtitle').textContent = p.category_name || '';
@@ -683,6 +676,38 @@ async function openFullEdit() {
     document.getElementById('pe-set').textContent = p.set_name || '—';
     document.getElementById('pe-game').textContent = p.game_title || '—';
     document.getElementById('pe-stock').textContent = p.stock_quantity || 0;
+}
+
+async function refreshFullEditView() {
+    const id = parseInt(document.getElementById('pe-id').value);
+    if (!id) return;
+    try {
+        await loadFamilyTree(currentFamily);
+        const p = allProducts.find(x => x.id === id);
+        if (p) {
+            populateFullEditView(p);
+            await loadPeWaves(id);
+            showToast('Product data refreshed!', 'success');
+        } else {
+            showToast('Could not find product to refresh.', 'error');
+        }
+    } catch (e) {
+        showToast('Failed to refresh data.', 'error');
+        console.error('Refresh failed:', e);
+    }
+}
+
+async function openFullEdit() {
+    const id = parseInt(document.getElementById('drawer-id').value);
+    const p = allProducts.find(x => x.id === id);
+    if (!p) return;
+    closeDrawer();
+    document.getElementById('tree-view').classList.add('hidden');
+    document.getElementById('product-edit-view').classList.remove('hidden');
+    document.getElementById('product-edit-view').classList.add('fade-in');
+
+    // Populate Product Details
+    populateFullEditView(p);
 
     await loadPeWaves(p.id);
 }
