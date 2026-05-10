@@ -441,12 +441,23 @@ function renderProductRow(p, allProds) {
             </div>`;
         }).join('');
 
+        let waveMsg = `Breaking down adds <strong>${childSummary}</strong> per unit (uses oldest active wave).`;
+        if (p.waves && p.waves.length > 0) {
+            const w1 = p.waves[0];
+            let totalChildren = 0;
+            p.children.forEach(c => totalChildren += c.quantity_per_parent);
+            const w1Cost = parseFloat(w1.cost_price || 0);
+            const w1Id = w1.id || 'N/A';
+            const recCost = totalChildren > 0 ? (w1Cost / totalChildren).toFixed(2) : '0.00';
+            waveMsg = `Breaking W1 (FIFO #${w1Id}) total cost $${w1Cost.toFixed(2)} | Recommended cost per item: $${recCost}`;
+        }
+
         breakdownBlock = `
         <div class="px-5 pb-3">
             <div id="bd-panel-${p.id}" class="breakdown-panel flex-col items-start gap-3">
                 <div class="flex items-start gap-2 w-full">
                     <svg width="15" height="15" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24" class="mt-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    <span class="text-xs text-amber-800 flex-1">Breaking down adds <strong>${childSummary}</strong> per unit (uses oldest active wave).</span>
+                    <span class="text-xs text-amber-800 flex-1">${waveMsg}</span>
                 </div>
                 
                 <div class="w-full bg-white/60 p-2 rounded border border-amber-200">
@@ -488,7 +499,7 @@ function renderProductRow(p, allProds) {
                     : `<div class="text-[10px] text-gray-300">no cost set</div>`}
                 ${p.waves && p.waves.length > 0
                     ? `<div class="text-[9px] text-gray-400 mt-0.5 leading-tight text-right flex flex-col items-end">
-                        ${p.waves.map((w, i) => `<span title="${esc(w.wave_name)} (FIFO #${w.id}) (${w.remaining_qty} in stock)">W${i+1} (FIFO #${w.id}): $${parseFloat(w.cost_price).toFixed(2)}</span>`).join('')}
+                        ${p.waves.map((w, i) => `<span title="${esc(w.wave_name)} (FIFO #${w.id || w.wave_id || 'N/A'}) (${w.remaining_qty} in stock)">W${i+1} (FIFO #${w.id || w.wave_id || 'N/A'}): $${parseFloat(w.cost_price).toFixed(2)}</span>`).join('')}
                       </div>`
                     : ''}            </div>
             <div class="text-sm min-w-[90px] text-right">
