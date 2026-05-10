@@ -502,6 +502,10 @@ function renderFamilyGrid() {
     }
     grid.innerHTML = filtered.map(f => {
         const sc = f.total_stock > 50 ? 'text-green-600' : f.total_stock > 0 ? 'text-amber-600' : 'text-red-400';
+        const catBreakdown = f.categories
+            .filter(c => c.stock > 0)
+            .map(c => `<span class="cat-stock-item"><span class="font-semibold ${sc}">${c.stock}</span> <span class="text-gray-500">${c.name}</span></span>`)
+            .join('<span class="text-gray-300 mx-1">·</span>');
         return `
         <div class="family-card fade-in" onclick="openFamily('${esc(f.set_name)}', '${esc(f.game_title||'')}')">
             <div class="flex items-start justify-between mb-3">
@@ -509,11 +513,12 @@ function renderFamilyGrid() {
                 <span class="badge badge-gray">${f.game_title || 'Other'}</span>
             </div>
             <h3 class="text-lg font-bold text-gray-900 mb-1">${f.set_name}</h3>
-            <div class="flex items-center gap-3 text-sm flex-wrap">
+            <div class="flex items-center gap-2 text-sm flex-wrap mb-1">
                 <span class="text-gray-500">${f.total_products} product${f.total_products != 1 ? 's' : ''}</span>
-                <span class="text-gray-300">·</span>
-                <span class="font-semibold ${sc}">${f.total_stock} in stock</span>
                 ${f.bundle_count > 0 ? `<span class="badge badge-blue">${f.bundle_count} bundle${f.bundle_count != 1 ? 's' : ''}</span>` : ''}
+            </div>
+            <div class="flex flex-wrap items-center gap-y-1 text-sm">
+                ${catBreakdown || `<span class="text-gray-400">No stock</span>`}
             </div>
         </div>`;
     }).join('');
