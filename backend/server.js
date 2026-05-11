@@ -34,10 +34,31 @@ app.post('/api/auth/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) return res.status(400).json({ error: 'Invalid login' });
 
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: '12h' });
+    const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: '12h' });
     res.json({ token, user: { id: user.id, username: user.username } });
   } catch (error) { res.status(500).json({ error: 'Login error' }); }
 });
+
+// --- AUTHENTICATE MIDDLEWARE (soft — enriches req.user, never blocks existing routes) ---
+function authenticate(req, res, next) {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) {
+    try { req.user = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET || 'secret'); }
+    catch (e) { req.user = { username: 'unknown' }; }
+  } else { req.user = { username: 'unknown' }; }
+  next();
+}
+
+// --- CHANGE LOG HELPER ---
+async function logChange(conn, inventory_id, username, field_name, old_value, new_value, source) {
+  const oldNum = parseFloat(old_value) || 0;
+  const newNum = parseFloat(new_value) || 0;
+  if (Math.abs(oldNum - newNum) < 0.0001) return;
+  await conn.execute(
+    'INSERT INTO inventory_change_log (inventory_id, changed_by, field_name, old_value, new_value, source) VALUES (?, ?, ?, ?, ?, ?)',
+    [inventory_id, username || 'unknown', field_name, oldNum, newNum, source]
+  );
+}
 
 // ==========================================
 // 2. CATEGORY MANAGEMENT
@@ -263,10 +284,12 @@ app.post('/api/inventory/add', async (req, res) => {
 });
 
 // Update product — updated, added set_name + is_bundle + quick_description + long_description + card_id + card_name
-app.put('/api/inventory/:id', async (req, res) => {
+app.put('/api/inventory/:id', authenticate, async (req, res) => {
   const { card_name, card_id, price, stock_quantity, cost_price, category_id, set_name, is_bundle, quick_description, long_description } = req.body;
+  const conn = await db.getConnection();
   try {
-    await db.execute(
+    const [[old]] = await conn.execute('SELECT price FROM inventory WHERE id = ?', [req.params.id]);
+    await conn.execute(
       `UPDATE inventory
        SET card_name = ?, card_id = ?, price = ?, stock_quantity = ?, cost_price = ?,
            category_id = ?, set_name = ?, is_bundle = ?, quick_description = ?, long_description = ?
@@ -275,8 +298,10 @@ app.put('/api/inventory/:id', async (req, res) => {
        category_id || null, set_name || '', is_bundle || 0,
        quick_description || null, long_description || null, req.params.id]
     );
+    await logChange(conn, req.params.id, req.user.username, 'price', old.price, price, 'Manual Edit');
     res.json({ message: 'Updated' });
   } catch (error) { res.status(500).json({ error: 'Update failed' }); }
+  finally { conn.release(); }
 });
 
 // Delete product
@@ -285,6 +310,21 @@ app.delete('/api/inventory/:id', async (req, res) => {
     await db.execute('DELETE FROM inventory WHERE id = ?', [req.params.id]);
     res.json({ message: 'Deleted' });
   } catch (error) { res.status(500).json({ error: 'Delete failed' }); }
+});
+
+// Change history for a product
+app.get('/api/inventory/:id/history', async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      `SELECT id, field_name, old_value, new_value, source, changed_by, changed_at
+       FROM inventory_change_log
+       WHERE inventory_id = ?
+       ORDER BY changed_at DESC
+       LIMIT 50`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch history' }); }
 });
 
 // ==========================================
@@ -301,31 +341,36 @@ app.get('/api/inventory/:id/waves', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to fetch waves' }); }
 });
 
-async function syncInventoryStock(inventory_id, conn) {
+async function syncInventoryStock(inventory_id, conn, username = 'system', source = 'System') {
+  const [[old]] = await conn.execute(
+    'SELECT stock_quantity, cost_price FROM inventory WHERE id = ?', [inventory_id]
+  );
   const [[result]] = await conn.execute(
     'SELECT SUM(remaining_qty) as total_stock, SUM(remaining_qty * cost_price) as total_value FROM fifo WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0',
     [inventory_id]
   );
-  
+
   const totalStock = result.total_stock || 0;
-  
+
   if (totalStock > 0) {
     const averageCost = result.total_value / totalStock;
     await conn.execute(
       'UPDATE inventory SET stock_quantity = ?, cost_price = ? WHERE id = ?',
       [totalStock, averageCost, inventory_id]
     );
+    await logChange(conn, inventory_id, username, 'stock_quantity', old.stock_quantity, totalStock, source);
+    await logChange(conn, inventory_id, username, 'cost_price',     old.cost_price,     averageCost,  source);
   } else {
     await conn.execute(
-      'UPDATE inventory SET stock_quantity = ? WHERE id = ?',
-      [totalStock, inventory_id]
+      'UPDATE inventory SET stock_quantity = ? WHERE id = ?', [totalStock, inventory_id]
     );
+    await logChange(conn, inventory_id, username, 'stock_quantity', old.stock_quantity, totalStock, source);
   }
-  
+
   return totalStock;
 }
 
-app.post('/api/inventory/:id/waves', async (req, res) => {
+app.post('/api/inventory/:id/waves', authenticate, async (req, res) => {
   const { wave_name, cost_price, initial_qty, arrival_date, invoice_number } = req.body;
   const inventory_id = req.params.id;
   const conn = await db.getConnection();
@@ -336,7 +381,7 @@ app.post('/api/inventory/:id/waves', async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
       [inventory_id, wave_name || 'Standard', cost_price || 0, initial_qty || 0, initial_qty || 0, arrival_date || new Date().toISOString().slice(0,10), invoice_number || null]
     );
-    const newTotal = await syncInventoryStock(inventory_id, conn);
+    const newTotal = await syncInventoryStock(inventory_id, conn, req.user.username, 'Wave Added');
     await conn.commit();
     res.status(201).json({ id: result.insertId, message: 'Wave added', total_stock: newTotal });
   } catch (error) {
@@ -347,7 +392,7 @@ app.post('/api/inventory/:id/waves', async (req, res) => {
   }
 });
 
-app.put('/api/inventory/waves/:wave_id', async (req, res) => {
+app.put('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
   const { wave_name, cost_price, remaining_qty, arrival_date, invoice_number } = req.body;
   const wave_id = req.params.wave_id;
   const conn = await db.getConnection();
@@ -361,7 +406,7 @@ app.put('/api/inventory/waves/:wave_id', async (req, res) => {
        WHERE id = ?`,
       [wave_name, cost_price, remaining_qty, arrival_date, invoice_number || null, wave_id]
     );
-    const newTotal = await syncInventoryStock(wave.inventory_id, conn);
+    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, 'Wave Edited');
     await conn.commit();
     res.json({ message: 'Wave updated', total_stock: newTotal });
   } catch (error) {
@@ -372,7 +417,7 @@ app.put('/api/inventory/waves/:wave_id', async (req, res) => {
   }
 });
 
-app.delete('/api/inventory/waves/:wave_id', async (req, res) => {
+app.delete('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
   const wave_id = req.params.wave_id;
   const conn = await db.getConnection();
   try {
@@ -381,7 +426,7 @@ app.delete('/api/inventory/waves/:wave_id', async (req, res) => {
     if (!wave) throw new Error('Wave not found');
 
     await conn.execute('UPDATE fifo SET is_active = FALSE WHERE id = ?', [wave_id]);
-    const newTotal = await syncInventoryStock(wave.inventory_id, conn);
+    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, 'Wave Deleted');
     await conn.commit();
     res.json({ message: 'Wave removed', total_stock: newTotal });
   } catch (error) {
@@ -644,14 +689,16 @@ app.get('/api/purchase-orders', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/purchase-orders/:id/receive', async (req, res) => {
+app.put('/api/purchase-orders/:id/receive', authenticate, async (req, res) => {
   const { items } = req.body;
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
     for (let item of items) {
+      const [[old]] = await conn.execute('SELECT stock_quantity FROM inventory WHERE id = ?', [item.inventory_id]);
       await conn.execute('UPDATE po_items SET received_qty = received_qty + ? WHERE id = ?', [item.qty_received, item.po_item_id]);
       await conn.execute('UPDATE inventory SET stock_quantity = stock_quantity + ? WHERE id = ?', [item.qty_received, item.inventory_id]);
+      await logChange(conn, item.inventory_id, req.user.username, 'stock_quantity', old.stock_quantity, old.stock_quantity + item.qty_received, 'PO Received');
     }
     await conn.commit();
     res.json({ message: 'Stock Updated' });
@@ -697,7 +744,7 @@ app.put('/api/purchase-orders/:id/payment', async (req, res) => {
 // ==========================================
 // 7. SALES & PREORDERS
 // ==========================================
-app.post('/api/sales', async (req, res) => {
+app.post('/api/sales', authenticate, async (req, res) => {
   const { customer_id, order_type, payment_method, items, custom_status, deposit_amount } = req.body;
   const conn = await db.getConnection();
   try {
@@ -714,10 +761,12 @@ app.post('/api/sales', async (req, res) => {
         [orderResult.insertId, item.id, item.qty, item.price]
       );
       if (order_type === 'In-Stock') {
+        const [[old]] = await conn.execute('SELECT stock_quantity FROM inventory WHERE id = ?', [item.id]);
         await conn.execute(
           'UPDATE inventory SET stock_quantity = stock_quantity - ? WHERE id = ?',
           [item.qty, item.id]
         );
+        await logChange(conn, item.id, req.user.username, 'stock_quantity', old.stock_quantity, old.stock_quantity - item.qty, 'Sale');
       }
     }
     await conn.commit();

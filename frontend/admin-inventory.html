@@ -199,6 +199,17 @@
             </div>
         </div>
     </div>
+
+    <!-- Change History Panel -->
+    <div class="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="bg-gray-50 border-b px-5 py-3 flex justify-between items-center">
+            <h3 class="text-sm font-bold text-gray-700">Change History</h3>
+            <button onclick="loadHistory(document.getElementById('pe-id').value)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
+        </div>
+        <div id="history-body" class="overflow-x-auto">
+            <div class="py-8 text-center text-gray-400 text-sm">Loading history...</div>
+        </div>
+    </div>
 </div>
 
 <!-- EDIT DRAWER -->
@@ -414,6 +425,9 @@
 
 <script>
 const API_URL = 'https://k10system.onrender.com/api';
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
+}
 let categories   = [];
 let allProducts  = [];
 let currentFamily = null;
@@ -784,12 +798,56 @@ async function openFullEdit() {
     // Populate Product Details
     populateFullEditView(p);
 
-    await loadPeWaves(p.id);
+    await Promise.all([loadPeWaves(p.id), loadHistory(p.id)]);
 }
 
 function closeFullEdit() {
     document.getElementById('product-edit-view').classList.add('hidden');
     document.getElementById('tree-view').classList.remove('hidden');
+}
+
+async function loadHistory(productId) {
+    const body = document.getElementById('history-body');
+    body.innerHTML = '<div class="py-8 text-center text-gray-400 text-sm">Loading...</div>';
+    try {
+        const res = await fetch(`${API_URL}/inventory/${productId}/history`);
+        const rows = await res.json();
+        if (!rows.length) {
+            body.innerHTML = '<div class="py-8 text-center text-gray-400 text-sm">No changes recorded yet.</div>';
+            return;
+        }
+        const fieldLabel = { price: 'Sell Price', stock_quantity: 'Stock', cost_price: 'Cost Price' };
+        body.innerHTML = `<table class="w-full text-sm text-left">
+            <thead class="bg-gray-50 border-b text-xs uppercase text-gray-500 tracking-wide">
+                <tr>
+                    <th class="px-4 py-2">Date & Time</th>
+                    <th class="px-4 py-2">Field</th>
+                    <th class="px-4 py-2">Old</th>
+                    <th class="px-4 py-2">New</th>
+                    <th class="px-4 py-2">Source</th>
+                    <th class="px-4 py-2">By</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                ${rows.map(r => {
+                    const isPrice = r.field_name === 'price' || r.field_name === 'cost_price';
+                    const fmt = v => isPrice ? `$${parseFloat(v).toFixed(2)}` : parseFloat(v).toFixed(0);
+                    const dir = parseFloat(r.new_value) >= parseFloat(r.old_value) ? 'text-green-600' : 'text-red-500';
+                    const date = new Date(r.changed_at).toLocaleString();
+                    return `<tr class="hover:bg-gray-50">
+                        <td class="px-4 py-2 text-gray-500 whitespace-nowrap">${date}</td>
+                        <td class="px-4 py-2 font-medium">${fieldLabel[r.field_name] || r.field_name}</td>
+                        <td class="px-4 py-2 text-gray-500">${fmt(r.old_value)}</td>
+                        <td class="px-4 py-2 font-semibold ${dir}">${fmt(r.new_value)}</td>
+                        <td class="px-4 py-2"><span class="badge badge-gray">${r.source}</span></td>
+                        <td class="px-4 py-2 text-gray-600">${r.changed_by || '—'}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>`;
+    } catch(e) {
+        body.innerHTML = '<div class="py-8 text-center text-red-400 text-sm">Failed to load history.</div>';
+    }
 }
 
 async function loadPeWaves(productId) {
@@ -889,7 +947,7 @@ async function savePeNewWave() {
     };
     try {
         const res = await fetch(`${API_URL}/inventory/${id}/waves`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
@@ -921,7 +979,7 @@ async function peSaveEditWave(waveId) {
     };
     try {
         const res = await fetch(`${API_URL}/inventory/waves/${waveId}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            method: 'PUT', headers: authHeaders(), body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
@@ -936,7 +994,7 @@ async function peDeleteWave(waveId) {
     if (!confirm('Delete this wave? This will reduce total stock.')) return;
     const id = document.getElementById('pe-id').value;
     try {
-        const res = await fetch(`${API_URL}/inventory/waves/${waveId}`, { method: 'DELETE' });
+        const res = await fetch(`${API_URL}/inventory/waves/${waveId}`, { method: 'DELETE', headers: authHeaders() });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Wave deleted', 'success');
@@ -963,7 +1021,7 @@ async function saveFullProduct() {
     };
     try {
         const res = await fetch(`${API_URL}/inventory/${id}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            method: 'PUT', headers: authHeaders(), body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
@@ -1079,7 +1137,7 @@ async function saveNewWave() {
     };
     try {
         const res = await fetch(`${API_URL}/inventory/${id}/waves`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
@@ -1110,7 +1168,7 @@ async function saveEditWave(waveId) {
     };
     try {
         const res = await fetch(`${API_URL}/inventory/waves/${waveId}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            method: 'PUT', headers: authHeaders(), body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
@@ -1125,7 +1183,7 @@ async function deleteWave(waveId) {
     if (!confirm('Delete this wave? This will reduce total stock.')) return;
     const id = document.getElementById('drawer-id').value;
     try {
-        const res = await fetch(`${API_URL}/inventory/waves/${waveId}`, { method: 'DELETE' });
+        const res = await fetch(`${API_URL}/inventory/waves/${waveId}`, { method: 'DELETE', headers: authHeaders() });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Wave deleted', 'success');
@@ -1164,7 +1222,7 @@ async function saveDrawer() {
     };
     try {
         const res = await fetch(`${API_URL}/inventory/${id}`, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            method: 'PUT', headers: authHeaders(), body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
@@ -1191,7 +1249,7 @@ async function doBreakdown(parentId) {
 
     try {
         const res = await fetch(`${API_URL}/inventory/breakdown`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: authHeaders(),
             body: JSON.stringify({ parent_id: parentId, quantity: qty, custom_costs: customCosts })
         });
         const data = await res.json();
@@ -1223,7 +1281,7 @@ async function addProduct() {
     if (!data.card_name || !data.set_name) return showToast('Product name and set name are required', 'error');
     try {
         const res = await fetch(`${API_URL}/inventory/add`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
@@ -1237,7 +1295,7 @@ async function addProduct() {
 async function deleteProduct(id) {
     if (!confirm('Delete this product? This cannot be undone.')) return;
     try {
-        const res = await fetch(`${API_URL}/inventory/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_URL}/inventory/${id}`, { method: 'DELETE', headers: authHeaders() });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Product deleted', 'success');
@@ -1267,7 +1325,7 @@ async function saveBundleChild() {
     if (!childId) return showToast('Please select a child product', 'error');
     try {
         const res = await fetch(`${API_URL}/bundles`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: authHeaders(),
             body: JSON.stringify({ parent_product_id: parentId, child_product_id: childId, quantity_per_parent: qty, notes })
         });
         const json = await res.json();
@@ -1280,7 +1338,7 @@ async function saveBundleChild() {
 async function removeBundleChild(bundleId, setName) {
     if (!confirm('Remove this bundle relationship?')) return;
     try {
-        const res = await fetch(`${API_URL}/bundles/${bundleId}`, { method: 'DELETE' });
+        const res = await fetch(`${API_URL}/bundles/${bundleId}`, { method: 'DELETE', headers: authHeaders() });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Relationship removed', 'success');
