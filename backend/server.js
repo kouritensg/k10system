@@ -40,11 +40,18 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // --- AUTHENTICATE MIDDLEWARE (soft — enriches req.user, never blocks existing routes) ---
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const auth = req.headers.authorization;
   if (auth && auth.startsWith('Bearer ')) {
-    try { req.user = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET || 'secret'); }
-    catch (e) { req.user = { username: 'unknown' }; }
+    try {
+      const decoded = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET || 'secret');
+      // Old tokens lack username — look it up from DB using the id
+      if (!decoded.username && decoded.id) {
+        const [[staff]] = await db.execute('SELECT username FROM staff WHERE id = ?', [decoded.id]);
+        decoded.username = staff?.username || 'unknown';
+      }
+      req.user = decoded;
+    } catch (e) { req.user = { username: 'unknown' }; }
   } else { req.user = { username: 'unknown' }; }
   next();
 }
@@ -381,7 +388,7 @@ app.post('/api/inventory/:id/waves', authenticate, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
       [inventory_id, wave_name || 'Standard', cost_price || 0, initial_qty || 0, initial_qty || 0, arrival_date || new Date().toISOString().slice(0,10), invoice_number || null]
     );
-    const newTotal = await syncInventoryStock(inventory_id, conn, req.user.username, 'Wave Added');
+    const newTotal = await syncInventoryStock(inventory_id, conn, req.user.username, `Wave "${wave_name || 'Standard'}" Added`);
     await conn.commit();
     res.status(201).json({ id: result.insertId, message: 'Wave added', total_stock: newTotal });
   } catch (error) {
@@ -406,7 +413,7 @@ app.put('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
        WHERE id = ?`,
       [wave_name, cost_price, remaining_qty, arrival_date, invoice_number || null, wave_id]
     );
-    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, 'Wave Edited');
+    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, `Wave "${wave_name}" Edited`);
     await conn.commit();
     res.json({ message: 'Wave updated', total_stock: newTotal });
   } catch (error) {
@@ -422,11 +429,11 @@ app.delete('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const [[wave]] = await conn.execute('SELECT inventory_id FROM fifo WHERE id = ?', [wave_id]);
+    const [[wave]] = await conn.execute('SELECT inventory_id, wave_name FROM fifo WHERE id = ?', [wave_id]);
     if (!wave) throw new Error('Wave not found');
 
     await conn.execute('UPDATE fifo SET is_active = FALSE WHERE id = ?', [wave_id]);
-    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, 'Wave Deleted');
+    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, `Wave "${wave.wave_name}" Deleted`);
     await conn.commit();
     res.json({ message: 'Wave removed', total_stock: newTotal });
   } catch (error) {
