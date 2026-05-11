@@ -262,17 +262,18 @@ app.post('/api/inventory/add', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// Update product — updated, added set_name + is_bundle + quick_description
+// Update product — updated, added set_name + is_bundle + quick_description + long_description + card_id + card_name
 app.put('/api/inventory/:id', async (req, res) => {
-  const { price, stock_quantity, cost_price, category_id, set_name, is_bundle, quick_description } = req.body;
+  const { card_name, card_id, price, stock_quantity, cost_price, category_id, set_name, is_bundle, quick_description, long_description } = req.body;
   try {
     await db.execute(
       `UPDATE inventory
-       SET price = ?, stock_quantity = ?, cost_price = ?,
-           category_id = ?, set_name = ?, is_bundle = ?, quick_description = ?
+       SET card_name = ?, card_id = ?, price = ?, stock_quantity = ?, cost_price = ?,
+           category_id = ?, set_name = ?, is_bundle = ?, quick_description = ?, long_description = ?
        WHERE id = ?`,
-      [price, stock_quantity, cost_price || 0, category_id || null,
-       set_name || '', is_bundle || 0, quick_description || null, req.params.id]
+      [card_name || null, card_id || null, price, stock_quantity, cost_price || 0,
+       category_id || null, set_name || '', is_bundle || 0,
+       quick_description || null, long_description || null, req.params.id]
     );
     res.json({ message: 'Updated' });
   } catch (error) { res.status(500).json({ error: 'Update failed' }); }

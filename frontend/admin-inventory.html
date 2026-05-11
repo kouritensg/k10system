@@ -53,9 +53,13 @@
         </button>
     </div>
     <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div class="bg-gray-50 border-b px-5 py-3 flex justify-between items-center">
+        <div class="bg-gray-50 border-b px-5 py-3 flex flex-wrap justify-between items-center gap-3">
             <span class="text-xs font-bold text-gray-500 uppercase tracking-wide" id="tree-count">—</span>
-            <button onclick="loadFamilyTree(currentFamily)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
+            <div class="flex items-center gap-3 flex-1 justify-end">
+                <input type="text" id="tree-search" placeholder="Search products..." oninput="renderTreeBody()"
+                    class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" style="max-width:220px">
+                <button onclick="loadFamilyTree(currentFamily)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
+            </div>
         </div>
         <div id="tree-body"></div>
         <div id="tree-loading" class="py-16 text-center text-gray-400 text-sm">Loading...</div>
@@ -108,8 +112,16 @@
                         </div>
                     </div>
                     <div>
-                        <label class="field-label">Description</label>
-                        <textarea id="pe-desc" rows="3" class="w-full p-2 border border-gray-300 rounded text-sm" placeholder="Quick note..."></textarea>
+                        <label class="field-label">Card ID</label>
+                        <input type="text" id="pe-card-id" class="w-full p-2 border border-gray-300 rounded text-sm" placeholder="e.g. OP01-001">
+                    </div>
+                    <div>
+                        <label class="field-label">Short Description</label>
+                        <textarea id="pe-desc" rows="2" class="w-full p-2 border border-gray-300 rounded text-sm" placeholder="Quick note..."></textarea>
+                    </div>
+                    <div>
+                        <label class="field-label">Long Description</label>
+                        <textarea id="pe-long-desc" rows="4" class="w-full p-2 border border-gray-300 rounded text-sm" placeholder="Full product description..."></textarea>
                     </div>
                     <div class="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
                         <div>
@@ -545,6 +557,8 @@ async function loadFamilyTree(setName) {
     const body    = document.getElementById('tree-body');
     const loading = document.getElementById('tree-loading');
     const empty   = document.getElementById('tree-empty');
+    const searchEl = document.getElementById('tree-search');
+    if (searchEl) searchEl.value = '';
     body.innerHTML = '';
     loading.classList.remove('hidden');
     empty.classList.add('hidden');
@@ -555,13 +569,34 @@ async function loadFamilyTree(setName) {
         loading.classList.add('hidden');
         document.getElementById('tree-count').textContent = `${products.length} product${products.length !== 1 ? 's' : ''}`;
         if (!products.length) { empty.classList.remove('hidden'); return; }
-        body.innerHTML = products.map(p => renderProductRow(p, products)).join('');
-        document.querySelectorAll('.breakdown-toggle').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.getElementById(`bd-panel-${btn.dataset.id}`).classList.toggle('open');
-            });
-        });
+        renderTreeBody();
+        // update count label after filter applied
+        document.getElementById('tree-count').textContent = `${products.length} product${products.length !== 1 ? 's' : ''}`;
     } catch(e) { loading.textContent = 'Failed to load products.'; }
+}
+
+function renderTreeBody() {
+    const body   = document.getElementById('tree-body');
+    const empty  = document.getElementById('tree-empty');
+    const search = (document.getElementById('tree-search')?.value || '').toLowerCase();
+    const filtered = search
+        ? allProducts.filter(p =>
+            p.card_name.toLowerCase().includes(search) ||
+            (p.card_id || '').toLowerCase().includes(search) ||
+            (p.barcode  || '').toLowerCase().includes(search))
+        : allProducts;
+    if (!filtered.length) {
+        body.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+    body.innerHTML = filtered.map(p => renderProductRow(p, allProducts)).join('');
+    document.querySelectorAll('.breakdown-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById(`bd-panel-${btn.dataset.id}`).classList.toggle('open');
+        });
+    });
 }
 
 function renderProductRow(p, allProds) {
@@ -708,9 +743,11 @@ function populateFullEditView(p) {
     document.getElementById('pe-title').textContent = p.card_name;
     document.getElementById('pe-subtitle').textContent = p.category_name || '';
     document.getElementById('pe-name').value = p.card_name;
+    document.getElementById('pe-card-id').value = p.card_id || '';
     document.getElementById('pe-cost').value = parseFloat(p.cost_price || 0).toFixed(2);
     document.getElementById('pe-price').value = parseFloat(p.price || 0).toFixed(2);
     document.getElementById('pe-desc').value = p.quick_description || '';
+    document.getElementById('pe-long-desc').value = p.long_description || '';
     document.getElementById('pe-set').textContent = p.set_name || '—';
     document.getElementById('pe-game').textContent = p.game_title || '—';
     document.getElementById('pe-stock').textContent = p.stock_quantity || 0;
@@ -914,9 +951,11 @@ async function saveFullProduct() {
     const p  = allProducts.find(x => x.id == id);
     const data = {
         card_name:         document.getElementById('pe-name').value.trim(),
+        card_id:           document.getElementById('pe-card-id').value.trim() || null,
         price:             parseFloat(document.getElementById('pe-price').value) || 0,
         cost_price:        parseFloat(document.getElementById('pe-cost').value)  || 0,
-        quick_description: document.getElementById('pe-desc').value.trim(),
+        quick_description: document.getElementById('pe-desc').value.trim() || null,
+        long_description:  document.getElementById('pe-long-desc').value.trim() || null,
         stock_quantity:    parseInt(document.getElementById('pe-stock').textContent) || 0,
         set_name:          p?.set_name    || '',
         category_id:       p?.category_id || null,
