@@ -72,12 +72,12 @@ async function authenticate(req, res, next) {
 
 // --- CHANGE LOG HELPER ---
 async function logChange(conn, inventory_id, username, field_name, old_value, new_value, source) {
-  const oldNum = parseFloat(old_value) || 0;
-  const newNum = parseFloat(new_value) || 0;
-  if (Math.abs(oldNum - newNum) < 0.0001) return;
+  const oldStr = old_value == null ? '' : String(old_value).trim();
+  const newStr = new_value == null ? '' : String(new_value).trim();
+  if (oldStr === newStr) return;
   await conn.execute(
     'INSERT INTO inventory_change_log (inventory_id, changed_by, field_name, old_value, new_value, source) VALUES (?, ?, ?, ?, ?, ?)',
-    [inventory_id, username || 'unknown', field_name, oldNum, newNum, source]
+    [inventory_id, username || 'unknown', field_name, old_value ?? null, new_value ?? null, source]
   );
 }
 
@@ -402,7 +402,7 @@ app.post('/api/inventory/:id/waves', authenticate, async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
       [inventory_id, wave_name || 'Standard', cost_price || 0, initial_qty || 0, initial_qty || 0, arrival_date || new Date().toISOString().slice(0,10), invoice_number || null]
     );
-    const newTotal = await syncInventoryStock(inventory_id, conn, req.user.username, `Wave "${wave_name || 'Standard'}" Added`);
+    const newTotal = await syncInventoryStock(inventory_id, conn, req.user.username, `${wave_name || 'Standard'} Created`);
     await conn.commit();
     res.status(201).json({ id: result.insertId, message: 'Wave added', total_stock: newTotal });
   } catch (error) {
@@ -419,15 +419,33 @@ app.put('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const [[wave]] = await conn.execute('SELECT inventory_id FROM fifo WHERE id = ?', [wave_id]);
+    const [[wave]] = await conn.execute(
+      'SELECT inventory_id, wave_name, remaining_qty, invoice_number, arrival_date FROM fifo WHERE id = ?', [wave_id]
+    );
     if (!wave) throw new Error('Wave not found');
+
+    // Determine source label based on stock direction
+    const oldQty = Number(wave.remaining_qty);
+    const newQty = Number(remaining_qty);
+    let source;
+    if (newQty > oldQty)       source = `${wave_name} Restocked`;
+    else if (newQty < oldQty)  source = `${wave_name} Stock Deducted`;
+    else                        source = `${wave_name} Updated`;
 
     await conn.execute(
       `UPDATE fifo SET wave_name = ?, cost_price = ?, remaining_qty = ?, arrival_date = ?, invoice_number = ?
        WHERE id = ?`,
       [wave_name, cost_price, remaining_qty, arrival_date, invoice_number || null, wave_id]
     );
-    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, `Wave "${wave_name}" Edited`);
+
+    // Log invoice_number and arrival_date changes
+    await logChange(conn, wave.inventory_id, req.user.username, 'invoice_number',
+      wave.invoice_number, invoice_number || null, source);
+    await logChange(conn, wave.inventory_id, req.user.username, 'arrival_date',
+      wave.arrival_date ? String(wave.arrival_date).slice(0, 10) : null,
+      arrival_date || null, source);
+
+    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, source);
     await conn.commit();
     res.json({ message: 'Wave updated', total_stock: newTotal });
   } catch (error) {
@@ -447,7 +465,7 @@ app.delete('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
     if (!wave) throw new Error('Wave not found');
 
     await conn.execute('UPDATE fifo SET is_active = FALSE WHERE id = ?', [wave_id]);
-    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, `Wave "${wave.wave_name}" Deleted`);
+    const newTotal = await syncInventoryStock(wave.inventory_id, conn, req.user.username, `${wave.wave_name} Removed`);
     await conn.commit();
     res.json({ message: 'Wave removed', total_stock: newTotal });
   } catch (error) {

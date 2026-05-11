@@ -816,7 +816,11 @@ async function loadHistory(productId) {
             body.innerHTML = '<div class="py-8 text-center text-gray-400 text-sm">No changes recorded yet.</div>';
             return;
         }
-        const fieldLabel = { price: 'Sell Price', stock_quantity: 'Stock', cost_price: 'Cost Price' };
+        const fieldLabel = {
+            price: 'Sell Price', stock_quantity: 'Stock', cost_price: 'Cost Price',
+            invoice_number: 'Invoice No.', arrival_date: 'Arrival Date'
+        };
+        const numericFields = new Set(['price', 'cost_price', 'stock_quantity']);
         body.innerHTML = `<table class="w-full text-sm text-left">
             <thead class="bg-gray-50 border-b text-xs uppercase text-gray-500 tracking-wide">
                 <tr>
@@ -830,9 +834,17 @@ async function loadHistory(productId) {
             </thead>
             <tbody class="divide-y divide-gray-100">
                 ${rows.map(r => {
-                    const isPrice = r.field_name === 'price' || r.field_name === 'cost_price';
-                    const fmt = v => isPrice ? `$${parseFloat(v).toFixed(2)}` : parseFloat(v).toFixed(0);
-                    const dir = parseFloat(r.new_value) >= parseFloat(r.old_value) ? 'text-green-600' : 'text-red-500';
+                    const isNumeric = numericFields.has(r.field_name);
+                    const isPrice   = r.field_name === 'price' || r.field_name === 'cost_price';
+                    const fmt = v => {
+                        if (v == null || v === '') return '—';
+                        if (isPrice)   return `$${parseFloat(v).toFixed(2)}`;
+                        if (isNumeric) return parseFloat(v).toFixed(0);
+                        return v;
+                    };
+                    const dir = isNumeric
+                        ? (parseFloat(r.new_value) >= parseFloat(r.old_value) ? 'text-green-600' : 'text-red-500')
+                        : 'text-gray-900';
                     const date = new Date(r.changed_at).toLocaleString();
                     return `<tr class="hover:bg-gray-50">
                         <td class="px-4 py-2 text-gray-500 whitespace-nowrap">${date}</td>
