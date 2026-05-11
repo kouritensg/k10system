@@ -41,18 +41,27 @@ app.post('/api/auth/login', async (req, res) => {
 
 // --- AUTHENTICATE MIDDLEWARE (soft — enriches req.user, never blocks existing routes) ---
 async function authenticate(req, res, next) {
+  req.user = { username: 'unknown' };
   const auth = req.headers.authorization;
   if (auth && auth.startsWith('Bearer ')) {
-    try {
-      const decoded = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET || 'secret');
-      // Old tokens lack username — look it up from DB using the id
-      if (!decoded.username && decoded.id) {
+    let decoded;
+    try { decoded = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET || 'secret'); }
+    catch (e) { return next(); } // invalid token — stay as unknown, continue
+
+    req.user = decoded;
+
+    // Old tokens lack username — look it up from DB using the id
+    if (!decoded.username && decoded.id) {
+      try {
         const [[staff]] = await db.execute('SELECT username FROM staff WHERE id = ?', [decoded.id]);
-        decoded.username = staff?.username || 'unknown';
+        req.user.username = staff?.username || 'unknown';
+      } catch (dbErr) {
+        console.error('Auth DB lookup failed:', dbErr.message);
+        req.user.username = 'unknown';
       }
-      req.user = decoded;
-    } catch (e) { req.user = { username: 'unknown' }; }
-  } else { req.user = { username: 'unknown' }; }
+    }
+    if (!req.user.username) req.user.username = 'unknown';
+  }
   next();
 }
 
