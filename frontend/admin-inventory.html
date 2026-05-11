@@ -20,7 +20,7 @@
         </div>
         <button onclick="openAddProductModal()" class="btn-primary">
             <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-            Add Product
+            Add Family
         </button>
     </div>
     <div class="mb-3">
@@ -140,6 +140,19 @@
                 <h3 class="text-sm font-bold text-blue-800 mb-1">Total Stock</h3>
                 <div class="text-3xl font-black text-blue-900" id="pe-stock">0</div>
                 <p class="text-xs text-blue-600 mt-1">Calculated from all active waves.</p>
+            </div>
+
+            <!-- Bundle Children Card — visible only for bundle products -->
+            <div id="pe-bundle-section" class="hidden bg-white rounded-xl border border-blue-200 p-5 shadow-sm">
+                <div class="flex justify-between items-center mb-3 border-b pb-2">
+                    <h3 class="text-base font-bold text-gray-800">Bundle Children</h3>
+                    <button onclick="openBundlePeModal()" class="text-sm bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded font-medium hover:bg-blue-100 transition">
+                        + Add Child
+                    </button>
+                </div>
+                <div id="pe-bundle-children" class="space-y-2">
+                    <div class="text-xs text-gray-400 text-center py-2">No children linked.</div>
+                </div>
             </div>
         </div>
 
@@ -333,14 +346,14 @@
 
 <!-- ADD PRODUCT MODAL -->
 <div id="add-modal" class="modal-backdrop">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width:560px">
         <div class="modal-header">
             <h2 class="modal-title">Add Product</h2>
             <button onclick="closeAddProductModal()" class="modal-close">
                 <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         </div>
-        <div class="space-y-3">
+        <div class="space-y-4">
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="field-label">Game *</label>
@@ -365,16 +378,19 @@
                 <label class="field-label">Product Name *</label>
                 <input type="text" id="add-name" placeholder="e.g. OP17 Booster Box">
             </div>
-            <div class="grid grid-cols-3 gap-3">
-                <div><label class="field-label">Cost ($)</label><input type="number" id="add-cost" placeholder="0.00" step="0.01"></div>
-                <div><label class="field-label">Sell ($)</label><input type="number" id="add-price" placeholder="0.00" step="0.01"></div>
-                <div><label class="field-label">Stock</label><input type="number" id="add-stock" placeholder="0"></div>
+            <div>
+                <label class="field-label">Short Description</label>
+                <input type="text" id="add-desc" placeholder="Quick note shown on cards...">
             </div>
             <div>
-                <label class="field-label">Barcode</label>
-                <input type="text" id="add-barcode" placeholder="Optional">
+                <label class="field-label">Long Description</label>
+                <textarea id="add-long-desc" rows="3" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;resize:vertical" placeholder="Full product description, contents, etc..."></textarea>
             </div>
-            <label class="flex items-center gap-2 cursor-pointer select-none pt-1">
+            <div>
+                <label class="field-label">Sell Price ($) <span class="normal-case font-normal text-gray-400">— optional, update via waves later</span></label>
+                <input type="number" id="add-price" placeholder="0.00" step="0.01">
+            </div>
+            <label class="flex items-center gap-2 cursor-pointer select-none">
                 <input type="checkbox" id="add-is-bundle" class="w-4 h-4">
                 <span class="text-sm text-gray-700 font-medium">This is a bundle product</span>
                 <span class="badge badge-blue">contains children</span>
@@ -765,6 +781,15 @@ function populateFullEditView(p) {
     document.getElementById('pe-set').textContent = p.set_name || '—';
     document.getElementById('pe-game').textContent = p.game_title || '—';
     document.getElementById('pe-stock').textContent = p.stock_quantity || 0;
+
+    // Bundle children section
+    const bundleSection = document.getElementById('pe-bundle-section');
+    if (p.is_bundle) {
+        bundleSection.classList.remove('hidden');
+        renderPeBundleChildren(p.children || []);
+    } else {
+        bundleSection.classList.add('hidden');
+    }
 }
 
 async function refreshFullEditView() {
@@ -1279,16 +1304,15 @@ function openAddProductModal() {
 function closeAddProductModal() { document.getElementById('add-modal').classList.remove('open'); }
 async function addProduct() {
     const data = {
-        game_title:     document.getElementById('add-game').value,
-        set_name:       document.getElementById('add-set-name').value.trim(),
-        category_id:    document.getElementById('add-category').value,
-        card_id:        document.getElementById('add-card-id').value,
-        card_name:      document.getElementById('add-name').value.trim(),
-        cost_price:     document.getElementById('add-cost').value,
-        price:          document.getElementById('add-price').value,
-        stock_quantity: document.getElementById('add-stock').value,
-        barcode:        document.getElementById('add-barcode').value,
-        is_bundle:      document.getElementById('add-is-bundle').checked ? 1 : 0
+        game_title:        document.getElementById('add-game').value,
+        set_name:          document.getElementById('add-set-name').value.trim(),
+        category_id:       document.getElementById('add-category').value,
+        card_id:           document.getElementById('add-card-id').value.trim() || null,
+        card_name:         document.getElementById('add-name').value.trim(),
+        price:             parseFloat(document.getElementById('add-price').value) || 0,
+        quick_description: document.getElementById('add-desc').value.trim() || null,
+        long_description:  document.getElementById('add-long-desc').value.trim() || null,
+        is_bundle:         document.getElementById('add-is-bundle').checked ? 1 : 0
     };
     if (!data.card_name || !data.set_name) return showToast('Product name and set name are required', 'error');
     try {
@@ -1345,6 +1369,13 @@ async function saveBundleChild() {
         showToast('Child product linked!', 'success');
         closeBundleModal();
         await loadFamilyTree(currentFamily);
+        // Refresh bundle section if advanced edit is open
+        const peView = document.getElementById('product-edit-view');
+        if (!peView.classList.contains('hidden')) {
+            const peId = parseInt(document.getElementById('pe-id').value);
+            const p = allProducts.find(x => x.id === peId);
+            if (p) renderPeBundleChildren(p.children || []);
+        }
     } catch(e) { showToast(e.message, 'error'); }
 }
 async function removeBundleChild(bundleId, setName) {
@@ -1355,6 +1386,48 @@ async function removeBundleChild(bundleId, setName) {
         if (!res.ok) throw new Error(json.error);
         showToast('Relationship removed', 'success');
         await loadFamilyTree(setName);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+// Bundle children helpers for Advanced Edit view
+function openBundlePeModal() {
+    const id = parseInt(document.getElementById('pe-id').value);
+    const p  = allProducts.find(x => x.id === id);
+    if (!p) return;
+    openBundleModal(id, p.card_name);
+}
+function renderPeBundleChildren(children) {
+    const container = document.getElementById('pe-bundle-children');
+    if (!children.length) {
+        container.innerHTML = '<div class="text-xs text-gray-400 text-center py-3">No children linked yet. Click "+ Add Child" to link products.</div>';
+        return;
+    }
+    container.innerHTML = children.map(c => `
+        <div class="flex items-center justify-between bg-gray-50 rounded-lg p-2.5 text-sm border border-gray-200">
+            <div class="flex items-center gap-2 min-w-0">
+                <span class="font-medium text-gray-800 truncate">${c.child_name}</span>
+                <span class="badge badge-gray shrink-0">× ${c.quantity_per_parent}</span>
+            </div>
+            <div class="flex items-center gap-3 shrink-0 ml-2">
+                <span class="text-xs text-gray-400">${c.child_stock} in stock</span>
+                <button onclick="removePeBundleChild(${c.bundle_id})" class="text-red-300 hover:text-red-500 transition-colors" title="Remove relationship">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>`).join('');
+}
+async function removePeBundleChild(bundleId) {
+    if (!confirm('Remove this bundle relationship?')) return;
+    try {
+        const res = await fetch(`${API_URL}/bundles/${bundleId}`, { method: 'DELETE', headers: authHeaders() });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Relationship removed', 'success');
+        await loadFamilyTree(currentFamily);
+        // Refresh PE bundle section
+        const peId = parseInt(document.getElementById('pe-id').value);
+        const p = allProducts.find(x => x.id === peId);
+        if (p) renderPeBundleChildren(p.children || []);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
