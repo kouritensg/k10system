@@ -154,6 +154,24 @@
                     <div class="text-xs text-gray-400 text-center py-2">No children linked.</div>
                 </div>
             </div>
+
+            <!-- Breakdown Card — visible only for bundle products that have children -->
+            <div id="pe-breakdown-section" class="hidden bg-amber-50 rounded-xl border border-amber-200 p-5 shadow-sm">
+                <div class="flex items-center gap-2 mb-3 border-b border-amber-200 pb-2">
+                    <svg width="15" height="15" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <h3 class="text-base font-bold text-amber-800">Break Down Bundle</h3>
+                </div>
+                <div id="pe-breakdown-body" class="space-y-3 mb-4"></div>
+                <div class="flex items-center gap-3 pt-3 border-t border-amber-200">
+                    <label class="text-sm text-gray-700 whitespace-nowrap font-medium">Qty to break:</label>
+                    <input type="number" id="pe-bd-qty" value="1" min="1"
+                        style="width:70px;padding:6px 10px;font-size:13px;border:1px solid #d1d5db;border-radius:6px;background:white;">
+                    <button onclick="doPeBreakdown()"
+                        class="bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition shadow-sm ml-auto">
+                        Confirm Breakdown
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Right Column: Waves Management -->
@@ -782,13 +800,14 @@ function populateFullEditView(p) {
     document.getElementById('pe-game').textContent = p.game_title || '—';
     document.getElementById('pe-stock').textContent = p.stock_quantity || 0;
 
-    // Bundle children section
-    const bundleSection = document.getElementById('pe-bundle-section');
+    // Bundle children + breakdown sections
     if (p.is_bundle) {
-        bundleSection.classList.remove('hidden');
+        document.getElementById('pe-bundle-section').classList.remove('hidden');
         renderPeBundleChildren(p.children || []);
+        renderPeBreakdownSection(p);
     } else {
-        bundleSection.classList.add('hidden');
+        document.getElementById('pe-bundle-section').classList.add('hidden');
+        document.getElementById('pe-breakdown-section').classList.add('hidden');
     }
 }
 
@@ -1369,12 +1388,12 @@ async function saveBundleChild() {
         showToast('Child product linked!', 'success');
         closeBundleModal();
         await loadFamilyTree(currentFamily);
-        // Refresh bundle section if advanced edit is open
+        // Refresh bundle + breakdown sections if advanced edit is open
         const peView = document.getElementById('product-edit-view');
         if (!peView.classList.contains('hidden')) {
             const peId = parseInt(document.getElementById('pe-id').value);
             const p = allProducts.find(x => x.id === peId);
-            if (p) renderPeBundleChildren(p.children || []);
+            if (p) { renderPeBundleChildren(p.children || []); renderPeBreakdownSection(p); }
         }
     } catch(e) { showToast(e.message, 'error'); }
 }
@@ -1424,10 +1443,84 @@ async function removePeBundleChild(bundleId) {
         if (!res.ok) throw new Error(json.error);
         showToast('Relationship removed', 'success');
         await loadFamilyTree(currentFamily);
-        // Refresh PE bundle section
+        // Refresh PE bundle + breakdown sections
         const peId = parseInt(document.getElementById('pe-id').value);
         const p = allProducts.find(x => x.id === peId);
-        if (p) renderPeBundleChildren(p.children || []);
+        if (p) { renderPeBundleChildren(p.children || []); renderPeBreakdownSection(p); }
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+function renderPeBreakdownSection(p) {
+    const section = document.getElementById('pe-breakdown-section');
+    // Only show when it's a bundle AND has children to break into
+    if (!p.is_bundle || !p.children || p.children.length === 0) {
+        section.classList.add('hidden');
+        return;
+    }
+    section.classList.remove('hidden');
+
+    // Wave hint message
+    const childSummary = p.children.map(c => `${c.quantity_per_parent}× ${c.child_name}`).join(', ');
+    let waveMsg = `Breaking down adds <strong>${childSummary}</strong> per unit (uses oldest active FIFO wave).`;
+    if (p.waves && p.waves.length > 0) {
+        const w1 = p.waves[0];
+        const totalChildren = p.children.reduce((s, c) => s + c.quantity_per_parent, 0);
+        const w1Cost = parseFloat(w1.cost_price || 0);
+        const recCost = totalChildren > 0 ? (w1Cost / totalChildren).toFixed(2) : '0.00';
+        waveMsg = `W1 (FIFO #${w1.id || 'N/A'}) total cost $${w1Cost.toFixed(2)} → recommended cost per child: <strong>$${recCost}</strong>`;
+    }
+
+    const childInputs = p.children.map(c => `
+        <div class="flex items-center justify-between gap-2">
+            <label class="text-sm text-gray-700 truncate" title="${esc(c.child_name)}">${c.child_name}</label>
+            <div class="flex items-center gap-1 shrink-0">
+                <span class="text-gray-400 text-xs">$</span>
+                <input type="number" step="0.01" min="0"
+                    class="pe-bd-child-cost"
+                    data-child-id="${c.child_product_id}"
+                    placeholder="Auto (FIFO)"
+                    style="width:90px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;background:white;">
+            </div>
+        </div>`).join('');
+
+    document.getElementById('pe-breakdown-body').innerHTML = `
+        <div class="flex items-start gap-2 text-sm text-amber-800 bg-white/60 rounded p-2.5 border border-amber-200">
+            <svg width="14" height="14" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24" class="mt-0.5 shrink-0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>${waveMsg}</span>
+        </div>
+        <div class="bg-white/70 rounded border border-amber-200 p-3 space-y-2">
+            <div class="text-[10px] text-gray-500 font-bold uppercase mb-1">Set Child Cost per Unit (optional override)</div>
+            ${childInputs}
+        </div>`;
+
+    document.getElementById('pe-bd-qty').max = p.stock_quantity;
+}
+
+async function doPeBreakdown() {
+    const id  = parseInt(document.getElementById('pe-id').value);
+    const qty = parseInt(document.getElementById('pe-bd-qty').value) || 1;
+    const customCosts = {};
+    document.querySelectorAll('.pe-bd-child-cost').forEach(input => {
+        const childId  = input.getAttribute('data-child-id');
+        const costVal  = parseFloat(input.value);
+        if (!isNaN(costVal) && input.value !== '') customCosts[childId] = costVal;
+    });
+    try {
+        const res = await fetch(`${API_URL}/inventory/breakdown`, {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ parent_id: id, quantity: qty, custom_costs: customCosts })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast(data.message, 'success');
+        // Refresh tree + PE view
+        await loadFamilyTree(currentFamily);
+        const p = allProducts.find(x => x.id === id);
+        if (p) {
+            document.getElementById('pe-stock').textContent = p.stock_quantity || 0;
+            renderPeBreakdownSection(p);
+        }
+        await loadPeWaves(id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
