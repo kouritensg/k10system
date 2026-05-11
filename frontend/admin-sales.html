@@ -278,7 +278,8 @@
             };
 
             const res = await fetch(`${API_URL}/sales`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` },
                 body: JSON.stringify(payload)
             });
             if (res.ok) { alert("Order Saved!"); location.reload(); }
