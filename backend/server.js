@@ -172,10 +172,12 @@ app.get('/api/inventory/families', async (req, res) => {
       SELECT
         i.set_name,
         i.game_title,
-        c.name              AS category_name,
-        COUNT(*)            AS category_count,
-        SUM(i.stock_quantity) AS category_stock,
-        SUM(i.is_bundle)    AS category_bundles
+        c.name                                       AS category_name,
+        COUNT(*)                                     AS category_count,
+        SUM(i.stock_quantity)                        AS category_stock,
+        SUM(i.is_bundle)                             AS category_bundles,
+        SUM(i.stock_quantity * i.cost_price)         AS category_cost_value,
+        SUM(i.stock_quantity * i.price)              AS category_retail_value
       FROM inventory i
       LEFT JOIN categories c ON c.id = i.category_id
       GROUP BY i.set_name, i.game_title, i.category_id, c.name
@@ -189,16 +191,20 @@ app.get('/api/inventory/families', async (req, res) => {
         familyMap[key] = {
           set_name: row.set_name,
           game_title: row.game_title,
-          total_products: 0,
-          total_stock: 0,
-          bundle_count: 0,
+          total_products:    0,
+          total_stock:       0,
+          bundle_count:      0,
+          total_cost_value:   0,
+          total_retail_value: 0,
           categories: []
         };
       }
       const f = familyMap[key];
-      f.total_products += Number(row.category_count);
-      f.total_stock    += Number(row.category_stock);
-      f.bundle_count   += Number(row.category_bundles);
+      f.total_products    += Number(row.category_count);
+      f.total_stock       += Number(row.category_stock);
+      f.bundle_count      += Number(row.category_bundles);
+      f.total_cost_value  += Number(row.category_cost_value   || 0);
+      f.total_retail_value+= Number(row.category_retail_value || 0);
       f.categories.push({ name: row.category_name || 'Uncategorized', stock: Number(row.category_stock) });
     });
 

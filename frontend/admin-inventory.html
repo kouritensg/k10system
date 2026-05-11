@@ -26,6 +26,10 @@
     <div class="mb-3">
         <input type="text" id="family-search" placeholder="Search families..." style="max-width:260px">
     </div>
+
+    <!-- Inventory Value Summary Bar -->
+    <div id="inventory-summary" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"></div>
+
     <div class="mb-4 border-b border-gray-200">
         <div id="game-tabs" class="flex flex-wrap gap-0"></div>
     </div>
@@ -61,6 +65,8 @@
                 <button onclick="loadFamilyTree(currentFamily)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
             </div>
         </div>
+        <!-- Category filter pills — hidden when only 1 category -->
+        <div id="tree-cat-filter" class="hidden px-5 py-2.5 border-b bg-white flex flex-wrap gap-1.5"></div>
         <div id="tree-body"></div>
         <div id="tree-loading" class="py-16 text-center text-gray-400 text-sm">Loading...</div>
         <div id="tree-empty" class="hidden py-16 text-center text-gray-400 text-sm">No products in this family.</div>
@@ -462,11 +468,12 @@ const API_URL = 'https://k10system.onrender.com/api';
 function authHeaders() {
   return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
 }
-let categories   = [];
-let allProducts  = [];
+let categories    = [];
+let allProducts   = [];
 let currentFamily = null;
-let familyData   = [];
-let activeGame   = '';
+let familyData    = [];
+let activeGame    = '';
+let activeCategory = '';
 
 const GAME_LIST = [
   { label: 'All',                  value: '' },
@@ -515,6 +522,7 @@ async function loadFamilies() {
         familyData = await res.json();
         renderTabs();
         renderFamilyGrid();
+        renderInventorySummary();
     } catch(e) {
         document.getElementById('family-grid').innerHTML =
             `<div class="col-span-full text-center py-16 text-red-400 text-sm">Failed to load inventory.</div>`;
@@ -566,6 +574,17 @@ function renderFamilyGrid() {
             .filter(c => c.stock > 0)
             .map(c => `<span class="cat-stock-item"><span class="font-semibold ${sc}">${c.stock}</span> <span class="text-gray-500">${c.name}</span></span>`)
             .join('<span class="text-gray-300 mx-1">·</span>');
+        const costVal   = parseFloat(f.total_cost_value   || 0);
+        const retailVal = parseFloat(f.total_retail_value || 0);
+        const valueRow  = costVal > 0 || retailVal > 0
+            ? `<div class="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 text-xs">
+                   <span class="text-gray-400">Cost</span>
+                   <span class="font-semibold text-gray-600">$${costVal.toFixed(0)}</span>
+                   <span class="text-gray-300">·</span>
+                   <span class="text-gray-400">Retail</span>
+                   <span class="font-semibold text-green-600">$${retailVal.toFixed(0)}</span>
+               </div>`
+            : '';
         return `
         <div class="family-card fade-in" onclick="openFamily('${esc(f.set_name)}', '${esc(f.game_title||'')}')">
             <div class="flex items-start justify-between mb-3">
@@ -580,12 +599,35 @@ function renderFamilyGrid() {
             <div class="flex flex-wrap items-center gap-y-1 text-sm">
                 ${catBreakdown || `<span class="text-gray-400">No stock</span>`}
             </div>
+            ${valueRow}
         </div>`;
     }).join('');
 }
 
+function renderInventorySummary() {
+    const el = document.getElementById('inventory-summary');
+    if (!familyData.length) { el.innerHTML = ''; return; }
+    const totalSKUs   = familyData.reduce((s, f) => s + f.total_products,    0);
+    const totalStock  = familyData.reduce((s, f) => s + f.total_stock,        0);
+    const totalCost   = familyData.reduce((s, f) => s + parseFloat(f.total_cost_value   || 0), 0);
+    const totalRetail = familyData.reduce((s, f) => s + parseFloat(f.total_retail_value || 0), 0);
+    const margin      = totalRetail > 0 ? ((totalRetail - totalCost) / totalRetail * 100) : 0;
+    const stat = (label, value, sub, color = 'text-gray-900') => `
+        <div class="bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm">
+            <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-0.5">${label}</div>
+            <div class="text-xl font-black ${color}">${value}</div>
+            ${sub ? `<div class="text-[10px] text-gray-400 mt-0.5">${sub}</div>` : ''}
+        </div>`;
+    el.innerHTML =
+        stat('Total SKUs',     totalSKUs.toLocaleString(),          `across ${familyData.length} families`) +
+        stat('Units in Stock', totalStock.toLocaleString(),         'combined stock') +
+        stat('Cost Value',     `$${totalCost.toFixed(0)}`,          'at weighted avg cost', 'text-gray-700') +
+        stat('Retail Value',   `$${totalRetail.toFixed(0)}`,        `${margin.toFixed(1)}% gross margin`, 'text-green-600');
+}
+
 async function openFamily(setName, gameTitle) {
-    currentFamily = setName;
+    currentFamily  = setName;
+    activeCategory = '';
     document.getElementById('family-view').classList.add('hidden');
     document.getElementById('tree-view').classList.remove('hidden');
     document.getElementById('tree-view').classList.add('fade-in');
@@ -617,22 +659,47 @@ async function loadFamilyTree(setName) {
         loading.classList.add('hidden');
         document.getElementById('tree-count').textContent = `${products.length} product${products.length !== 1 ? 's' : ''}`;
         if (!products.length) { empty.classList.remove('hidden'); return; }
+        renderCategoryPills();
         renderTreeBody();
-        // update count label after filter applied
-        document.getElementById('tree-count').textContent = `${products.length} product${products.length !== 1 ? 's' : ''}`;
     } catch(e) { loading.textContent = 'Failed to load products.'; }
+}
+
+function renderCategoryPills() {
+    const bar = document.getElementById('tree-cat-filter');
+    const cats = [...new Set(allProducts.map(p => p.category_name).filter(Boolean))].sort();
+    // Hide pill bar when there's only one category (nothing to filter)
+    if (cats.length <= 1) { bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+    bar.innerHTML = ['All', ...cats].map(cat => {
+        const val     = cat === 'All' ? '' : cat;
+        const active  = activeCategory === val;
+        const count   = val ? allProducts.filter(p => p.category_name === val).length : allProducts.length;
+        return `<button onclick="setCategoryFilter('${val}')"
+            class="px-3 py-1 rounded-full text-xs font-bold border transition-colors
+                   ${active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-500'}">
+            ${cat} <span class="${active ? 'opacity-70' : 'text-gray-400'}">${count}</span>
+        </button>`;
+    }).join('');
+}
+
+function setCategoryFilter(val) {
+    activeCategory = val;
+    renderCategoryPills();
+    renderTreeBody();
 }
 
 function renderTreeBody() {
     const body   = document.getElementById('tree-body');
     const empty  = document.getElementById('tree-empty');
     const search = (document.getElementById('tree-search')?.value || '').toLowerCase();
-    const filtered = search
-        ? allProducts.filter(p =>
+    const filtered = allProducts.filter(p => {
+        const matchSearch = !search ||
             p.card_name.toLowerCase().includes(search) ||
             (p.card_id || '').toLowerCase().includes(search) ||
-            (p.barcode  || '').toLowerCase().includes(search))
-        : allProducts;
+            (p.barcode  || '').toLowerCase().includes(search);
+        const matchCat = !activeCategory || p.category_name === activeCategory;
+        return matchSearch && matchCat;
+    });
     if (!filtered.length) {
         body.innerHTML = '';
         empty.classList.remove('hidden');
@@ -640,6 +707,10 @@ function renderTreeBody() {
     }
     empty.classList.add('hidden');
     body.innerHTML = filtered.map(p => renderProductRow(p, allProducts)).join('');
+    // Update count to reflect active filters
+    const suffix = (filtered.length !== allProducts.length) ? ` of ${allProducts.length}` : '';
+    document.getElementById('tree-count').textContent =
+        `${filtered.length}${suffix} product${filtered.length !== 1 ? 's' : ''}`;
     document.querySelectorAll('.breakdown-toggle').forEach(btn => {
         btn.addEventListener('click', () => {
             document.getElementById(`bd-panel-${btn.dataset.id}`).classList.toggle('open');
