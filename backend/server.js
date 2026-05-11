@@ -39,6 +39,11 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Login error' }); }
 });
 
+// Debug endpoint — returns what the server resolves from the current token
+app.get('/api/auth/me', authenticate, (req, res) => {
+  res.json({ resolved_user: req.user });
+});
+
 // --- AUTHENTICATE MIDDLEWARE (soft — enriches req.user, never blocks existing routes) ---
 async function authenticate(req, res, next) {
   req.user = { username: 'unknown' };
@@ -56,7 +61,7 @@ async function authenticate(req, res, next) {
         const [[staff]] = await db.execute('SELECT username FROM staff WHERE id = ?', [decoded.id]);
         req.user.username = staff?.username || 'unknown';
       } catch (dbErr) {
-        console.error('Auth DB lookup failed:', dbErr.message);
+        console.error('[auth] DB lookup failed:', dbErr.message);
         req.user.username = 'unknown';
       }
     }
