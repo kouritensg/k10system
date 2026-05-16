@@ -263,9 +263,9 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
         WHERE is_active = TRUE AND remaining_qty > 0 AND inventory_id IN (${placeholders})
       `, productIds),
       db.execute(`
-        SELECT id, parent_product_id, reserved_qty, type, notes
+        SELECT id, parent_product_id, reserved_qty, \`type\`, notes
         FROM inventory_reservations
-        WHERE parent_product_id IN (${placeholders}) AND status = 'pending'
+        WHERE parent_product_id IN (${placeholders}) AND \`status\` = 'pending'
       `, productIds),
     ]);
 
@@ -700,7 +700,7 @@ app.post('/api/inventory/breakdown/reserve', async (req, res) => {
 
     // Upsert: one pending reservation per (product, type)
     const [[existing]] = await db.execute(
-      'SELECT id FROM inventory_reservations WHERE parent_product_id = ? AND type = ? AND status = \'pending\'',
+      'SELECT id FROM inventory_reservations WHERE parent_product_id = ? AND `type` = ? AND `status` = \'pending\'',
       [parent_id, type]
     );
 
@@ -712,7 +712,7 @@ app.post('/api/inventory/breakdown/reserve', async (req, res) => {
       res.json({ id: existing.id, reserved_qty: quantity, message: `Reservation updated to ${quantity} unit(s)` });
     } else {
       const [result] = await db.execute(
-        'INSERT INTO inventory_reservations (parent_product_id, reserved_qty, type, notes) VALUES (?, ?, ?, ?)',
+        'INSERT INTO inventory_reservations (parent_product_id, reserved_qty, `type`, notes) VALUES (?, ?, ?, ?)',
         [parent_id, quantity, type, notes || null]
       );
       res.json({ id: result.insertId, reserved_qty: quantity, message: `Reserved ${quantity} unit(s) for ${type}` });
@@ -726,7 +726,7 @@ app.post('/api/inventory/breakdown/reserve', async (req, res) => {
 app.delete('/api/inventory/breakdown/reserve/:id', async (req, res) => {
   try {
     const [[reservation]] = await db.execute(
-      'SELECT id, status FROM inventory_reservations WHERE id = ?', [req.params.id]
+      'SELECT id, `status` FROM inventory_reservations WHERE id = ?', [req.params.id]
     );
     if (!reservation) return res.status(404).json({ error: 'Reservation not found' });
     if (reservation.status !== 'pending') {
@@ -748,7 +748,7 @@ app.post('/api/inventory/breakdown/reserve/:id/commit', async (req, res) => {
   const conn = await db.getConnection();
   try {
     const [[reservation]] = await conn.execute(
-      'SELECT id, parent_product_id, reserved_qty, type, status FROM inventory_reservations WHERE id = ?',
+      'SELECT id, parent_product_id, reserved_qty, `type`, `status` FROM inventory_reservations WHERE id = ?',
       [req.params.id]
     );
     if (!reservation) return res.status(404).json({ error: 'Reservation not found' });
