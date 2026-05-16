@@ -700,7 +700,7 @@ app.post('/api/inventory/breakdown/reserve', async (req, res) => {
 
     // Upsert: one pending reservation per (product, type)
     const [[existing]] = await db.execute(
-      'SELECT id FROM inventory_reservations WHERE parent_product_id = ? AND type = ? AND status = "pending"',
+      'SELECT id FROM inventory_reservations WHERE parent_product_id = ? AND type = ? AND status = \'pending\'',
       [parent_id, type]
     );
 
@@ -733,7 +733,7 @@ app.delete('/api/inventory/breakdown/reserve/:id', async (req, res) => {
       return res.status(400).json({ error: 'Only pending reservations can be cancelled' });
     }
     await db.execute(
-      'UPDATE inventory_reservations SET status = "cancelled", updated_at = NOW() WHERE id = ?',
+      'UPDATE inventory_reservations SET status = \'cancelled\', updated_at = NOW() WHERE id = ?',
       [req.params.id]
     );
     res.json({ message: 'Reservation cancelled' });
@@ -769,7 +769,7 @@ app.post('/api/inventory/breakdown/reserve/:id/commit', async (req, res) => {
 
     if (qtyToBreak >= reservation.reserved_qty) {
       await conn.execute(
-        'UPDATE inventory_reservations SET status = "committed", updated_at = NOW() WHERE id = ?',
+        'UPDATE inventory_reservations SET status = \'committed\', updated_at = NOW() WHERE id = ?',
         [reservation.id]
       );
     } else {
