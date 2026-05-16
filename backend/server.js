@@ -244,7 +244,7 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
     const placeholders = productIds.map(() => '?').join(',');
 
     // Run children and waves queries in parallel using already-fetched IDs
-    const [[children], [waves]] = await Promise.all([
+    const [[children], [waves], [reservations]] = await Promise.all([
       db.execute(`
         SELECT
           pb.parent_product_id,
@@ -262,6 +262,11 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
         FROM fifo
         WHERE is_active = TRUE AND remaining_qty > 0 AND inventory_id IN (${placeholders})
       `, productIds),
+      db.execute(`
+        SELECT id, parent_product_id, reserved_qty, type, notes
+        FROM inventory_reservations
+        WHERE parent_product_id IN (${placeholders}) AND status = 'pending'
+      `, productIds),
     ]);
 
     // Attach children array to each product
@@ -277,10 +282,17 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
       waveMap[w.inventory_id].push(w);
     });
 
+    const reservationMap = {};
+    reservations.forEach(r => {
+      if (!reservationMap[r.parent_product_id]) reservationMap[r.parent_product_id] = [];
+      reservationMap[r.parent_product_id].push(r);
+    });
+
     const result = rows.map(r => ({
       ...r,
       children: childMap[r.id] || [],
-      waves: waveMap[r.id] || []
+      waves: waveMap[r.id] || [],
+      reservations: reservationMap[r.id] || []
     }));
 
     res.json(result);
@@ -533,140 +545,242 @@ app.delete('/api/bundles/:id', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to remove relationship' }); }
 });
 
+// Shared breakdown logic — called by both the direct route and the commit-reservation route
+async function executeBreakdown(conn, parent_id, quantity, custom_costs) {
+  const [[parent]] = await conn.execute(
+    'SELECT stock_quantity, card_name FROM inventory WHERE id = ?', [parent_id]
+  );
+  if (!parent) throw new Error('Product not found');
+  if (parent.stock_quantity < quantity) {
+    throw new Error(`Insufficient stock. Only ${parent.stock_quantity} unit(s) available`);
+  }
+
+  const [children] = await conn.execute(
+    'SELECT child_product_id, quantity_per_parent FROM product_bundles WHERE parent_product_id = ?',
+    [parent_id]
+  );
+  if (children.length === 0) throw new Error('Product has no children configured for breakdown');
+
+  const [parentWaves] = await conn.execute(
+    'SELECT id, remaining_qty, cost_price, wave_name, arrival_date, invoice_number FROM fifo WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0 ORDER BY arrival_date ASC, id ASC',
+    [parent_id]
+  );
+
+  let remainingToBreak = quantity;
+  const waveDeductions = [];
+
+  for (let wave of parentWaves) {
+    if (remainingToBreak <= 0) break;
+    let deductQty = Math.min(wave.remaining_qty, remainingToBreak);
+    remainingToBreak -= deductQty;
+    waveDeductions.push({
+      wave_id: wave.id,
+      cost_price: wave.cost_price,
+      qty: deductQty,
+      wave_name: wave.wave_name,
+      arrival_date: wave.arrival_date,
+      invoice_number: wave.invoice_number
+    });
+  }
+
+  if (remainingToBreak > 0) {
+    throw new Error('Not enough remaining quantity in active parent waves to break down this amount. Please verify wave stocks.');
+  }
+
+  for (let deduction of waveDeductions) {
+    await conn.execute(
+      'UPDATE fifo SET remaining_qty = remaining_qty - ? WHERE id = ?',
+      [deduction.qty, deduction.wave_id]
+    );
+
+    for (let child of children) {
+      let childQtyToCreate = deduction.qty * child.quantity_per_parent;
+      let childCostPrice = (parseFloat(deduction.cost_price) / child.quantity_per_parent).toFixed(2);
+
+      if (custom_costs && custom_costs[child.child_product_id] !== undefined) {
+        childCostPrice = parseFloat(custom_costs[child.child_product_id]).toFixed(2);
+      }
+
+      let newWaveName = `Breakdown from ${deduction.wave_name}`;
+
+      let queryStr = 'SELECT id, initial_qty, remaining_qty FROM fifo WHERE inventory_id = ? AND wave_name = ? AND is_active = TRUE';
+      let queryParams = [child.child_product_id, newWaveName];
+
+      if (deduction.invoice_number === null || deduction.invoice_number === undefined) {
+        queryStr += ' AND invoice_number IS NULL';
+      } else {
+        queryStr += ' AND invoice_number = ?';
+        queryParams.push(deduction.invoice_number);
+      }
+      queryStr += ' LIMIT 1';
+
+      const [existingChildWave] = await conn.execute(queryStr, queryParams);
+      let childWaveId;
+
+      if (existingChildWave.length > 0) {
+        childWaveId = existingChildWave[0].id;
+        await conn.execute(
+          'UPDATE fifo SET initial_qty = initial_qty + ?, remaining_qty = remaining_qty + ? WHERE id = ?',
+          [childQtyToCreate, childQtyToCreate, childWaveId]
+        );
+      } else {
+        const [childWaveResult] = await conn.execute(
+          `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number)
+           VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
+          [
+            child.child_product_id,
+            newWaveName,
+            childCostPrice,
+            childQtyToCreate,
+            childQtyToCreate,
+            new Date().toISOString().slice(0, 10),
+            deduction.invoice_number || null
+          ]
+        );
+        childWaveId = childWaveResult.insertId;
+      }
+
+      await conn.execute(
+        `INSERT INTO bundle_breakdown_log (parent_product_id, child_product_id, quantity_broken, parent_wave_id, child_wave_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [parent_id, child.child_product_id, deduction.qty, deduction.wave_id, childWaveId]
+      );
+    }
+  }
+
+  await syncInventoryStock(parent_id, conn);
+  for (let child of children) {
+    await syncInventoryStock(child.child_product_id, conn);
+  }
+
+  return { message: `Successfully broke down ${quantity} × ${parent.card_name}` };
+}
+
 // Manual breakdown — one level at a time, transactional
 app.post('/api/inventory/breakdown', async (req, res) => {
   const { parent_id, quantity, custom_costs } = req.body;
-
   if (!parent_id || !quantity || quantity < 1) {
     return res.status(400).json({ error: 'Invalid breakdown request' });
   }
-
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+    const result = await executeBreakdown(conn, parent_id, quantity, custom_costs);
+    await conn.commit();
+    res.json(result);
+  } catch (err) {
+    await conn.rollback();
+    res.status(400).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
 
-    // 1. Check parent has enough stock
-    const [[parent]] = await conn.execute(
-      'SELECT stock_quantity, card_name FROM inventory WHERE id = ?', [parent_id]
+// ==========================================
+// 5b. RESERVATION MODULE
+// ==========================================
+
+// Create or update a pending reservation (breakdown or event)
+app.post('/api/inventory/breakdown/reserve', async (req, res) => {
+  const { parent_id, quantity, type, notes } = req.body;
+  if (!parent_id || !quantity || quantity < 1) {
+    return res.status(400).json({ error: 'Invalid reservation request' });
+  }
+  if (!['breakdown', 'event'].includes(type)) {
+    return res.status(400).json({ error: 'type must be "breakdown" or "event"' });
+  }
+  try {
+    const [[parent]] = await db.execute(
+      'SELECT stock_quantity, card_name, is_bundle FROM inventory WHERE id = ?', [parent_id]
     );
-    if (!parent) throw new Error('Product not found');
-    if (parent.stock_quantity < quantity) {
-      throw new Error(`Insufficient stock. Only ${parent.stock_quantity} unit(s) available`);
+    if (!parent) return res.status(404).json({ error: 'Product not found' });
+    if (type === 'breakdown' && !parent.is_bundle) {
+      return res.status(400).json({ error: 'Only bundle products can have breakdown reservations' });
     }
 
-    // 2. Get children
-    const [children] = await conn.execute(
-      'SELECT child_product_id, quantity_per_parent FROM product_bundles WHERE parent_product_id = ?',
-      [parent_id]
-    );
-    if (children.length === 0) throw new Error('Product has no children configured for breakdown');
-
-    // 3. Get active waves for parent
-    const [parentWaves] = await conn.execute(
-      'SELECT id, remaining_qty, cost_price, wave_name, arrival_date, invoice_number FROM fifo WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0 ORDER BY arrival_date ASC, id ASC',
-      [parent_id]
+    // Upsert: one pending reservation per (product, type)
+    const [[existing]] = await db.execute(
+      'SELECT id FROM inventory_reservations WHERE parent_product_id = ? AND type = ? AND status = "pending"',
+      [parent_id, type]
     );
 
-    let remainingToBreak = quantity;
-    const waveDeductions = [];
-
-    for (let wave of parentWaves) {
-      if (remainingToBreak <= 0) break;
-      
-      let deductQty = Math.min(wave.remaining_qty, remainingToBreak);
-      remainingToBreak -= deductQty;
-      waveDeductions.push({
-        wave_id: wave.id,
-        cost_price: wave.cost_price,
-        qty: deductQty,
-        wave_name: wave.wave_name,
-        arrival_date: wave.arrival_date,
-        invoice_number: wave.invoice_number
-      });
-    }
-
-    if (remainingToBreak > 0) {
-      throw new Error('Not enough remaining quantity in active parent waves to break down this amount. Please verify wave stocks.');
-    }
-
-    // 4. Process deductions and generate child waves
-    for (let deduction of waveDeductions) {
-      // Deduct from parent wave
-      await conn.execute(
-        'UPDATE fifo SET remaining_qty = remaining_qty - ? WHERE id = ?',
-        [deduction.qty, deduction.wave_id]
+    if (existing) {
+      await db.execute(
+        'UPDATE inventory_reservations SET reserved_qty = ?, notes = ?, updated_at = NOW() WHERE id = ?',
+        [quantity, notes || null, existing.id]
       );
+      res.json({ id: existing.id, reserved_qty: quantity, message: `Reservation updated to ${quantity} unit(s)` });
+    } else {
+      const [result] = await db.execute(
+        'INSERT INTO inventory_reservations (parent_product_id, reserved_qty, type, notes) VALUES (?, ?, ?, ?)',
+        [parent_id, quantity, type, notes || null]
+      );
+      res.json({ id: result.insertId, reserved_qty: quantity, message: `Reserved ${quantity} unit(s) for ${type}` });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-      // Create child waves and log
-      for (let child of children) {
-        let childQtyToCreate = deduction.qty * child.quantity_per_parent;
-        let childCostPrice = (parseFloat(deduction.cost_price) / child.quantity_per_parent).toFixed(2);
-        
-        if (custom_costs && custom_costs[child.child_product_id] !== undefined) {
-          childCostPrice = parseFloat(custom_costs[child.child_product_id]).toFixed(2);
-        }
-        
-        let newWaveName = `Breakdown from ${deduction.wave_name}`;
-        
-        // Check if an active child wave with the exact same name and invoice_number exists
-        let queryStr = 'SELECT id, initial_qty, remaining_qty FROM fifo WHERE inventory_id = ? AND wave_name = ? AND is_active = TRUE';
-        let queryParams = [child.child_product_id, newWaveName];
-        
-        if (deduction.invoice_number === null || deduction.invoice_number === undefined) {
-           queryStr += ' AND invoice_number IS NULL';
-        } else {
-           queryStr += ' AND invoice_number = ?';
-           queryParams.push(deduction.invoice_number);
-        }
-        queryStr += ' LIMIT 1';
+// Cancel a pending reservation (soft delete)
+app.delete('/api/inventory/breakdown/reserve/:id', async (req, res) => {
+  try {
+    const [[reservation]] = await db.execute(
+      'SELECT id, status FROM inventory_reservations WHERE id = ?', [req.params.id]
+    );
+    if (!reservation) return res.status(404).json({ error: 'Reservation not found' });
+    if (reservation.status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending reservations can be cancelled' });
+    }
+    await db.execute(
+      'UPDATE inventory_reservations SET status = "cancelled", updated_at = NOW() WHERE id = ?',
+      [req.params.id]
+    );
+    res.json({ message: 'Reservation cancelled' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-        const [existingChildWave] = await conn.execute(queryStr, queryParams);
-
-        let childWaveId;
-
-        if (existingChildWave.length > 0) {
-          // Update existing child wave
-          childWaveId = existingChildWave[0].id;
-          await conn.execute(
-            'UPDATE fifo SET initial_qty = initial_qty + ?, remaining_qty = remaining_qty + ? WHERE id = ?',
-            [childQtyToCreate, childQtyToCreate, childWaveId]
-          );
-        } else {
-          // Insert new child wave
-          const [childWaveResult] = await conn.execute(
-            `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number)
-             VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
-            [
-              child.child_product_id, 
-              newWaveName, 
-              childCostPrice, 
-              childQtyToCreate, 
-              childQtyToCreate, 
-              new Date().toISOString().slice(0, 10),
-              deduction.invoice_number || null
-            ]
-          );
-          childWaveId = childWaveResult.insertId;
-        }
-
-        // Log the breakdown with wave linkage
-        await conn.execute(
-          `INSERT INTO bundle_breakdown_log (parent_product_id, child_product_id, quantity_broken, parent_wave_id, child_wave_id)
-           VALUES (?, ?, ?, ?, ?)`,
-          [parent_id, child.child_product_id, deduction.qty, deduction.wave_id, childWaveId]
-        );
-      }
+// Commit a breakdown reservation — executes the actual breakdown
+app.post('/api/inventory/breakdown/reserve/:id/commit', async (req, res) => {
+  const { quantity, custom_costs } = req.body;
+  const conn = await db.getConnection();
+  try {
+    const [[reservation]] = await conn.execute(
+      'SELECT id, parent_product_id, reserved_qty, type, status FROM inventory_reservations WHERE id = ?',
+      [req.params.id]
+    );
+    if (!reservation) return res.status(404).json({ error: 'Reservation not found' });
+    if (reservation.status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending reservations can be committed' });
+    }
+    if (reservation.type !== 'breakdown') {
+      return res.status(400).json({ error: 'Only breakdown reservations can be committed' });
     }
 
-    // 5. Sync total stocks
-    await syncInventoryStock(parent_id, conn);
-    for (let child of children) {
-      await syncInventoryStock(child.child_product_id, conn);
+    const qtyToBreak = quantity || reservation.reserved_qty;
+    if (qtyToBreak > reservation.reserved_qty) {
+      return res.status(400).json({ error: `Cannot commit more than the reserved quantity (${reservation.reserved_qty})` });
+    }
+
+    await conn.beginTransaction();
+    const result = await executeBreakdown(conn, reservation.parent_product_id, qtyToBreak, custom_costs);
+
+    if (qtyToBreak >= reservation.reserved_qty) {
+      await conn.execute(
+        'UPDATE inventory_reservations SET status = "committed", updated_at = NOW() WHERE id = ?',
+        [reservation.id]
+      );
+    } else {
+      await conn.execute(
+        'UPDATE inventory_reservations SET reserved_qty = reserved_qty - ?, updated_at = NOW() WHERE id = ?',
+        [qtyToBreak, reservation.id]
+      );
     }
 
     await conn.commit();
-    res.json({ message: `Successfully broke down ${quantity} × ${parent.card_name}` });
-
+    res.json(result);
   } catch (err) {
     await conn.rollback();
     res.status(400).json({ error: err.message });

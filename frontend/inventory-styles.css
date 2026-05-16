@@ -251,3 +251,19 @@ input:disabled { background: #f9fafb; color: #6b7280; cursor: not-allowed; }
   align-items: center; gap: 12px; flex-wrap: wrap;
 }
 .breakdown-panel.open { display: flex; }
+
+/* ── Reservation banners ── */
+.reservation-banner {
+  background: #fffbeb; border: 1px solid #fcd34d;
+  border-radius: 8px; padding: 6px 10px;
+  font-size: 12px; color: #92400e;
+  display: flex; align-items: center; gap: 8px;
+}
+.reservation-banner-event {
+  background: #f5f3ff; border-color: #c4b5fd; color: #5b21b6;
+}
+.reservation-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #f59e0b; flex-shrink: 0;
+}
+.reservation-dot-event { background: #7c3aed; }
