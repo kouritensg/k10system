@@ -305,6 +305,23 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
 // 4.1 SINGLES MANAGEMENT
 // ==========================================
 
+// Get all families (IP + set_name) across both sealed and singles inventory
+app.get('/api/inventory/all-families', async (req, res) => {
+  try {
+    const [rows] = await db.execute(`
+      SELECT
+        game_title,
+        set_name,
+        SUM(CASE WHEN product_type = 'single' THEN 1 ELSE 0 END) AS singles_count
+      FROM inventory
+      WHERE set_name IS NOT NULL AND set_name != ''
+      GROUP BY game_title, set_name
+      ORDER BY game_title, set_name
+    `);
+    res.json(rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch families' }); }
+});
+
 // Get list of sets that have singles
 app.get('/api/inventory/singles/sets', async (req, res) => {
   try {

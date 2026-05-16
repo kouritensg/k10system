@@ -16,9 +16,15 @@
         .btn-primary { background-color: #2563eb; color: white; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s; }
         .btn-primary:hover { background-color: #1d4ed8; }
         .sidebar { background: white; border-right: 1px solid #e5e7eb; height: calc(100vh - 64px); overflow-y: auto; padding: 16px; }
-        .set-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; color: #4b5563; transition: all 0.2s; margin-bottom: 4px; }
-        .set-item:hover { background: #f3f4f6; color: #111827; }
-        .set-item.active { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
+        .ip-header { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 16px; margin-bottom: 4px; padding: 0 4px; }
+        .ip-header:first-child { margin-top: 0; }
+        .family-item { padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
+        .family-item:hover { background: #f3f4f6; }
+        .family-item.active { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
+        .family-item.no-singles { color: #9ca3af; }
+        .family-item.no-singles:hover { background: #f9fafb; color: #6b7280; }
+        .family-item .count-badge { font-size: 10px; font-weight: 600; background: #e5e7eb; color: #6b7280; border-radius: 9999px; padding: 1px 6px; }
+        .family-item.active .count-badge { background: #dbeafe; color: #2563eb; }
         .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; color: white; opacity: 0; transform: translateY(20px); transition: all 0.3s; z-index: 9999; }
         .toast.success { background-color: #10b981; }
         .toast.error { background-color: #ef4444; }
@@ -30,13 +36,14 @@
 <script src="admin-navbar.js"></script>
 
 <div class="flex">
-    <!-- Sidebar for Sets -->
-    <div class="w-64 sidebar hidden md:block" id="sets-sidebar">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-sm font-bold text-gray-800 uppercase tracking-wider">Card Sets</h2>
+    <!-- Sidebar: IP → Family tree -->
+    <div class="w-64 sidebar hidden md:block flex-shrink-0" id="sets-sidebar">
+        <div class="mb-3">
+            <h2 class="text-xs font-bold text-gray-800 uppercase tracking-wider">Releases</h2>
+            <p class="text-[10px] text-gray-400 mt-0.5">Select a family to manage singles</p>
         </div>
         <div id="sets-list">
-            <div class="text-xs text-gray-400 text-center py-4">Loading sets...</div>
+            <div class="text-xs text-gray-400 text-center py-4">Loading...</div>
         </div>
     </div>
 
@@ -44,11 +51,14 @@
     <div class="flex-1 p-6 h-[calc(100vh-64px)] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900" id="current-set-title">Select a Set</h1>
-                <p class="text-sm text-gray-500" id="current-set-subtitle">Manage singles inventory</p>
+                <div class="text-xs text-gray-400 font-medium mb-0.5" id="breadcrumb">Singles Management</div>
+                <h1 class="text-2xl font-bold text-gray-900" id="current-set-title">Select a Release</h1>
             </div>
-            <div class="flex gap-2">
-                <button onclick="addRow()" class="btn-primary">+ Add Card</button>
+            <div class="flex gap-2 items-center">
+                <a id="view-sealed-link" href="#" class="hidden text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-all">
+                    View Sealed ↗
+                </a>
+                <button onclick="addRow()" id="add-card-btn" class="btn-primary hidden">+ Add Card</button>
             </div>
         </div>
 
@@ -66,7 +76,7 @@
                     </tr>
                 </thead>
                 <tbody id="singles-body">
-                    <tr><td colspan="7" class="text-center py-8 text-gray-400">Select a set from the sidebar to view singles.</td></tr>
+                    <tr><td colspan="7" class="text-center py-10 text-gray-400 text-sm">Select a release from the sidebar to manage its singles.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -78,58 +88,84 @@
 <script>
 const API_URL = 'https://k10system.onrender.com/api';
 function authHeaders() {
-  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
+    return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
 }
 
 let currentSet = '';
+let currentGameTitle = '';
 let currentSingles = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
-    await loadSets();
+    await loadFamilies();
 });
 
-async function loadSets() {
+async function loadFamilies() {
     try {
-        const res = await fetch(`${API_URL}/inventory/singles/sets`);
-        const sets = await res.json();
+        const res = await fetch(`${API_URL}/inventory/all-families`);
+        const families = await res.json();
         const list = document.getElementById('sets-list');
-        if (!sets.length) {
-            list.innerHTML = '<div class="text-xs text-gray-500 py-4">No singles sets found. Add a card to create a set.</div>';
+
+        if (!families.length) {
+            list.innerHTML = '<div class="text-xs text-gray-500 py-4">No inventory found.</div>';
             return;
         }
-        
-        let lastGame = '';
+
+        let lastIP = '';
         let html = '';
-        sets.forEach(s => {
-            if (s.game_title !== lastGame) {
-                html += `<div class="text-[10px] font-bold text-gray-400 uppercase mt-4 mb-1">${s.game_title || 'Other'}</div>`;
-                lastGame = s.game_title;
+        families.forEach(f => {
+            const ip = f.game_title || 'Other';
+            if (ip !== lastIP) {
+                html += `<div class="ip-header">${ip}</div>`;
+                lastIP = ip;
             }
-            html += `<div class="set-item" onclick="selectSet('${s.set_name}')" id="set-link-${s.set_name}">${s.set_name}</div>`;
+            const count = parseInt(f.singles_count) || 0;
+            const noSinglesClass = count === 0 ? ' no-singles' : '';
+            const badge = count > 0
+                ? `<span class="count-badge">${count}</span>`
+                : `<span class="count-badge text-gray-300">0</span>`;
+            html += `<div class="family-item${noSinglesClass}"
+                          onclick="selectFamily('${esc(f.set_name)}', '${esc(ip)}')"
+                          id="family-link-${esc(f.set_name)}">
+                        <span>${f.set_name}</span>${badge}
+                     </div>`;
         });
         list.innerHTML = html;
-        
-        // Select first set if available
-        if (sets.length > 0) {
-            selectSet(sets[0].set_name);
+
+        // Auto-select from URL param or first family with singles
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramFamily = urlParams.get('family');
+        if (paramFamily) {
+            const match = families.find(f => f.set_name === paramFamily);
+            if (match) { selectFamily(match.set_name, match.game_title || 'Other'); return; }
         }
+        const firstWithSingles = families.find(f => parseInt(f.singles_count) > 0);
+        if (firstWithSingles) selectFamily(firstWithSingles.set_name, firstWithSingles.game_title || 'Other');
+
     } catch (e) {
-        document.getElementById('sets-list').innerHTML = '<div class="text-red-400 text-xs py-4">Failed to load sets.</div>';
+        document.getElementById('sets-list').innerHTML = '<div class="text-red-400 text-xs py-4">Failed to load releases.</div>';
     }
 }
 
-async function selectSet(setName) {
+async function selectFamily(setName, gameTitle) {
     currentSet = setName;
-    document.querySelectorAll('.set-item').forEach(el => el.classList.remove('active'));
-    const link = document.getElementById(`set-link-${setName}`);
+    currentGameTitle = gameTitle;
+
+    document.querySelectorAll('.family-item').forEach(el => el.classList.remove('active'));
+    const link = document.getElementById(`family-link-${setName}`);
     if (link) link.classList.add('active');
-    
+
+    document.getElementById('breadcrumb').textContent = `${gameTitle} › Singles`;
     document.getElementById('current-set-title').textContent = setName;
-    
+    document.getElementById('add-card-btn').classList.remove('hidden');
+
+    const sealedLink = document.getElementById('view-sealed-link');
+    sealedLink.href = `admin-inventory.html?family=${encodeURIComponent(setName)}`;
+    sealedLink.classList.remove('hidden');
+
     const body = document.getElementById('singles-body');
     body.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">Loading singles...</td></tr>';
-    
+
     try {
         const res = await fetch(`${API_URL}/inventory/singles?set=${encodeURIComponent(setName)}`);
         currentSingles = await res.json();
@@ -142,10 +178,10 @@ async function selectSet(setName) {
 function renderSingles() {
     const body = document.getElementById('singles-body');
     if (!currentSingles.length) {
-        body.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">No singles found in this set.</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-gray-400 text-sm">No singles in this release yet. Click <strong>+ Add Card</strong> to get started.</td></tr>';
         return;
     }
-    
+
     body.innerHTML = currentSingles.map(c => `
         <tr data-id="${c.id}">
             <td><input type="text" value="${esc(c.card_id)}" onchange="updateSingle(${c.id}, 'card_id', this.value)" placeholder="ID"></td>
@@ -171,21 +207,23 @@ function renderSingles() {
             <td><input type="number" step="0.01" value="${parseFloat(c.price || 0).toFixed(2)}" onchange="updateSingle(${c.id}, 'price', this.value)"></td>
             <td><input type="number" value="${c.stock_quantity || 0}" onchange="updateSingle(${c.id}, 'stock_quantity', this.value)"></td>
             <td style="text-align:center;">
-                <button onclick="deleteSingle(${c.id})" class="text-red-400 hover:text-red-600 font-bold px-2 py-1">X</button>
+                <button onclick="deleteSingle(${c.id})" class="text-red-400 hover:text-red-600 font-bold px-2 py-1">✕</button>
             </td>
         </tr>
     `).join('');
 }
 
 function addRow() {
+    if (!currentSet) { showToast('Select a release first', 'error'); return; }
     const body = document.getElementById('singles-body');
+    // Remove empty-state row if present
     if (!currentSingles.length) body.innerHTML = '';
-    
+
     const tr = document.createElement('tr');
-    tr.className = 'bg-blue-50'; // Highlight new row
+    tr.className = 'bg-blue-50';
     tr.innerHTML = `
         <td><input type="text" id="new-card-id" placeholder="ID"></td>
-        <td><input type="text" id="new-card-name" placeholder="Card Name"></td>
+        <td><input type="text" id="new-card-name" placeholder="Card Name" required></td>
         <td>
             <select id="new-card-condition">
                 <option value="NM" selected>NM</option>
@@ -215,23 +253,21 @@ function addRow() {
 
 async function saveNewRow(btn) {
     const tr = btn.closest('tr');
+    const cardName = tr.querySelector('#new-card-name').value.trim();
+    if (!cardName) { showToast('Card Name is required', 'error'); return; }
+
     const data = {
         product_type: 'single',
-        set_name: currentSet || prompt("Enter a Set Name for this card (e.g. OP17):"),
-        game_title: 'Other',
+        set_name: currentSet,
+        game_title: currentGameTitle,
         card_id: tr.querySelector('#new-card-id').value.trim(),
-        card_name: tr.querySelector('#new-card-name').value.trim(),
+        card_name: cardName,
         card_condition: tr.querySelector('#new-card-condition').value,
         card_finish: tr.querySelector('#new-card-finish').value,
         price: parseFloat(tr.querySelector('#new-price').value) || 0,
         stock_quantity: parseInt(tr.querySelector('#new-stock').value) || 0
     };
-    
-    if (!data.card_name || !data.set_name) {
-        showToast('Card Name and Set Name are required', 'error');
-        return;
-    }
-    
+
     try {
         const res = await fetch(`${API_URL}/inventory/add`, {
             method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
@@ -239,21 +275,19 @@ async function saveNewRow(btn) {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Card added!', 'success');
-        
-        // Refresh the set
-        currentSet = data.set_name;
-        await loadSets();
-        selectSet(currentSet);
-    } catch(e) { showToast(e.message, 'error'); }
+        await loadFamilies();
+        selectFamily(currentSet, currentGameTitle);
+    } catch (e) { showToast(e.message, 'error'); }
 }
 
 async function updateSingle(id, field, value) {
     const card = currentSingles.find(c => c.id === id);
     if (!card) return;
-    
+
     const payload = {
         product_type: 'single',
         set_name: card.set_name,
+        game_title: card.game_title || currentGameTitle,
         card_id: field === 'card_id' ? value : card.card_id,
         card_name: field === 'card_name' ? value : card.card_name,
         card_condition: field === 'card_condition' ? value : card.card_condition,
@@ -270,18 +304,17 @@ async function updateSingle(id, field, value) {
             const json = await res.json();
             throw new Error(json.error);
         }
-        
         card[field] = payload[field];
-        
+
         const row = document.querySelector(`tr[data-id="${id}"]`);
         if (row) {
             row.style.transition = 'background-color 0.3s';
             row.style.backgroundColor = '#d1fae5';
             setTimeout(() => { row.style.backgroundColor = ''; }, 500);
         }
-    } catch(e) {
+    } catch (e) {
         showToast('Failed to save: ' + e.message, 'error');
-        selectSet(currentSet);
+        selectFamily(currentSet, currentGameTitle);
     }
 }
 
@@ -292,11 +325,12 @@ async function deleteSingle(id) {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Card deleted', 'success');
-        selectSet(currentSet);
-    } catch(e) { showToast(e.message, 'error'); }
+        await loadFamilies();
+        selectFamily(currentSet, currentGameTitle);
+    } catch (e) { showToast(e.message, 'error'); }
 }
 
-function esc(str) { return (str || '').replace(/"/g, '&quot;'); }
+function esc(str) { return (str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
 function showToast(msg, type = 'success') {
     const container = document.getElementById('toast-container');
