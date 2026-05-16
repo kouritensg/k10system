@@ -145,7 +145,7 @@ app.get('/api/inventory', async (req, res) => {
       SELECT i.*, c.name as category_name
       FROM inventory i
       LEFT JOIN categories c ON i.category_id = c.id
-      WHERE i.stock_quantity >= 0
+      WHERE i.stock_quantity >= 0 AND i.product_type = 'sealed'
       ORDER BY c.name, i.card_name ASC`
     );
     res.json(rows);
@@ -159,6 +159,7 @@ app.get('/api/inventory/status', async (req, res) => {
       SELECT i.*, c.name as category_name
       FROM inventory i
       LEFT JOIN categories c ON i.category_id = c.id
+      WHERE i.product_type = 'sealed'
       ORDER BY i.card_name ASC`
     );
     res.json(rows);
@@ -180,6 +181,7 @@ app.get('/api/inventory/families', async (req, res) => {
         SUM(i.stock_quantity * i.price)              AS category_retail_value
       FROM inventory i
       LEFT JOIN categories c ON c.id = i.category_id
+      WHERE i.product_type = 'sealed'
       GROUP BY i.set_name, i.game_title, i.category_id, c.name
       ORDER BY i.game_title, i.set_name, c.name ASC`
     );
@@ -234,7 +236,7 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
       FROM inventory i
       LEFT JOIN categories      c      ON c.id = i.category_id
       LEFT JOIN product_bundles pb_up  ON pb_up.child_product_id = i.id
-      WHERE i.set_name = ?
+      WHERE i.set_name = ? AND i.product_type = 'sealed'
       ORDER BY i.is_bundle DESC, i.id ASC
     `, [req.params.set_name]);
 
@@ -299,43 +301,86 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to fetch family' }); }
 });
 
-// Add new product — updated, removed packs_per_box/boxes_per_case, added set_name + is_bundle
+// ==========================================
+// 4.1 SINGLES MANAGEMENT
+// ==========================================
+
+// Get list of sets that have singles
+app.get('/api/inventory/singles/sets', async (req, res) => {
+  try {
+    const [rows] = await db.execute(`
+      SELECT DISTINCT set_name, game_title
+      FROM inventory
+      WHERE product_type = 'single' AND set_name IS NOT NULL AND set_name != ''
+      ORDER BY game_title, set_name
+    `);
+    res.json(rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch singles sets' }); }
+});
+
+// Get all singles for a specific set
+app.get('/api/inventory/singles', async (req, res) => {
+  const { set } = req.query;
+  try {
+    let query = `
+      SELECT id, card_id, card_name, game_title, set_name, 
+             card_condition, card_finish, price, stock_quantity
+      FROM inventory
+      WHERE product_type = 'single'
+    `;
+    const params = [];
+    if (set) {
+      query += ' AND set_name = ?';
+      params.push(set);
+    }
+    query += ' ORDER BY card_id, card_name';
+    const [rows] = await db.execute(query, params);
+    res.json(rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch singles' }); }
+});
+
+// Add new product — updated, removed packs_per_box/boxes_per_case, added set_name + is_bundle + product_type
 app.post('/api/inventory/add', async (req, res) => {
   const {
     barcode, game_title, set_name, category_id, card_id, card_name,
-    price, cost_price, stock_quantity, is_bundle, quick_description, long_description
+    price, cost_price, stock_quantity, is_bundle, quick_description, long_description,
+    product_type, card_condition, card_finish
   } = req.body;
   try {
     const [result] = await db.execute(
       `INSERT INTO inventory
         (barcode, game_title, set_name, category_id, card_id, card_name,
-         price, cost_price, stock_quantity, is_bundle, quick_description, long_description)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         price, cost_price, stock_quantity, is_bundle, quick_description, long_description,
+         product_type, card_condition, card_finish)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         barcode || null, game_title || null, set_name || '',
         category_id || null, card_id || null, card_name,
         price || 0, cost_price || 0, stock_quantity || 0,
-        is_bundle || 0, quick_description || null, long_description || null
+        is_bundle || 0, quick_description || null, long_description || null,
+        product_type || 'sealed', card_condition || null, card_finish || null
       ]
     );
     res.status(201).json({ id: result.insertId, message: 'Product registered!' });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// Update product — updated, added set_name + is_bundle + quick_description + long_description + card_id + card_name
+// Update product — updated, added set_name + is_bundle + quick_description + long_description + card_id + card_name + product_type
 app.put('/api/inventory/:id', authenticate, async (req, res) => {
-  const { card_name, card_id, price, stock_quantity, cost_price, category_id, set_name, is_bundle, quick_description, long_description } = req.body;
+  const { card_name, card_id, price, stock_quantity, cost_price, category_id, set_name, is_bundle, quick_description, long_description, product_type, card_condition, card_finish } = req.body;
   const conn = await db.getConnection();
   try {
     const [[old]] = await conn.execute('SELECT price FROM inventory WHERE id = ?', [req.params.id]);
     await conn.execute(
       `UPDATE inventory
        SET card_name = ?, card_id = ?, price = ?, stock_quantity = ?, cost_price = ?,
-           category_id = ?, set_name = ?, is_bundle = ?, quick_description = ?, long_description = ?
+           category_id = ?, set_name = ?, is_bundle = ?, quick_description = ?, long_description = ?,
+           product_type = ?, card_condition = ?, card_finish = ?
        WHERE id = ?`,
       [card_name || null, card_id || null, price, stock_quantity, cost_price || 0,
        category_id || null, set_name || '', is_bundle || 0,
-       quick_description || null, long_description || null, req.params.id]
+       quick_description || null, long_description || null, 
+       product_type || 'sealed', card_condition || null, card_finish || null, req.params.id]
     );
     await logChange(conn, req.params.id, req.user.username, 'price', old.price, price, 'Manual Edit');
     res.json({ message: 'Updated' });

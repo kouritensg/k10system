@@ -1536,7 +1536,8 @@ async function addProduct() {
         price:             parseFloat(document.getElementById('add-price').value) || 0,
         quick_description: document.getElementById('add-desc').value.trim() || null,
         long_description:  document.getElementById('add-long-desc').value.trim() || null,
-        is_bundle:         document.getElementById('add-is-bundle').checked ? 1 : 0
+        is_bundle:         document.getElementById('add-is-bundle').checked ? 1 : 0,
+        product_type:      'sealed'
     };
     if (!data.card_name || !data.set_name) return showToast('Product name and set name are required', 'error');
     try {

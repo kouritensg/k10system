@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Singles</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; color: #1f2937; margin: 0; padding: 0; }
+        .grid-table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #e5e7eb; }
+        .grid-table th { background: #f9fafb; font-weight: 600; text-align: left; padding: 8px 12px; font-size: 13px; color: #4b5563; border-bottom: 2px solid #e5e7eb; border-right: 1px solid #e5e7eb; }
+        .grid-table td { padding: 4px 8px; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; font-size: 13px; }
+        .grid-table input, .grid-table select { width: 100%; padding: 4px 6px; border: 1px solid transparent; border-radius: 4px; font-size: 13px; transition: all 0.2s; background: transparent; }
+        .grid-table input:focus, .grid-table select:focus { border-color: #3b82f6; background: #eff6ff; outline: none; }
+        .grid-table input:hover, .grid-table select:hover { border-color: #d1d5db; }
+        .btn-primary { background-color: #2563eb; color: white; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .sidebar { background: white; border-right: 1px solid #e5e7eb; height: calc(100vh - 64px); overflow-y: auto; padding: 16px; }
+        .set-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; color: #4b5563; transition: all 0.2s; margin-bottom: 4px; }
+        .set-item:hover { background: #f3f4f6; color: #111827; }
+        .set-item.active { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; color: white; opacity: 0; transform: translateY(20px); transition: all 0.3s; z-index: 9999; }
+        .toast.success { background-color: #10b981; }
+        .toast.error { background-color: #ef4444; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+
+<script src="admin-navbar.js"></script>
+
+<div class="flex">
+    <!-- Sidebar for Sets -->
+    <div class="w-64 sidebar hidden md:block" id="sets-sidebar">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-sm font-bold text-gray-800 uppercase tracking-wider">Card Sets</h2>
+        </div>
+        <div id="sets-list">
+            <div class="text-xs text-gray-400 text-center py-4">Loading sets...</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 p-6 h-[calc(100vh-64px)] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900" id="current-set-title">Select a Set</h1>
+                <p class="text-sm text-gray-500" id="current-set-subtitle">Manage singles inventory</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="addRow()" class="btn-primary">+ Add Card</button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+            <table class="grid-table" id="singles-table">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Card ID</th>
+                        <th style="width: 250px;">Card Name</th>
+                        <th style="width: 100px;">Condition</th>
+                        <th style="width: 120px;">Finish</th>
+                        <th style="width: 90px;">Price ($)</th>
+                        <th style="width: 90px;">Stock</th>
+                        <th style="width: 60px; text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="singles-body">
+                    <tr><td colspan="7" class="text-center py-8 text-gray-400">Select a set from the sidebar to view singles.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+const API_URL = 'https://k10system.onrender.com/api';
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
+}
+
+let currentSet = '';
+let currentSingles = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
+    await loadSets();
+});
+
+async function loadSets() {
+    try {
+        const res = await fetch(`${API_URL}/inventory/singles/sets`);
+        const sets = await res.json();
+        const list = document.getElementById('sets-list');
+        if (!sets.length) {
+            list.innerHTML = '<div class="text-xs text-gray-500 py-4">No singles sets found. Add a card to create a set.</div>';
+            return;
+        }
+        
+        let lastGame = '';
+        let html = '';
+        sets.forEach(s => {
+            if (s.game_title !== lastGame) {
+                html += `<div class="text-[10px] font-bold text-gray-400 uppercase mt-4 mb-1">${s.game_title || 'Other'}</div>`;
+                lastGame = s.game_title;
+            }
+            html += `<div class="set-item" onclick="selectSet('${s.set_name}')" id="set-link-${s.set_name}">${s.set_name}</div>`;
+        });
+        list.innerHTML = html;
+        
+        // Select first set if available
+        if (sets.length > 0) {
+            selectSet(sets[0].set_name);
+        }
+    } catch (e) {
+        document.getElementById('sets-list').innerHTML = '<div class="text-red-400 text-xs py-4">Failed to load sets.</div>';
+    }
+}
+
+async function selectSet(setName) {
+    currentSet = setName;
+    document.querySelectorAll('.set-item').forEach(el => el.classList.remove('active'));
+    const link = document.getElementById(`set-link-${setName}`);
+    if (link) link.classList.add('active');
+    
+    document.getElementById('current-set-title').textContent = setName;
+    
+    const body = document.getElementById('singles-body');
+    body.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">Loading singles...</td></tr>';
+    
+    try {
+        const res = await fetch(`${API_URL}/inventory/singles?set=${encodeURIComponent(setName)}`);
+        currentSingles = await res.json();
+        renderSingles();
+    } catch (e) {
+        body.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-red-400">Failed to load singles.</td></tr>';
+    }
+}
+
+function renderSingles() {
+    const body = document.getElementById('singles-body');
+    if (!currentSingles.length) {
+        body.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">No singles found in this set.</td></tr>';
+        return;
+    }
+    
+    body.innerHTML = currentSingles.map(c => `
+        <tr data-id="${c.id}">
+            <td><input type="text" value="${esc(c.card_id)}" onchange="updateSingle(${c.id}, 'card_id', this.value)" placeholder="ID"></td>
+            <td><input type="text" value="${esc(c.card_name)}" onchange="updateSingle(${c.id}, 'card_name', this.value)" placeholder="Name"></td>
+            <td>
+                <select onchange="updateSingle(${c.id}, 'card_condition', this.value)">
+                    <option value="" ${!c.card_condition ? 'selected' : ''}>-</option>
+                    <option value="NM" ${c.card_condition === 'NM' ? 'selected' : ''}>NM</option>
+                    <option value="LP" ${c.card_condition === 'LP' ? 'selected' : ''}>LP</option>
+                    <option value="MP" ${c.card_condition === 'MP' ? 'selected' : ''}>MP</option>
+                    <option value="HP" ${c.card_condition === 'HP' ? 'selected' : ''}>HP</option>
+                    <option value="DMG" ${c.card_condition === 'DMG' ? 'selected' : ''}>DMG</option>
+                </select>
+            </td>
+            <td>
+                <select onchange="updateSingle(${c.id}, 'card_finish', this.value)">
+                    <option value="" ${!c.card_finish ? 'selected' : ''}>Normal</option>
+                    <option value="Foil" ${c.card_finish === 'Foil' ? 'selected' : ''}>Foil</option>
+                    <option value="Reverse" ${c.card_finish === 'Reverse' ? 'selected' : ''}>Reverse</option>
+                    <option value="Alt Art" ${c.card_finish === 'Alt Art' ? 'selected' : ''}>Alt Art</option>
+                </select>
+            </td>
+            <td><input type="number" step="0.01" value="${parseFloat(c.price || 0).toFixed(2)}" onchange="updateSingle(${c.id}, 'price', this.value)"></td>
+            <td><input type="number" value="${c.stock_quantity || 0}" onchange="updateSingle(${c.id}, 'stock_quantity', this.value)"></td>
+            <td style="text-align:center;">
+                <button onclick="deleteSingle(${c.id})" class="text-red-400 hover:text-red-600 font-bold px-2 py-1">X</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function addRow() {
+    const body = document.getElementById('singles-body');
+    if (!currentSingles.length) body.innerHTML = '';
+    
+    const tr = document.createElement('tr');
+    tr.className = 'bg-blue-50'; // Highlight new row
+    tr.innerHTML = `
+        <td><input type="text" id="new-card-id" placeholder="ID"></td>
+        <td><input type="text" id="new-card-name" placeholder="Card Name"></td>
+        <td>
+            <select id="new-card-condition">
+                <option value="NM" selected>NM</option>
+                <option value="LP">LP</option>
+                <option value="MP">MP</option>
+                <option value="HP">HP</option>
+                <option value="DMG">DMG</option>
+            </select>
+        </td>
+        <td>
+            <select id="new-card-finish">
+                <option value="" selected>Normal</option>
+                <option value="Foil">Foil</option>
+                <option value="Reverse">Reverse</option>
+                <option value="Alt Art">Alt Art</option>
+            </select>
+        </td>
+        <td><input type="number" step="0.01" id="new-price" value="0.00"></td>
+        <td><input type="number" id="new-stock" value="0"></td>
+        <td style="text-align:center;">
+            <button onclick="saveNewRow(this)" class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-blue-700">Save</button>
+        </td>
+    `;
+    body.insertBefore(tr, body.firstChild);
+    document.getElementById('new-card-id').focus();
+}
+
+async function saveNewRow(btn) {
+    const tr = btn.closest('tr');
+    const data = {
+        product_type: 'single',
+        set_name: currentSet || prompt("Enter a Set Name for this card (e.g. OP17):"),
+        game_title: 'Other',
+        card_id: tr.querySelector('#new-card-id').value.trim(),
+        card_name: tr.querySelector('#new-card-name').value.trim(),
+        card_condition: tr.querySelector('#new-card-condition').value,
+        card_finish: tr.querySelector('#new-card-finish').value,
+        price: parseFloat(tr.querySelector('#new-price').value) || 0,
+        stock_quantity: parseInt(tr.querySelector('#new-stock').value) || 0
+    };
+    
+    if (!data.card_name || !data.set_name) {
+        showToast('Card Name and Set Name are required', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch(`${API_URL}/inventory/add`, {
+            method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Card added!', 'success');
+        
+        // Refresh the set
+        currentSet = data.set_name;
+        await loadSets();
+        selectSet(currentSet);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function updateSingle(id, field, value) {
+    const card = currentSingles.find(c => c.id === id);
+    if (!card) return;
+    
+    const payload = {
+        product_type: 'single',
+        set_name: card.set_name,
+        card_id: field === 'card_id' ? value : card.card_id,
+        card_name: field === 'card_name' ? value : card.card_name,
+        card_condition: field === 'card_condition' ? value : card.card_condition,
+        card_finish: field === 'card_finish' ? value : card.card_finish,
+        price: field === 'price' ? parseFloat(value) : card.price,
+        stock_quantity: field === 'stock_quantity' ? parseInt(value) : card.stock_quantity
+    };
+
+    try {
+        const res = await fetch(`${API_URL}/inventory/${id}`, {
+            method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const json = await res.json();
+            throw new Error(json.error);
+        }
+        
+        card[field] = payload[field];
+        
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) {
+            row.style.transition = 'background-color 0.3s';
+            row.style.backgroundColor = '#d1fae5';
+            setTimeout(() => { row.style.backgroundColor = ''; }, 500);
+        }
+    } catch(e) {
+        showToast('Failed to save: ' + e.message, 'error');
+        selectSet(currentSet);
+    }
+}
+
+async function deleteSingle(id) {
+    if (!confirm('Delete this card? This cannot be undone.')) return;
+    try {
+        const res = await fetch(`${API_URL}/inventory/${id}`, { method: 'DELETE', headers: authHeaders() });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Card deleted', 'success');
+        selectSet(currentSet);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+function esc(str) { return (str || '').replace(/"/g, '&quot;'); }
+
+function showToast(msg, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = type === 'success' ? `✓ ${msg}` : `✕ ${msg}`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+}
+</script>
+</body>
+</html>
