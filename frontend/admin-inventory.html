@@ -1472,9 +1472,15 @@ async function saveDrawer() {
         cost_price:        parseFloat(document.getElementById('d-cost').value)  || 0,
         stock_quantity:    parseInt(document.getElementById('d-stock').value)   || 0,
         quick_description: document.getElementById('d-desc').value.trim(),
-        set_name:          p?.set_name    || '',
-        category_id:       p?.category_id || null,
-        is_bundle:         p?.is_bundle   || 0
+        set_name:          p?.set_name        || '',
+        category_id:       p?.category_id     || null,
+        is_bundle:         p?.is_bundle       || 0,
+        card_name:         p?.card_name       || '',
+        card_id:           p?.card_id         || null,
+        product_type:      p?.product_type    || 'sealed',
+        long_description:  p?.long_description|| null,
+        card_condition:    p?.card_condition  || null,
+        card_finish:       p?.card_finish     || null
     };
     try {
         const res = await fetch(`${API_URL}/inventory/${id}`, {
