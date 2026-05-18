@@ -772,87 +772,86 @@ function renderProductRow(p, allProds) {
         </div>`).join('');
 
     let breakdownBlock = '';
-    if (p.is_bundle && p.children && p.children.length > 0) {
-        const childSummary = p.children.map(c => `${c.quantity_per_parent}× ${c.child_name}`).join(', ');
-        
-        const childCostInputs = p.children.map(c => {
-            return `
-            <div class="flex items-center justify-between gap-2 mt-2 w-full">
-                <label class="text-xs text-gray-700 truncate flex-1" title="${c.child_name}">${c.child_name}</label>
-                <div class="flex items-center gap-2 shrink-0">
-                    <div class="flex items-center gap-1" title="Qty per parent">
-                        <span class="text-gray-400 text-xs">×</span>
-                        <input type="number" step="1" min="1"
-                            class="bd-child-qty-${p.id}"
-                            data-child-id="${c.child_product_id}"
-                            value="${c.quantity_per_parent}"
-                            style="width:50px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
-                    </div>
-                    <div class="flex items-center gap-1" title="Cost per unit ($)">
-                        <span class="text-gray-400 text-xs">$</span>
-                        <input type="number" step="0.01" min="0"
-                            class="bd-child-cost-${p.id}"
-                            data-child-id="${c.child_product_id}"
-                            value=""
-                            placeholder="Auto"
-                            style="width:80px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
-                    </div>
-                </div>
-            </div>`;
-        }).join('');
+    if (p.is_bundle) {
+        const templateBtns = (p.children && p.children.length > 0)
+            ? p.children.map(c => `
+                <button onclick="bdSelectTemplate(${p.id}, ${c.child_product_id}, ${JSON.stringify(esc(c.child_name))}, ${c.quantity_per_parent})"
+                    class="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition whitespace-nowrap">
+                    ${esc(c.child_name)} ×${c.quantity_per_parent}
+                </button>`).join('')
+            : '';
 
-        let waveMsg = `Breaking down adds <strong>${childSummary}</strong> per unit (uses oldest active wave).`;
-        if (p.waves && p.waves.length > 0) {
-            const w1 = p.waves[0];
-            let totalChildren = 0;
-            p.children.forEach(c => totalChildren += c.quantity_per_parent);
-            const w1Cost = parseFloat(w1.cost_price || 0);
-            const w1Id = w1.id || 'N/A';
-            const recCost = totalChildren > 0 ? (w1Cost / totalChildren).toFixed(2) : '0.00';
-            waveMsg = `Breaking W1 (FIFO #${w1Id}) total cost $${w1Cost.toFixed(2)} | Recommended cost per item: $${recCost}`;
-        }
+        const waveHint = p.waves && p.waves.length > 0
+            ? `W1 (FIFO #${p.waves[0].id}) cost $${parseFloat(p.waves[0].cost_price || 0).toFixed(2)}`
+            : 'No active waves yet';
 
         breakdownBlock = `
         <div class="px-5 pb-3">
             <div id="bd-panel-${p.id}" class="breakdown-panel flex-col items-start gap-3">
-                <div class="flex items-start gap-2 w-full">
-                    <svg width="15" height="15" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24" class="mt-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    <span class="text-xs text-amber-800 flex-1">${waveMsg}</span>
+                <div class="text-xs text-amber-700 w-full">
+                    <svg width="13" height="13" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24" class="inline mr-1 mb-0.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    ${waveHint}
                 </div>
-                
-                <div class="w-full bg-white/60 p-2 rounded border border-amber-200">
-                    <div class="text-[10px] text-gray-500 font-semibold uppercase mb-1">Set Child Cost (per unit)</div>
-                    ${childCostInputs}
+
+                ${templateBtns ? `
+                <div class="w-full">
+                    <div class="text-[10px] text-gray-400 font-semibold uppercase mb-1">Templates</div>
+                    <div class="flex flex-wrap gap-1">${templateBtns}</div>
+                </div>` : ''}
+
+                <div class="w-full">
+                    <div class="text-[10px] text-gray-400 font-semibold uppercase mb-1">Target Product</div>
+                    <div class="relative" id="bd-target-wrap-${p.id}">
+                        <input type="text" id="bd-target-input-${p.id}" placeholder="Search product…"
+                            oninput="bdSearchTarget(${p.id}, this.value)"
+                            autocomplete="off"
+                            style="width:100%;padding:5px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                        <div id="bd-target-results-${p.id}" class="hidden absolute z-50 bg-white border border-gray-200 rounded shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto"></div>
+                        <input type="hidden" id="bd-target-id-${p.id}" value="">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 w-full flex-wrap">
+                    <div class="flex items-center gap-1">
+                        <label class="text-xs text-gray-600 whitespace-nowrap">Break qty:</label>
+                        <input type="number" id="bd-qty-${p.id}" value="${breakdownReserve ? breakdownReserve.reserved_qty : 1}" min="1" max="${p.stock_quantity}"
+                            style="width:55px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                    </div>
+                    <span class="text-gray-400 text-sm">×</span>
+                    <div class="flex items-center gap-1">
+                        <label class="text-xs text-gray-600 whitespace-nowrap">Qty/source:</label>
+                        <input type="number" id="bd-qps-${p.id}" value="1" min="0.001" step="any"
+                            style="width:55px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <span class="text-gray-400 text-xs">$</span>
+                        <input type="number" id="bd-cost-${p.id}" placeholder="Auto" step="0.01" min="0"
+                            style="width:70px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                    </div>
                 </div>
 
                 ${breakdownReserve ? `
                 <div class="reservation-banner w-full">
                     <span class="reservation-dot"></span>
-                    <span class="flex-1">${breakdownReserve.reserved_qty} unit(s) reserved for breakdown</span>
+                    <span class="flex-1">${breakdownReserve.reserved_qty} unit(s) reserved</span>
                     <button onclick="doCancelReservation(${breakdownReserve.id})"
                         class="text-[10px] font-bold text-red-500 hover:text-red-700 whitespace-nowrap">Cancel</button>
                 </div>` : ''}
-                <div class="flex items-center gap-2 w-full justify-between mt-1">
-                    <div class="flex items-center gap-2">
-                        <label class="text-xs text-gray-600 whitespace-nowrap">Qty to break:</label>
-                        <input type="number" id="bd-qty-${p.id}" value="${breakdownReserve ? breakdownReserve.reserved_qty : 1}" min="1" max="${p.stock_quantity}"
-                            style="width:60px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button onclick="doReserve(${p.id})"
-                            class="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
-                            ${breakdownReserve ? 'Update Reserve' : 'Reserve'}
-                        </button>
-                        ${breakdownReserve ? `
-                        <button onclick="doCommitReservation(${breakdownReserve.id}, ${p.id})"
-                            class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
-                            Commit Reserved
-                        </button>` : ''}
-                        <button onclick="doBreakdown(${p.id})"
-                            class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
-                            Break Now
-                        </button>
-                    </div>
+
+                <div class="flex items-center gap-2 w-full justify-end">
+                    <button onclick="doReserve(${p.id})"
+                        class="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
+                        ${breakdownReserve ? 'Update Reserve' : 'Reserve'}
+                    </button>
+                    ${breakdownReserve ? `
+                    <button onclick="doCommitReservation(${breakdownReserve.id}, ${p.id})"
+                        class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
+                        Commit
+                    </button>` : ''}
+                    <button onclick="doBreakdown(${p.id})"
+                        class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
+                        Break Now
+                    </button>
                 </div>
             </div>
         </div>`;
@@ -1073,7 +1072,7 @@ function renderPeWaves() {
             ? `<button onclick="peShowSplit(${w.id})" class="text-purple-600 hover:text-purple-800 font-medium text-xs px-2 py-1 border border-purple-200 rounded hover:bg-purple-50 transition">Split</button>`
             : '';
         const parentHint = w.parent_fifo_id
-            ? `<div class="text-[10px] text-indigo-400 mt-0.5">↳ From FIFO #${w.parent_fifo_id}${w.parent_wave_name ? ': ' + esc(w.parent_wave_name) : ''}</div>`
+            ? `<div class="text-[10px] text-indigo-400 mt-0.5">↳ ${w.parent_product_name ? esc(w.parent_product_name) + ' – ' : ''}${w.parent_wave_name ? esc(w.parent_wave_name) : ''} (FIFO #${w.parent_fifo_id})</div>`
             : '';
         return `
         <tr class="hover:bg-gray-50/50" id="pe-wave-row-${w.id}">
@@ -1483,31 +1482,48 @@ async function saveDrawer() {
     } catch(e) { showToast(e.message, 'error'); }
 }
 
-// BREAKDOWN
+// BREAKDOWN — target picker helpers
+function bdSearchTarget(parentId, query) {
+    const resultsEl = document.getElementById(`bd-target-results-${parentId}`);
+    if (!query.trim()) { resultsEl.classList.add('hidden'); return; }
+    const q = query.toLowerCase();
+    const matches = allProducts.filter(x => x.id !== parentId && x.card_name.toLowerCase().includes(q)).slice(0, 8);
+    if (!matches.length) { resultsEl.classList.add('hidden'); return; }
+    resultsEl.innerHTML = matches.map(x => `
+        <div class="px-3 py-1.5 text-xs hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+            onclick="bdSetTarget(${parentId}, ${x.id}, ${JSON.stringify(x.card_name)})">
+            ${x.card_name} <span class="text-gray-400">(${x.stock_quantity} in stock)</span>
+        </div>`).join('');
+    resultsEl.classList.remove('hidden');
+}
+
+function bdSetTarget(parentId, targetId, targetName) {
+    document.getElementById(`bd-target-input-${parentId}`).value = targetName;
+    document.getElementById(`bd-target-id-${parentId}`).value = targetId;
+    document.getElementById(`bd-target-results-${parentId}`).classList.add('hidden');
+}
+
+function bdSelectTemplate(parentId, targetId, targetName, qtyPerSource) {
+    document.getElementById(`bd-target-input-${parentId}`).value = targetName;
+    document.getElementById(`bd-target-id-${parentId}`).value = targetId;
+    document.getElementById(`bd-qps-${parentId}`).value = qtyPerSource;
+    document.getElementById(`bd-target-results-${parentId}`).classList.add('hidden');
+}
+
 async function doBreakdown(parentId) {
-    const qty = parseInt(document.getElementById(`bd-qty-${parentId}`).value) || 1;
-    
-    // Gather child costs and qty overrides
-    const childCostInputs = document.querySelectorAll(`.bd-child-cost-${parentId}`);
-    const customCosts = {};
-    childCostInputs.forEach(input => {
-        const childId = input.getAttribute('data-child-id');
-        const costValue = parseFloat(input.value);
-        if (!isNaN(costValue)) {
-            customCosts[childId] = costValue;
-        }
-    });
-    const quantityOverrides = {};
-    document.querySelectorAll(`.bd-child-qty-${parentId}`).forEach(input => {
-        const childId = input.getAttribute('data-child-id');
-        const val = parseFloat(input.value);
-        if (!isNaN(val) && val > 0) quantityOverrides[childId] = val;
-    });
+    const sourceQty  = parseInt(document.getElementById(`bd-qty-${parentId}`).value) || 1;
+    const targetId   = parseInt(document.getElementById(`bd-target-id-${parentId}`).value);
+    const qtyPerSource = parseFloat(document.getElementById(`bd-qps-${parentId}`).value);
+    const targetCostEl = document.getElementById(`bd-cost-${parentId}`);
+    const targetCost = targetCostEl.value !== '' ? parseFloat(targetCostEl.value) : null;
+
+    if (!targetId) return showToast('Please select a target product', 'error');
+    if (!qtyPerSource || qtyPerSource <= 0) return showToast('Qty per source must be > 0', 'error');
 
     try {
         const res = await fetch(`${API_URL}/inventory/breakdown`, {
             method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ parent_id: parentId, quantity: qty, custom_costs: customCosts, quantity_overrides: quantityOverrides })
+            body: JSON.stringify({ source_id: parentId, source_qty: sourceQty, target_id: targetId, qty_per_source: qtyPerSource, target_cost: targetCost })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
@@ -1560,16 +1576,18 @@ async function doCancelReservation(reservationId) {
 }
 
 async function doCommitReservation(reservationId, parentId) {
-    const customCosts = {};
-    document.querySelectorAll(`.bd-child-cost-${parentId}`).forEach(input => {
-        const childId  = input.getAttribute('data-child-id');
-        const costVal  = parseFloat(input.value);
-        if (!isNaN(costVal) && input.value !== '') customCosts[childId] = costVal;
-    });
+    const targetId     = parseInt(document.getElementById(`bd-target-id-${parentId}`).value);
+    const qtyPerSource = parseFloat(document.getElementById(`bd-qps-${parentId}`).value);
+    const costEl       = document.getElementById(`bd-cost-${parentId}`);
+    const targetCost   = costEl && costEl.value !== '' ? parseFloat(costEl.value) : null;
+
+    if (!targetId) return showToast('Please select a target product before committing', 'error');
+    if (!qtyPerSource || qtyPerSource <= 0) return showToast('Qty per source must be > 0', 'error');
+
     try {
         const res = await fetch(`${API_URL}/inventory/breakdown/reserve/${reservationId}/commit`, {
             method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ custom_costs: customCosts })
+            body: JSON.stringify({ target_id: targetId, qty_per_source: qtyPerSource, target_cost: targetCost })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
@@ -1716,55 +1734,55 @@ async function removePeBundleChild(bundleId) {
 
 function renderPeBreakdownSection(p) {
     const section = document.getElementById('pe-breakdown-section');
-    // Only show when it's a bundle AND has children to break into
-    if (!p.is_bundle || !p.children || p.children.length === 0) {
+    if (!p.is_bundle) {
         section.classList.add('hidden');
         return;
     }
     section.classList.remove('hidden');
 
-    // Wave hint message
-    const childSummary = p.children.map(c => `${c.quantity_per_parent}× ${c.child_name}`).join(', ');
-    let waveMsg = `Breaking down adds <strong>${childSummary}</strong> per unit (uses oldest active FIFO wave).`;
-    if (p.waves && p.waves.length > 0) {
-        const w1 = p.waves[0];
-        const totalChildren = p.children.reduce((s, c) => s + c.quantity_per_parent, 0);
-        const w1Cost = parseFloat(w1.cost_price || 0);
-        const recCost = totalChildren > 0 ? (w1Cost / totalChildren).toFixed(2) : '0.00';
-        waveMsg = `W1 (FIFO #${w1.id || 'N/A'}) total cost $${w1Cost.toFixed(2)} → recommended cost per child: <strong>$${recCost}</strong>`;
-    }
+    const waveHint = p.waves && p.waves.length > 0
+        ? `W1 (FIFO #${p.waves[0].id}) cost $${parseFloat(p.waves[0].cost_price || 0).toFixed(2)}`
+        : 'No active waves yet';
 
-    const childInputs = p.children.map(c => `
-        <div class="flex items-center justify-between gap-2">
-            <label class="text-sm text-gray-700 truncate flex-1" title="${esc(c.child_name)}">${esc(c.child_name)}</label>
-            <div class="flex items-center gap-2 shrink-0">
-                <div class="flex items-center gap-1" title="Qty per parent">
-                    <span class="text-gray-400 text-xs">×</span>
-                    <input type="number" step="1" min="1"
-                        class="pe-bd-child-qty"
-                        data-child-id="${c.child_product_id}"
-                        value="${c.quantity_per_parent}"
-                        style="width:50px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;background:white;">
-                </div>
-                <div class="flex items-center gap-1" title="Cost per unit ($)">
-                    <span class="text-gray-400 text-xs">$</span>
-                    <input type="number" step="0.01" min="0"
-                        class="pe-bd-child-cost"
-                        data-child-id="${c.child_product_id}"
-                        placeholder="Auto"
-                        style="width:80px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;background:white;">
-                </div>
-            </div>
-        </div>`).join('');
+    const templateBtns = (p.children && p.children.length > 0)
+        ? p.children.map(c => `
+            <button onclick="peSelectTemplate(${c.child_product_id}, ${JSON.stringify(esc(c.child_name))}, ${c.quantity_per_parent})"
+                class="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition whitespace-nowrap">
+                ${esc(c.child_name)} ×${c.quantity_per_parent}
+            </button>`).join('')
+        : '';
 
     document.getElementById('pe-breakdown-body').innerHTML = `
-        <div class="flex items-start gap-2 text-sm text-amber-800 bg-white/60 rounded p-2.5 border border-amber-200">
-            <svg width="14" height="14" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24" class="mt-0.5 shrink-0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <span>${waveMsg}</span>
+        <div class="text-xs text-amber-700 bg-white/60 rounded p-2 border border-amber-200 flex items-center gap-2">
+            <svg width="13" height="13" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24" class="shrink-0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            ${waveHint}
         </div>
-        <div class="bg-white/70 rounded border border-amber-200 p-3 space-y-2">
-            <div class="text-[10px] text-gray-500 font-bold uppercase mb-1">Set Child Cost per Unit (optional override)</div>
-            ${childInputs}
+        ${templateBtns ? `
+        <div>
+            <div class="text-[10px] text-gray-400 font-semibold uppercase mb-1">Templates</div>
+            <div class="flex flex-wrap gap-1">${templateBtns}</div>
+        </div>` : ''}
+        <div>
+            <div class="text-[10px] text-gray-400 font-semibold uppercase mb-1">Target Product</div>
+            <div class="relative" id="pe-target-wrap">
+                <input type="text" id="pe-target-input" placeholder="Search product…"
+                    oninput="peSearchTarget(this.value)" autocomplete="off"
+                    style="width:100%;padding:5px 8px;font-size:13px;border:1px solid #d1d5db;border-radius:4px;background:white;">
+                <div id="pe-target-results" class="hidden absolute z-50 bg-white border border-gray-200 rounded shadow-lg mt-0.5 w-full max-h-40 overflow-y-auto"></div>
+                <input type="hidden" id="pe-target-id" value="">
+            </div>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex items-center gap-1">
+                <label class="text-xs text-gray-600 whitespace-nowrap">Qty/source:</label>
+                <input type="number" id="pe-bd-qps" value="1" min="0.001" step="any"
+                    style="width:60px;padding:5px 8px;font-size:13px;border:1px solid #d1d5db;border-radius:4px;background:white;">
+            </div>
+            <div class="flex items-center gap-1">
+                <span class="text-gray-400 text-xs">$</span>
+                <input type="number" id="pe-bd-cost" placeholder="Auto" step="0.01" min="0"
+                    style="width:80px;padding:5px 8px;font-size:13px;border:1px solid #d1d5db;border-radius:4px;background:white;">
+            </div>
         </div>`;
 
     document.getElementById('pe-bd-qty').max = p.stock_quantity;
@@ -1794,30 +1812,53 @@ function renderPeBreakdownSection(p) {
     }
 }
 
+// PE target picker helpers
+function peSearchTarget(query) {
+    const resultsEl = document.getElementById('pe-target-results');
+    const sourceId  = parseInt(document.getElementById('pe-id').value);
+    if (!query.trim()) { resultsEl.classList.add('hidden'); return; }
+    const q = query.toLowerCase();
+    const matches = allProducts.filter(x => x.id !== sourceId && x.card_name.toLowerCase().includes(q)).slice(0, 8);
+    if (!matches.length) { resultsEl.classList.add('hidden'); return; }
+    resultsEl.innerHTML = matches.map(x => `
+        <div class="px-3 py-1.5 text-xs hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+            onclick="peSetTarget(${x.id}, ${JSON.stringify(x.card_name)})">
+            ${x.card_name} <span class="text-gray-400">(${x.stock_quantity} in stock)</span>
+        </div>`).join('');
+    resultsEl.classList.remove('hidden');
+}
+
+function peSetTarget(targetId, targetName) {
+    document.getElementById('pe-target-input').value = targetName;
+    document.getElementById('pe-target-id').value    = targetId;
+    document.getElementById('pe-target-results').classList.add('hidden');
+}
+
+function peSelectTemplate(targetId, targetName, qtyPerSource) {
+    document.getElementById('pe-target-input').value = targetName;
+    document.getElementById('pe-target-id').value    = targetId;
+    document.getElementById('pe-bd-qps').value       = qtyPerSource;
+    document.getElementById('pe-target-results').classList.add('hidden');
+}
+
 async function doPeBreakdown() {
-    const id  = parseInt(document.getElementById('pe-id').value);
-    const qty = parseInt(document.getElementById('pe-bd-qty').value) || 1;
-    const customCosts = {};
-    document.querySelectorAll('.pe-bd-child-cost').forEach(input => {
-        const childId  = input.getAttribute('data-child-id');
-        const costVal  = parseFloat(input.value);
-        if (!isNaN(costVal) && input.value !== '') customCosts[childId] = costVal;
-    });
-    const quantityOverrides = {};
-    document.querySelectorAll('.pe-bd-child-qty').forEach(input => {
-        const childId = input.getAttribute('data-child-id');
-        const val = parseFloat(input.value);
-        if (!isNaN(val) && val > 0) quantityOverrides[childId] = val;
-    });
+    const id         = parseInt(document.getElementById('pe-id').value);
+    const sourceQty  = parseInt(document.getElementById('pe-bd-qty').value) || 1;
+    const targetId   = parseInt(document.getElementById('pe-target-id').value);
+    const qtyPerSource = parseFloat(document.getElementById('pe-bd-qps').value);
+    const costEl     = document.getElementById('pe-bd-cost');
+    const targetCost = costEl && costEl.value !== '' ? parseFloat(costEl.value) : null;
+
+    if (!targetId) return showToast('Please select a target product', 'error');
+    if (!qtyPerSource || qtyPerSource <= 0) return showToast('Qty per source must be > 0', 'error');
     try {
         const res = await fetch(`${API_URL}/inventory/breakdown`, {
             method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ parent_id: id, quantity: qty, custom_costs: customCosts, quantity_overrides: quantityOverrides })
+            body: JSON.stringify({ source_id: id, source_qty: sourceQty, target_id: targetId, qty_per_source: qtyPerSource, target_cost: targetCost })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        // Refresh tree + PE view
         await loadFamilyTree(currentFamily);
         const p = allProducts.find(x => x.id === id);
         if (p) {
@@ -1847,18 +1888,19 @@ async function doPeReserve() {
 
 async function doPeCommitReservation() {
     const reservationId = document.getElementById('pe-commit-btn').dataset.reservationId;
-    const id = parseInt(document.getElementById('pe-id').value);
-    const customCosts = {};
-    document.querySelectorAll('.pe-bd-child-cost').forEach(input => {
-        const childId = input.getAttribute('data-child-id');
-        const costVal = parseFloat(input.value);
-        if (!isNaN(costVal) && input.value !== '') customCosts[childId] = costVal;
-    });
+    const id            = parseInt(document.getElementById('pe-id').value);
+    const targetId      = parseInt(document.getElementById('pe-target-id').value);
+    const qtyPerSource  = parseFloat(document.getElementById('pe-bd-qps').value);
+    const costEl        = document.getElementById('pe-bd-cost');
+    const targetCost    = costEl && costEl.value !== '' ? parseFloat(costEl.value) : null;
+
+    if (!targetId) return showToast('Please select a target product before committing', 'error');
+    if (!qtyPerSource || qtyPerSource <= 0) return showToast('Qty per source must be > 0', 'error');
     try {
         const res = await fetch(`${API_URL}/inventory/breakdown/reserve/${reservationId}/commit`, {
             method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ custom_costs: customCosts })
-        });  // note: quantity_overrides not supported for pre-set reservations
+            body: JSON.stringify({ target_id: targetId, qty_per_source: qtyPerSource, target_cost: targetCost })
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
