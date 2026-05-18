@@ -261,9 +261,10 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
       `, productIds),
       db.execute(`
         SELECT f.id, f.inventory_id, f.wave_name, f.cost_price, f.remaining_qty, f.allocated_qty,
-               f.parent_fifo_id, pf.wave_name AS parent_wave_name
+               f.parent_fifo_id, pf.wave_name AS parent_wave_name, pi.card_name AS parent_product_name
         FROM fifo f
         LEFT JOIN fifo pf ON pf.id = f.parent_fifo_id
+        LEFT JOIN inventory pi ON pi.id = pf.inventory_id
         WHERE f.is_active = TRUE AND f.remaining_qty > 0 AND f.inventory_id IN (${placeholders})
       `, productIds),
       db.execute(`
@@ -668,132 +669,121 @@ app.delete('/api/bundles/:id', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to remove relationship' }); }
 });
 
-// Shared breakdown logic — called by both the direct route and the commit-reservation route
-async function executeBreakdown(conn, parent_id, quantity, custom_costs, quantity_overrides) {
-  const [[parent]] = await conn.execute(
-    'SELECT stock_quantity, card_name FROM inventory WHERE id = ?', [parent_id]
+// Shared breakdown logic — source product → one target product, one breakdown at a time
+async function executeBreakdown(conn, source_id, source_qty, target_id, qty_per_source, target_cost_override) {
+  if (source_id === target_id) throw new Error('Source and target must be different products');
+  if (qty_per_source <= 0) throw new Error('Qty per source must be greater than 0');
+
+  const [[source]] = await conn.execute(
+    'SELECT stock_quantity, card_name FROM inventory WHERE id = ?', [source_id]
   );
-  if (!parent) throw new Error('Product not found');
-  if (parent.stock_quantity < quantity) {
-    throw new Error(`Insufficient stock. Only ${parent.stock_quantity} unit(s) available`);
+  if (!source) throw new Error('Source product not found');
+  if (source.stock_quantity < source_qty) {
+    throw new Error(`Insufficient stock. Only ${source.stock_quantity} unit(s) available`);
   }
 
-  const [children] = await conn.execute(
-    'SELECT child_product_id, quantity_per_parent FROM product_bundles WHERE parent_product_id = ?',
-    [parent_id]
+  const [[target]] = await conn.execute(
+    'SELECT id, card_name FROM inventory WHERE id = ?', [target_id]
   );
-  if (children.length === 0) throw new Error('Product has no children configured for breakdown');
+  if (!target) throw new Error('Target product not found');
 
-  const [parentWaves] = await conn.execute(
+  const [sourceWaves] = await conn.execute(
     'SELECT id, remaining_qty, cost_price, wave_name, arrival_date, invoice_number FROM fifo WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0 ORDER BY arrival_date ASC, id ASC',
-    [parent_id]
+    [source_id]
   );
 
-  let remainingToBreak = quantity;
+  let remainingToBreak = source_qty;
   const waveDeductions = [];
 
-  for (let wave of parentWaves) {
+  for (const wave of sourceWaves) {
     if (remainingToBreak <= 0) break;
-    let deductQty = Math.min(wave.remaining_qty, remainingToBreak);
+    const deductQty = Math.min(wave.remaining_qty, remainingToBreak);
     remainingToBreak -= deductQty;
     waveDeductions.push({
       wave_id: wave.id,
       cost_price: wave.cost_price,
       qty: deductQty,
       wave_name: wave.wave_name,
-      arrival_date: wave.arrival_date,
       invoice_number: wave.invoice_number
     });
   }
 
   if (remainingToBreak > 0) {
-    throw new Error('Not enough remaining quantity in active parent waves to break down this amount. Please verify wave stocks.');
+    throw new Error('Not enough stock in active waves to break down this amount.');
   }
 
-  for (let deduction of waveDeductions) {
+  for (const deduction of waveDeductions) {
     await conn.execute(
       'UPDATE fifo SET remaining_qty = remaining_qty - ? WHERE id = ?',
       [deduction.qty, deduction.wave_id]
     );
 
-    for (let child of children) {
-      const qtyPerParent = (quantity_overrides && quantity_overrides[child.child_product_id] !== undefined)
-        ? parseFloat(quantity_overrides[child.child_product_id])
-        : child.quantity_per_parent;
-      if (qtyPerParent <= 0) throw new Error(`Invalid quantity_per_parent for child product ${child.child_product_id}`);
-      let childQtyToCreate = deduction.qty * qtyPerParent;
-      let childCostPrice = (parseFloat(deduction.cost_price) / qtyPerParent).toFixed(2);
+    const targetQtyToCreate = deduction.qty * qty_per_source;
+    const targetCost = target_cost_override != null
+      ? parseFloat(target_cost_override).toFixed(2)
+      : (parseFloat(deduction.cost_price) / qty_per_source).toFixed(2);
+    const newWaveName = `Breakdown from ${deduction.wave_name}`;
 
-      if (custom_costs && custom_costs[child.child_product_id] !== undefined) {
-        childCostPrice = parseFloat(custom_costs[child.child_product_id]).toFixed(2);
-      }
-
-      let newWaveName = `Breakdown from ${deduction.wave_name}`;
-
-      let queryStr = 'SELECT id, initial_qty, remaining_qty FROM fifo WHERE inventory_id = ? AND wave_name = ? AND is_active = TRUE';
-      let queryParams = [child.child_product_id, newWaveName];
-
-      if (deduction.invoice_number === null || deduction.invoice_number === undefined) {
-        queryStr += ' AND invoice_number IS NULL';
-      } else {
-        queryStr += ' AND invoice_number = ?';
-        queryParams.push(deduction.invoice_number);
-      }
-      queryStr += ' LIMIT 1';
-
-      const [existingChildWave] = await conn.execute(queryStr, queryParams);
-      let childWaveId;
-
-      if (existingChildWave.length > 0) {
-        childWaveId = existingChildWave[0].id;
-        await conn.execute(
-          'UPDATE fifo SET initial_qty = initial_qty + ?, remaining_qty = remaining_qty + ? WHERE id = ?',
-          [childQtyToCreate, childQtyToCreate, childWaveId]
-        );
-      } else {
-        const [childWaveResult] = await conn.execute(
-          `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number, parent_fifo_id)
-           VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?)`,
-          [
-            child.child_product_id,
-            newWaveName,
-            childCostPrice,
-            childQtyToCreate,
-            childQtyToCreate,
-            new Date().toISOString().slice(0, 10),
-            deduction.invoice_number || null,
-            deduction.wave_id
-          ]
-        );
-        childWaveId = childWaveResult.insertId;
-      }
-
-      await conn.execute(
-        `INSERT INTO bundle_breakdown_log (parent_product_id, child_product_id, quantity_broken, parent_wave_id, child_wave_id)
-         VALUES (?, ?, ?, ?, ?)`,
-        [parent_id, child.child_product_id, deduction.qty, deduction.wave_id, childWaveId]
-      );
+    let queryStr = 'SELECT id FROM fifo WHERE inventory_id = ? AND wave_name = ? AND is_active = TRUE';
+    const queryParams = [target_id, newWaveName];
+    if (deduction.invoice_number == null) {
+      queryStr += ' AND invoice_number IS NULL';
+    } else {
+      queryStr += ' AND invoice_number = ?';
+      queryParams.push(deduction.invoice_number);
     }
+    queryStr += ' LIMIT 1';
+
+    const [existingWave] = await conn.execute(queryStr, queryParams);
+    let targetWaveId;
+
+    if (existingWave.length > 0) {
+      targetWaveId = existingWave[0].id;
+      await conn.execute(
+        'UPDATE fifo SET initial_qty = initial_qty + ?, remaining_qty = remaining_qty + ? WHERE id = ?',
+        [targetQtyToCreate, targetQtyToCreate, targetWaveId]
+      );
+    } else {
+      const [insertResult] = await conn.execute(
+        `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number, parent_fifo_id)
+         VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?)`,
+        [
+          target_id,
+          newWaveName,
+          targetCost,
+          targetQtyToCreate,
+          targetQtyToCreate,
+          new Date().toISOString().slice(0, 10),
+          deduction.invoice_number || null,
+          deduction.wave_id
+        ]
+      );
+      targetWaveId = insertResult.insertId;
+    }
+
+    await conn.execute(
+      `INSERT INTO bundle_breakdown_log (parent_product_id, child_product_id, quantity_broken, parent_wave_id, child_wave_id)
+       VALUES (?, ?, ?, ?, ?)`,
+      [source_id, target_id, deduction.qty, deduction.wave_id, targetWaveId]
+    );
   }
 
-  await syncInventoryStock(parent_id, conn);
-  for (let child of children) {
-    await syncInventoryStock(child.child_product_id, conn);
-  }
+  await syncInventoryStock(source_id, conn);
+  await syncInventoryStock(target_id, conn);
 
-  return { message: `Successfully broke down ${quantity} × ${parent.card_name}` };
+  return { message: `Broke down ${source_qty} × ${source.card_name} → ${source_qty * qty_per_source} × ${target.card_name}` };
 }
 
-// Manual breakdown — one level at a time, transactional
+// Manual breakdown — source → one target, transactional
 app.post('/api/inventory/breakdown', async (req, res) => {
-  const { parent_id, quantity, custom_costs, quantity_overrides } = req.body;
-  if (!parent_id || !quantity || quantity < 1) {
-    return res.status(400).json({ error: 'Invalid breakdown request' });
+  const { source_id, source_qty, target_id, qty_per_source, target_cost } = req.body;
+  if (!source_id || !target_id || !source_qty || source_qty < 1 || !qty_per_source || qty_per_source <= 0) {
+    return res.status(400).json({ error: 'source_id, target_id, source_qty (≥1), and qty_per_source (>0) are required' });
   }
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const result = await executeBreakdown(conn, parent_id, quantity, custom_costs, quantity_overrides);
+    const result = await executeBreakdown(conn, parseInt(source_id), parseInt(source_qty), parseInt(target_id), parseFloat(qty_per_source), target_cost ?? null);
     await conn.commit();
     res.json(result);
   } catch (err) {
@@ -872,7 +862,10 @@ app.delete('/api/inventory/breakdown/reserve/:id', async (req, res) => {
 
 // Commit a breakdown reservation — executes the actual breakdown
 app.post('/api/inventory/breakdown/reserve/:id/commit', async (req, res) => {
-  const { quantity, custom_costs } = req.body;
+  const { quantity, target_id, qty_per_source, target_cost } = req.body;
+  if (!target_id || !qty_per_source || qty_per_source <= 0) {
+    return res.status(400).json({ error: 'target_id and qty_per_source are required to commit a breakdown' });
+  }
   const conn = await db.getConnection();
   try {
     const [[reservation]] = await conn.execute(
@@ -893,7 +886,7 @@ app.post('/api/inventory/breakdown/reserve/:id/commit', async (req, res) => {
     }
 
     await conn.beginTransaction();
-    const result = await executeBreakdown(conn, reservation.parent_product_id, qtyToBreak, custom_costs, null);
+    const result = await executeBreakdown(conn, reservation.parent_product_id, qtyToBreak, parseInt(target_id), parseFloat(qty_per_source), target_cost ?? null);
 
     if (qtyToBreak >= reservation.reserved_qty) {
       await conn.execute(
