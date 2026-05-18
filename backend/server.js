@@ -260,9 +260,11 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
         WHERE pb.parent_product_id IN (${placeholders})
       `, productIds),
       db.execute(`
-        SELECT id, inventory_id, wave_name, cost_price, remaining_qty, allocated_qty
-        FROM fifo
-        WHERE is_active = TRUE AND remaining_qty > 0 AND inventory_id IN (${placeholders})
+        SELECT f.id, f.inventory_id, f.wave_name, f.cost_price, f.remaining_qty, f.allocated_qty,
+               f.parent_fifo_id, pf.wave_name AS parent_wave_name
+        FROM fifo f
+        LEFT JOIN fifo pf ON pf.id = f.parent_fifo_id
+        WHERE f.is_active = TRUE AND f.remaining_qty > 0 AND f.inventory_id IN (${placeholders})
       `, productIds),
       db.execute(`
         SELECT id, parent_product_id, reserved_qty, \`type\`, notes
@@ -667,7 +669,7 @@ app.delete('/api/bundles/:id', async (req, res) => {
 });
 
 // Shared breakdown logic — called by both the direct route and the commit-reservation route
-async function executeBreakdown(conn, parent_id, quantity, custom_costs) {
+async function executeBreakdown(conn, parent_id, quantity, custom_costs, quantity_overrides) {
   const [[parent]] = await conn.execute(
     'SELECT stock_quantity, card_name FROM inventory WHERE id = ?', [parent_id]
   );
@@ -715,8 +717,12 @@ async function executeBreakdown(conn, parent_id, quantity, custom_costs) {
     );
 
     for (let child of children) {
-      let childQtyToCreate = deduction.qty * child.quantity_per_parent;
-      let childCostPrice = (parseFloat(deduction.cost_price) / child.quantity_per_parent).toFixed(2);
+      const qtyPerParent = (quantity_overrides && quantity_overrides[child.child_product_id] !== undefined)
+        ? parseFloat(quantity_overrides[child.child_product_id])
+        : child.quantity_per_parent;
+      if (qtyPerParent <= 0) throw new Error(`Invalid quantity_per_parent for child product ${child.child_product_id}`);
+      let childQtyToCreate = deduction.qty * qtyPerParent;
+      let childCostPrice = (parseFloat(deduction.cost_price) / qtyPerParent).toFixed(2);
 
       if (custom_costs && custom_costs[child.child_product_id] !== undefined) {
         childCostPrice = parseFloat(custom_costs[child.child_product_id]).toFixed(2);
@@ -746,8 +752,8 @@ async function executeBreakdown(conn, parent_id, quantity, custom_costs) {
         );
       } else {
         const [childWaveResult] = await conn.execute(
-          `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number)
-           VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
+          `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number, parent_fifo_id)
+           VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?)`,
           [
             child.child_product_id,
             newWaveName,
@@ -755,7 +761,8 @@ async function executeBreakdown(conn, parent_id, quantity, custom_costs) {
             childQtyToCreate,
             childQtyToCreate,
             new Date().toISOString().slice(0, 10),
-            deduction.invoice_number || null
+            deduction.invoice_number || null,
+            deduction.wave_id
           ]
         );
         childWaveId = childWaveResult.insertId;
@@ -779,14 +786,14 @@ async function executeBreakdown(conn, parent_id, quantity, custom_costs) {
 
 // Manual breakdown — one level at a time, transactional
 app.post('/api/inventory/breakdown', async (req, res) => {
-  const { parent_id, quantity, custom_costs } = req.body;
+  const { parent_id, quantity, custom_costs, quantity_overrides } = req.body;
   if (!parent_id || !quantity || quantity < 1) {
     return res.status(400).json({ error: 'Invalid breakdown request' });
   }
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const result = await executeBreakdown(conn, parent_id, quantity, custom_costs);
+    const result = await executeBreakdown(conn, parent_id, quantity, custom_costs, quantity_overrides);
     await conn.commit();
     res.json(result);
   } catch (err) {
@@ -886,7 +893,7 @@ app.post('/api/inventory/breakdown/reserve/:id/commit', async (req, res) => {
     }
 
     await conn.beginTransaction();
-    const result = await executeBreakdown(conn, reservation.parent_product_id, qtyToBreak, custom_costs);
+    const result = await executeBreakdown(conn, reservation.parent_product_id, qtyToBreak, custom_costs, null);
 
     if (qtyToBreak >= reservation.reserved_qty) {
       await conn.execute(

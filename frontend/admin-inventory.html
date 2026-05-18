@@ -778,15 +778,25 @@ function renderProductRow(p, allProds) {
         const childCostInputs = p.children.map(c => {
             return `
             <div class="flex items-center justify-between gap-2 mt-2 w-full">
-                <label class="text-xs text-gray-700 truncate" title="${c.child_name}">${c.child_name} Cost:</label>
-                <div class="flex items-center gap-1">
-                    <span class="text-gray-400 text-xs">$</span>
-                    <input type="number" step="0.01" min="0" 
-                        class="bd-child-cost-${p.id}" 
-                        data-child-id="${c.child_product_id}" 
-                        value=""
-                        placeholder="Auto (FIFO)"
-                        style="width:90px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                <label class="text-xs text-gray-700 truncate flex-1" title="${c.child_name}">${c.child_name}</label>
+                <div class="flex items-center gap-2 shrink-0">
+                    <div class="flex items-center gap-1" title="Qty per parent">
+                        <span class="text-gray-400 text-xs">×</span>
+                        <input type="number" step="1" min="1"
+                            class="bd-child-qty-${p.id}"
+                            data-child-id="${c.child_product_id}"
+                            value="${c.quantity_per_parent}"
+                            style="width:50px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                    </div>
+                    <div class="flex items-center gap-1" title="Cost per unit ($)">
+                        <span class="text-gray-400 text-xs">$</span>
+                        <input type="number" step="0.01" min="0"
+                            class="bd-child-cost-${p.id}"
+                            data-child-id="${c.child_product_id}"
+                            value=""
+                            placeholder="Auto"
+                            style="width:80px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
+                    </div>
                 </div>
             </div>`;
         }).join('');
@@ -1062,11 +1072,15 @@ function renderPeWaves() {
         const splitBtn = allocated > 0
             ? `<button onclick="peShowSplit(${w.id})" class="text-purple-600 hover:text-purple-800 font-medium text-xs px-2 py-1 border border-purple-200 rounded hover:bg-purple-50 transition">Split</button>`
             : '';
+        const parentHint = w.parent_fifo_id
+            ? `<div class="text-[10px] text-indigo-400 mt-0.5">↳ From FIFO #${w.parent_fifo_id}${w.parent_wave_name ? ': ' + esc(w.parent_wave_name) : ''}</div>`
+            : '';
         return `
         <tr class="hover:bg-gray-50/50" id="pe-wave-row-${w.id}">
             <td class="p-3">
                 <div class="font-semibold text-gray-800">${esc(w.wave_name)}</div>
                 <div class="text-[10px] text-gray-400">FIFO #${w.id}</div>
+                ${parentHint}
             </td>
             <td class="p-3 text-gray-600">${w.arrival_date ? w.arrival_date.split('T')[0] : '—'}</td>
             <td class="p-3 text-right font-medium">$${parseFloat(w.cost_price).toFixed(2)}</td>
@@ -1473,7 +1487,7 @@ async function saveDrawer() {
 async function doBreakdown(parentId) {
     const qty = parseInt(document.getElementById(`bd-qty-${parentId}`).value) || 1;
     
-    // Gather child costs
+    // Gather child costs and qty overrides
     const childCostInputs = document.querySelectorAll(`.bd-child-cost-${parentId}`);
     const customCosts = {};
     childCostInputs.forEach(input => {
@@ -1483,11 +1497,17 @@ async function doBreakdown(parentId) {
             customCosts[childId] = costValue;
         }
     });
+    const quantityOverrides = {};
+    document.querySelectorAll(`.bd-child-qty-${parentId}`).forEach(input => {
+        const childId = input.getAttribute('data-child-id');
+        const val = parseFloat(input.value);
+        if (!isNaN(val) && val > 0) quantityOverrides[childId] = val;
+    });
 
     try {
         const res = await fetch(`${API_URL}/inventory/breakdown`, {
             method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ parent_id: parentId, quantity: qty, custom_costs: customCosts })
+            body: JSON.stringify({ parent_id: parentId, quantity: qty, custom_costs: customCosts, quantity_overrides: quantityOverrides })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
@@ -1716,14 +1736,24 @@ function renderPeBreakdownSection(p) {
 
     const childInputs = p.children.map(c => `
         <div class="flex items-center justify-between gap-2">
-            <label class="text-sm text-gray-700 truncate" title="${esc(c.child_name)}">${c.child_name}</label>
-            <div class="flex items-center gap-1 shrink-0">
-                <span class="text-gray-400 text-xs">$</span>
-                <input type="number" step="0.01" min="0"
-                    class="pe-bd-child-cost"
-                    data-child-id="${c.child_product_id}"
-                    placeholder="Auto (FIFO)"
-                    style="width:90px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;background:white;">
+            <label class="text-sm text-gray-700 truncate flex-1" title="${esc(c.child_name)}">${esc(c.child_name)}</label>
+            <div class="flex items-center gap-2 shrink-0">
+                <div class="flex items-center gap-1" title="Qty per parent">
+                    <span class="text-gray-400 text-xs">×</span>
+                    <input type="number" step="1" min="1"
+                        class="pe-bd-child-qty"
+                        data-child-id="${c.child_product_id}"
+                        value="${c.quantity_per_parent}"
+                        style="width:50px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;background:white;">
+                </div>
+                <div class="flex items-center gap-1" title="Cost per unit ($)">
+                    <span class="text-gray-400 text-xs">$</span>
+                    <input type="number" step="0.01" min="0"
+                        class="pe-bd-child-cost"
+                        data-child-id="${c.child_product_id}"
+                        placeholder="Auto"
+                        style="width:80px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;background:white;">
+                </div>
             </div>
         </div>`).join('');
 
@@ -1773,10 +1803,16 @@ async function doPeBreakdown() {
         const costVal  = parseFloat(input.value);
         if (!isNaN(costVal) && input.value !== '') customCosts[childId] = costVal;
     });
+    const quantityOverrides = {};
+    document.querySelectorAll('.pe-bd-child-qty').forEach(input => {
+        const childId = input.getAttribute('data-child-id');
+        const val = parseFloat(input.value);
+        if (!isNaN(val) && val > 0) quantityOverrides[childId] = val;
+    });
     try {
         const res = await fetch(`${API_URL}/inventory/breakdown`, {
             method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ parent_id: id, quantity: qty, custom_costs: customCosts })
+            body: JSON.stringify({ parent_id: id, quantity: qty, custom_costs: customCosts, quantity_overrides: quantityOverrides })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
@@ -1822,7 +1858,7 @@ async function doPeCommitReservation() {
         const res = await fetch(`${API_URL}/inventory/breakdown/reserve/${reservationId}/commit`, {
             method: 'POST', headers: authHeaders(),
             body: JSON.stringify({ custom_costs: customCosts })
-        });
+        });  // note: quantity_overrides not supported for pre-set reservations
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
