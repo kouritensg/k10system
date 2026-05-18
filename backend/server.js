@@ -965,6 +965,10 @@ async function deductFifoWaves(conn, inventory_id, qty) {
 }
 
 app.post('/api/outstock', authenticate, async (req, res) => {
+  if (!req.user || req.user.username === 'unknown') {
+    return res.status(401).json({ error: 'Session expired. Please log in again.' });
+  }
+
   const { transaction_type, customer_id, transaction_date, notes, items } = req.body;
 
   if (!['sale', 'adjustment'].includes(transaction_type)) {
@@ -1065,10 +1069,12 @@ app.get('/api/outstock', async (req, res) => {
          ot.changed_by, ot.created_at,
          ANY_VALUE(c.name) AS customer_name,
          COUNT(oi.id) AS items_count,
-         SUM(oi.qty * COALESCE(oi.unit_price, 0)) AS total_value
+         SUM(oi.qty * COALESCE(oi.unit_price, 0)) AS total_value,
+         ANY_VALUE(i.card_name) AS first_product
        FROM outstock_transactions ot
        LEFT JOIN customers c ON c.id = ot.customer_id
        LEFT JOIN outstock_items oi ON oi.transaction_id = ot.id
+       LEFT JOIN inventory i ON i.id = oi.inventory_id
        ${whereClause}
        GROUP BY ot.id
        ORDER BY ot.transaction_date DESC, ot.created_at DESC
