@@ -1040,6 +1040,9 @@ app.post('/api/outstock', authenticate, async (req, res) => {
 app.get('/api/outstock', async (req, res) => {
   const { transaction_type, customer_id, date_from, date_to, limit = 25, offset = 0 } = req.query;
 
+  const safeLimit  = Math.max(1, parseInt(limit)  || 25);
+  const safeOffset = Math.max(0, parseInt(offset) || 0);
+
   const where = ['ot.voided_at IS NULL'];
   const params = [];
 
@@ -1069,8 +1072,8 @@ app.get('/api/outstock', async (req, res) => {
        ${whereClause}
        GROUP BY ot.id
        ORDER BY ot.transaction_date DESC, ot.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), parseInt(offset)]
+       LIMIT ${safeLimit} OFFSET ${safeOffset}`,
+      params
     );
 
     res.json({ rows, total });
