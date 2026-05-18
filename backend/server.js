@@ -408,12 +408,27 @@ app.put('/api/inventory/:id', authenticate, async (req, res) => {
   finally { conn.release(); }
 });
 
-// Delete product
-app.delete('/api/inventory/:id', async (req, res) => {
+// Delete product — cascades all FK-linked records in dependency order
+app.delete('/api/inventory/:id', authenticate, async (req, res) => {
+  const id = req.params.id;
+  const conn = await db.getConnection();
   try {
-    await db.execute('DELETE FROM inventory WHERE id = ?', [req.params.id]);
-    res.json({ message: 'Deleted' });
-  } catch (error) { res.status(500).json({ error: 'Delete failed' }); }
+    await conn.beginTransaction();
+    await conn.execute('DELETE FROM bundle_breakdown_log WHERE parent_product_id = ? OR child_product_id = ?', [id, id]);
+    await conn.execute('DELETE FROM inventory_reservations WHERE parent_product_id = ?', [id]);
+    await conn.execute('DELETE FROM inventory_change_log WHERE inventory_id = ?', [id]);
+    await conn.execute('DELETE FROM outstock_items WHERE inventory_id = ?', [id]);
+    await conn.execute('DELETE FROM customer_order_items WHERE inventory_id = ?', [id]);
+    await conn.execute('DELETE FROM po_items WHERE inventory_id = ?', [id]);
+    await conn.execute('DELETE FROM product_bundles WHERE parent_product_id = ? OR child_product_id = ?', [id, id]);
+    await conn.execute('DELETE FROM fifo WHERE inventory_id = ?', [id]);
+    await conn.execute('DELETE FROM inventory WHERE id = ?', [id]);
+    await conn.commit();
+    res.json({ message: 'Product deleted' });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ error: error.message });
+  } finally { conn.release(); }
 });
 
 // Change history for a product
