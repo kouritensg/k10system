@@ -773,9 +773,15 @@ function renderProductRow(p, allProds) {
 
     let breakdownBlock = '';
     if (p.is_bundle) {
+        // Store template data globally so onclick only needs IDs (avoids quote-escaping in HTML attributes)
+        window._bdTemplates = window._bdTemplates || {};
+        if (p.children) p.children.forEach(c => {
+            window._bdTemplates[`${p.id}_${c.child_product_id}`] = { name: c.child_name, qty: c.quantity_per_parent };
+        });
+
         const templateBtns = (p.children && p.children.length > 0)
             ? p.children.map(c => `
-                <button onclick="bdSelectTemplate(${p.id}, ${c.child_product_id}, ${JSON.stringify(esc(c.child_name))}, ${c.quantity_per_parent})"
+                <button onclick="bdSelectTemplate(${p.id}, ${c.child_product_id})"
                     class="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition whitespace-nowrap">
                     ${esc(c.child_name)} ×${c.quantity_per_parent}
                 </button>`).join('')
@@ -1491,22 +1497,24 @@ function bdSearchTarget(parentId, query) {
     if (!matches.length) { resultsEl.classList.add('hidden'); return; }
     resultsEl.innerHTML = matches.map(x => `
         <div class="px-3 py-1.5 text-xs hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
-            onclick="bdSetTarget(${parentId}, ${x.id}, ${JSON.stringify(x.card_name)})">
+            onclick="bdSetTarget(${parentId}, ${x.id})">
             ${x.card_name} <span class="text-gray-400">(${x.stock_quantity} in stock)</span>
         </div>`).join('');
     resultsEl.classList.remove('hidden');
 }
 
-function bdSetTarget(parentId, targetId, targetName) {
-    document.getElementById(`bd-target-input-${parentId}`).value = targetName;
+function bdSetTarget(parentId, targetId) {
+    const p = allProducts.find(x => x.id === targetId);
+    document.getElementById(`bd-target-input-${parentId}`).value = p ? p.card_name : '';
     document.getElementById(`bd-target-id-${parentId}`).value = targetId;
     document.getElementById(`bd-target-results-${parentId}`).classList.add('hidden');
 }
 
-function bdSelectTemplate(parentId, targetId, targetName, qtyPerSource) {
-    document.getElementById(`bd-target-input-${parentId}`).value = targetName;
+function bdSelectTemplate(parentId, targetId) {
+    const tmpl = (window._bdTemplates || {})[`${parentId}_${targetId}`] || {};
+    document.getElementById(`bd-target-input-${parentId}`).value = tmpl.name || '';
     document.getElementById(`bd-target-id-${parentId}`).value = targetId;
-    document.getElementById(`bd-qps-${parentId}`).value = qtyPerSource;
+    document.getElementById(`bd-qps-${parentId}`).value = tmpl.qty || 1;
     document.getElementById(`bd-target-results-${parentId}`).classList.add('hidden');
 }
 
@@ -1744,9 +1752,14 @@ function renderPeBreakdownSection(p) {
         ? `W1 (FIFO #${p.waves[0].id}) cost $${parseFloat(p.waves[0].cost_price || 0).toFixed(2)}`
         : 'No active waves yet';
 
+    window._peTemplates = {};
+    if (p.children) p.children.forEach(c => {
+        window._peTemplates[c.child_product_id] = { name: c.child_name, qty: c.quantity_per_parent };
+    });
+
     const templateBtns = (p.children && p.children.length > 0)
         ? p.children.map(c => `
-            <button onclick="peSelectTemplate(${c.child_product_id}, ${JSON.stringify(esc(c.child_name))}, ${c.quantity_per_parent})"
+            <button onclick="peSelectTemplate(${c.child_product_id})"
                 class="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition whitespace-nowrap">
                 ${esc(c.child_name)} ×${c.quantity_per_parent}
             </button>`).join('')
@@ -1822,22 +1835,24 @@ function peSearchTarget(query) {
     if (!matches.length) { resultsEl.classList.add('hidden'); return; }
     resultsEl.innerHTML = matches.map(x => `
         <div class="px-3 py-1.5 text-xs hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
-            onclick="peSetTarget(${x.id}, ${JSON.stringify(x.card_name)})">
+            onclick="peSetTarget(${x.id})">
             ${x.card_name} <span class="text-gray-400">(${x.stock_quantity} in stock)</span>
         </div>`).join('');
     resultsEl.classList.remove('hidden');
 }
 
-function peSetTarget(targetId, targetName) {
-    document.getElementById('pe-target-input').value = targetName;
+function peSetTarget(targetId) {
+    const p = allProducts.find(x => x.id === targetId);
+    document.getElementById('pe-target-input').value = p ? p.card_name : '';
     document.getElementById('pe-target-id').value    = targetId;
     document.getElementById('pe-target-results').classList.add('hidden');
 }
 
-function peSelectTemplate(targetId, targetName, qtyPerSource) {
-    document.getElementById('pe-target-input').value = targetName;
+function peSelectTemplate(targetId) {
+    const tmpl = (window._peTemplates || {})[targetId] || {};
+    document.getElementById('pe-target-input').value = tmpl.name || '';
     document.getElementById('pe-target-id').value    = targetId;
-    document.getElementById('pe-bd-qps').value       = qtyPerSource;
+    document.getElementById('pe-bd-qps').value       = tmpl.qty || 1;
     document.getElementById('pe-target-results').classList.add('hidden');
 }
 
