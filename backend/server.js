@@ -1060,14 +1060,14 @@ app.get('/api/outstock', async (req, res) => {
       `SELECT
          ot.id, ot.transaction_type, ot.transaction_date, ot.notes,
          ot.changed_by, ot.created_at,
-         c.name AS customer_name,
+         ANY_VALUE(c.name) AS customer_name,
          COUNT(oi.id) AS items_count,
          SUM(oi.qty * COALESCE(oi.unit_price, 0)) AS total_value
        FROM outstock_transactions ot
        LEFT JOIN customers c ON c.id = ot.customer_id
        LEFT JOIN outstock_items oi ON oi.transaction_id = ot.id
        ${whereClause}
-       GROUP BY ot.id, c.name
+       GROUP BY ot.id
        ORDER BY ot.transaction_date DESC, ot.created_at DESC
        LIMIT ? OFFSET ?`,
       [...params, parseInt(limit), parseInt(offset)]
@@ -1075,7 +1075,8 @@ app.get('/api/outstock', async (req, res) => {
 
     res.json({ rows, total });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('API /outstock ERROR:', err);
+    res.status(500).json({ error: err.message || err.toString() });
   }
 });
 
