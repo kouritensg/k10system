@@ -554,7 +554,13 @@ async function loadHistory() {
 
     try {
         const r = await fetch(`${API}/api/outstock?${params}`, { headers: headers() });
-        const { rows, total } = await r.json();
+        const data = await r.json();
+        if (!r.ok) {
+            document.getElementById('history-body').innerHTML =
+                `<tr><td colspan="7" class="px-4 py-8 text-center text-red-400">Failed to load history: ${escHtml(data.error || r.statusText)}</td></tr>`;
+            return;
+        }
+        const { rows, total } = data;
 
         const body = document.getElementById('history-body');
         if (!rows.length) {
@@ -593,6 +599,7 @@ async function loadHistory() {
         document.getElementById('btn-prev').disabled = historyPage === 0;
         document.getElementById('btn-next').disabled = (historyPage + 1) * PAGE_SIZE >= total;
     } catch (e) {
+        console.error('loadHistory error:', e);
         document.getElementById('history-body').innerHTML =
             `<tr><td colspan="7" class="px-4 py-8 text-center text-red-400">Failed to load history.</td></tr>`;
     }
