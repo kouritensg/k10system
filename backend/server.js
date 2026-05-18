@@ -260,7 +260,7 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
         WHERE pb.parent_product_id IN (${placeholders})
       `, productIds),
       db.execute(`
-        SELECT id, inventory_id, wave_name, cost_price, remaining_qty
+        SELECT id, inventory_id, wave_name, cost_price, remaining_qty, allocated_qty
         FROM fifo
         WHERE is_active = TRUE AND remaining_qty > 0 AND inventory_id IN (${placeholders})
       `, productIds),
@@ -494,15 +494,20 @@ app.post('/api/inventory/:id/waves', authenticate, async (req, res) => {
 });
 
 app.put('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
-  const { wave_name, cost_price, remaining_qty, arrival_date, invoice_number } = req.body;
+  const { wave_name, cost_price, remaining_qty, arrival_date, invoice_number, allocated_qty } = req.body;
   const wave_id = req.params.wave_id;
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
     const [[wave]] = await conn.execute(
-      'SELECT inventory_id, wave_name, remaining_qty, invoice_number, arrival_date FROM fifo WHERE id = ?', [wave_id]
+      'SELECT inventory_id, wave_name, remaining_qty, allocated_qty, invoice_number, arrival_date FROM fifo WHERE id = ?', [wave_id]
     );
     if (!wave) throw new Error('Wave not found');
+
+    const newAllocated = allocated_qty !== undefined ? Number(allocated_qty) : Number(wave.allocated_qty);
+    if (newAllocated < 0 || newAllocated > Number(remaining_qty)) {
+      throw new Error(`allocated_qty (${newAllocated}) must be between 0 and remaining_qty (${remaining_qty})`);
+    }
 
     // Determine source label based on stock direction
     const oldQty = Number(wave.remaining_qty);
@@ -513,9 +518,9 @@ app.put('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
     else                        source = `${wave_name} Updated`;
 
     await conn.execute(
-      `UPDATE fifo SET wave_name = ?, cost_price = ?, remaining_qty = ?, arrival_date = ?, invoice_number = ?
+      `UPDATE fifo SET wave_name = ?, cost_price = ?, remaining_qty = ?, arrival_date = ?, invoice_number = ?, allocated_qty = ?
        WHERE id = ?`,
-      [wave_name, cost_price, remaining_qty, arrival_date, invoice_number || null, wave_id]
+      [wave_name, cost_price, remaining_qty, arrival_date, invoice_number || null, newAllocated, wave_id]
     );
 
     // Log invoice_number and arrival_date changes
@@ -551,6 +556,60 @@ app.delete('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
   } catch (error) {
     await conn.rollback();
     res.status(500).json({ error: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// Split allocated_qty of a wave into a new named wave
+app.post('/api/inventory/waves/:wave_id/split', authenticate, async (req, res) => {
+  const { new_wave_name, split_qty } = req.body;
+  const wave_id = req.params.wave_id;
+
+  if (!new_wave_name || !new_wave_name.trim()) {
+    return res.status(400).json({ error: 'new_wave_name is required' });
+  }
+  const qty = parseInt(split_qty);
+  if (!qty || qty < 1) {
+    return res.status(400).json({ error: 'split_qty must be >= 1' });
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [[wave]] = await conn.execute(
+      'SELECT inventory_id, wave_name, cost_price, remaining_qty, allocated_qty FROM fifo WHERE id = ? AND is_active = TRUE',
+      [wave_id]
+    );
+    if (!wave) throw new Error('Wave not found');
+    if (qty > Number(wave.allocated_qty)) {
+      throw new Error(`split_qty (${qty}) exceeds allocated_qty (${wave.allocated_qty})`);
+    }
+    if (qty > Number(wave.remaining_qty)) {
+      throw new Error(`split_qty (${qty}) exceeds remaining_qty (${wave.remaining_qty})`);
+    }
+
+    // Deduct from original wave
+    await conn.execute(
+      'UPDATE fifo SET remaining_qty = remaining_qty - ?, allocated_qty = allocated_qty - ? WHERE id = ?',
+      [qty, qty, wave_id]
+    );
+
+    // Create new wave for the split stock
+    const today = new Date().toISOString().slice(0, 10);
+    const [result] = await conn.execute(
+      `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, allocated_qty, arrival_date, is_active)
+       VALUES (?, ?, ?, ?, ?, 0, ?, TRUE)`,
+      [wave.inventory_id, new_wave_name.trim(), wave.cost_price, qty, qty, today]
+    );
+
+    // Sync — total stock unchanged but recalculate weighted cost
+    await syncInventoryStock(wave.inventory_id, conn, req.user.username, `Wave Split: ${new_wave_name.trim()}`);
+    await conn.commit();
+    res.status(201).json({ original_wave_id: Number(wave_id), new_wave_id: result.insertId, new_wave_name: new_wave_name.trim() });
+  } catch (err) {
+    await conn.rollback();
+    res.status(400).json({ error: err.message });
   } finally {
     conn.release();
   }
@@ -742,14 +801,14 @@ app.post('/api/inventory/breakdown', async (req, res) => {
 // 5b. RESERVATION MODULE
 // ==========================================
 
-// Create or update a pending reservation (breakdown or event)
+// Create or update a pending breakdown reservation
 app.post('/api/inventory/breakdown/reserve', async (req, res) => {
   const { parent_id, quantity, type, notes } = req.body;
   if (!parent_id || !quantity || quantity < 1) {
     return res.status(400).json({ error: 'Invalid reservation request' });
   }
-  if (!['breakdown', 'event'].includes(type)) {
-    return res.status(400).json({ error: 'type must be "breakdown" or "event"' });
+  if (type !== 'breakdown') {
+    return res.status(400).json({ error: 'type must be "breakdown"' });
   }
   try {
     const [[parent]] = await db.execute(
