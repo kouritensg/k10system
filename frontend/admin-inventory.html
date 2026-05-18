@@ -172,21 +172,12 @@
                     <svg width="15" height="15" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     <h3 class="text-base font-bold text-amber-800">Break Down Bundle</h3>
                 </div>
-                <div id="pe-reservation-status" class="mb-3"></div>
                 <div id="pe-breakdown-body" class="space-y-3 mb-4"></div>
                 <div class="flex items-center gap-3 pt-3 border-t border-amber-200 flex-wrap">
                     <label class="text-sm text-gray-700 whitespace-nowrap font-medium">Qty to break:</label>
                     <input type="number" id="pe-bd-qty" value="1" min="1"
                         style="width:70px;padding:6px 10px;font-size:13px;border:1px solid #d1d5db;border-radius:6px;background:white;">
                     <div class="flex items-center gap-2 ml-auto flex-wrap">
-                        <button onclick="doPeReserve()"
-                            class="bg-purple-500 hover:bg-purple-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition shadow-sm" id="pe-reserve-btn">
-                            Reserve
-                        </button>
-                        <button onclick="doPeCommitReservation()" id="pe-commit-btn"
-                            class="hidden bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition shadow-sm">
-                            Commit Reserved
-                        </button>
                         <button onclick="doPeBreakdown()"
                             class="bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition shadow-sm">
                             Break Now
@@ -748,7 +739,6 @@ function renderTreeBody() {
 function renderProductRow(p, allProds) {
     const stockDot  = p.stock_quantity > 10 ? 'ok' : p.stock_quantity > 0 ? 'low' : 'zero';
     const stockText = p.stock_quantity > 0 ? p.stock_quantity : 'Out of stock';
-    const breakdownReserve = (p.reservations || []).find(r => r.type === 'breakdown') || null;
 
     let parentLabel = '';
     if (p.parent_id) {
@@ -820,7 +810,7 @@ function renderProductRow(p, allProds) {
                 <div class="flex items-center gap-3 w-full flex-wrap">
                     <div class="flex items-center gap-1">
                         <label class="text-xs text-gray-600 whitespace-nowrap">Break qty:</label>
-                        <input type="number" id="bd-qty-${p.id}" value="${breakdownReserve ? breakdownReserve.reserved_qty : 1}" min="1" max="${p.stock_quantity}"
+                        <input type="number" id="bd-qty-${p.id}" value="1" min="1" max="${p.stock_quantity}"
                             style="width:55px;padding:4px 8px;font-size:12px;border:1px solid #d1d5db;border-radius:4px;">
                     </div>
                     <span class="text-gray-400 text-sm">×</span>
@@ -836,24 +826,7 @@ function renderProductRow(p, allProds) {
                     </div>
                 </div>
 
-                ${breakdownReserve ? `
-                <div class="reservation-banner w-full">
-                    <span class="reservation-dot"></span>
-                    <span class="flex-1">${breakdownReserve.reserved_qty} unit(s) reserved</span>
-                    <button onclick="doCancelReservation(${breakdownReserve.id})"
-                        class="text-[10px] font-bold text-red-500 hover:text-red-700 whitespace-nowrap">Cancel</button>
-                </div>` : ''}
-
                 <div class="flex items-center gap-2 w-full justify-end">
-                    <button onclick="doReserve(${p.id})"
-                        class="bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
-                        ${breakdownReserve ? 'Update Reserve' : 'Reserve'}
-                    </button>
-                    ${breakdownReserve ? `
-                    <button onclick="doCommitReservation(${breakdownReserve.id}, ${p.id})"
-                        class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
-                        Commit
-                    </button>` : ''}
                     <button onclick="doBreakdown(${p.id})"
                         class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition whitespace-nowrap shadow-sm">
                         Break Now
@@ -889,7 +862,6 @@ function renderProductRow(p, allProds) {
             <div class="text-sm min-w-[90px] text-right">
                 <span class="stock-dot ${stockDot}"></span>
                 <span class="font-semibold text-gray-800">${stockText}</span>
-                ${breakdownReserve ? `<div class="text-[10px] font-bold text-amber-600 mt-0.5">▪ ${breakdownReserve.reserved_qty} for breakdown</div>` : ''}
             </div>
             <div class="flex items-center gap-2 flex-wrap">
                 ${p.is_bundle ? `
@@ -1806,29 +1778,6 @@ function renderPeBreakdownSection(p) {
 
     document.getElementById('pe-bd-qty').max = p.stock_quantity;
 
-    // Reservation status banner
-    const bdRes = (p.reservations || []).find(r => r.type === 'breakdown') || null;
-    const statusEl = document.getElementById('pe-reservation-status');
-    const commitBtn = document.getElementById('pe-commit-btn');
-    const reserveBtn = document.getElementById('pe-reserve-btn');
-
-    if (bdRes) {
-        statusEl.innerHTML = `
-            <div class="reservation-banner mb-1">
-                <span class="reservation-dot"></span>
-                <span class="flex-1">${bdRes.reserved_qty} unit(s) reserved for breakdown</span>
-                <button onclick="doPeCancelReservation(${bdRes.id})"
-                    class="text-[11px] font-bold text-red-500 hover:text-red-700 whitespace-nowrap">Cancel Reservation</button>
-            </div>`;
-        document.getElementById('pe-bd-qty').value = bdRes.reserved_qty;
-        commitBtn.classList.remove('hidden');
-        commitBtn.dataset.reservationId = bdRes.id;
-        reserveBtn.textContent = 'Update Reserve';
-    } else {
-        statusEl.innerHTML = '';
-        commitBtn.classList.add('hidden');
-        reserveBtn.textContent = 'Reserve';
-    }
 }
 
 // PE target picker helpers
