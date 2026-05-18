@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Outstock</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-[95%] mx-auto px-4 mt-8 pb-12">
+
+        <!-- Header -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-black text-gray-800">📤 Outstock</h1>
+            <p class="text-sm text-gray-500 mt-0.5">Record stock going out — sales to customers or stock adjustments.</p>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-lg p-4 shadow-sm border-l-4 border-blue-500">
+                <div class="text-xs font-bold text-gray-400 uppercase">Txns Today</div>
+                <div id="stat-txns-today" class="text-2xl font-black text-gray-800">—</div>
+            </div>
+            <div class="bg-white rounded-lg p-4 shadow-sm border-l-4 border-blue-500">
+                <div class="text-xs font-bold text-gray-400 uppercase">Qty Out Today</div>
+                <div id="stat-qty-today" class="text-2xl font-black text-gray-800">—</div>
+            </div>
+            <div class="bg-white rounded-lg p-4 shadow-sm border-l-4 border-purple-500">
+                <div class="text-xs font-bold text-gray-400 uppercase">Txns This Month</div>
+                <div id="stat-txns-month" class="text-2xl font-black text-gray-800">—</div>
+            </div>
+            <div class="bg-white rounded-lg p-4 shadow-sm border-l-4 border-purple-500">
+                <div class="text-xs font-bold text-gray-400 uppercase">Qty Out This Month</div>
+                <div id="stat-qty-month" class="text-2xl font-black text-gray-800">—</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- LEFT: New Transaction Form -->
+            <div class="space-y-5">
+
+                <!-- Type Toggle -->
+                <div class="bg-white p-5 rounded-lg shadow-sm border-t-4 border-blue-600">
+                    <h2 class="text-sm font-bold text-gray-500 uppercase mb-3">1. Transaction Type</h2>
+                    <div class="flex bg-gray-100 p-1 rounded-lg">
+                        <button id="btn-sale" onclick="setType('sale')"
+                            class="flex-1 py-2 rounded-md text-sm font-bold shadow bg-white text-blue-600 transition">
+                            💰 Sale
+                        </button>
+                        <button id="btn-adjustment" onclick="setType('adjustment')"
+                            class="flex-1 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition">
+                            🔧 Adjustment
+                        </button>
+                    </div>
+                    <p id="type-desc" class="text-xs text-gray-400 italic mt-2">Sold to a customer. Deducts stock immediately.</p>
+                </div>
+
+                <!-- Date -->
+                <div class="bg-white p-5 rounded-lg shadow-sm">
+                    <h2 class="text-sm font-bold text-gray-500 uppercase mb-3">2. Date</h2>
+                    <input type="date" id="txn-date" class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-700">
+                </div>
+
+                <!-- Customer (Sale only) -->
+                <div id="customer-section" class="bg-white p-5 rounded-lg shadow-sm">
+                    <h2 class="text-sm font-bold text-gray-500 uppercase mb-3">3. Customer</h2>
+                    <div class="relative" id="cust-search-container">
+                        <input type="text" id="cust-search" placeholder="Search name or mobile..."
+                            oninput="searchCustomers(this.value)"
+                            class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                        <div id="cust-results" class="absolute z-20 w-full bg-white shadow-xl border rounded mt-1 hidden max-h-48 overflow-y-auto"></div>
+                    </div>
+                    <div id="cust-card" class="hidden mt-3 bg-blue-50 p-3 rounded border border-blue-100 relative">
+                        <div class="font-bold text-blue-800 text-sm" id="card-name"></div>
+                        <div class="text-xs text-blue-600" id="card-info"></div>
+                        <button onclick="clearCustomer()" class="absolute top-2 right-2 text-red-400 hover:text-red-600 font-bold text-xs">✕ Change</button>
+                        <input type="hidden" id="selected-cust-id">
+                    </div>
+                </div>
+
+                <!-- Add Product to Cart -->
+                <div class="bg-white p-5 rounded-lg shadow-sm">
+                    <h2 class="text-sm font-bold text-gray-500 uppercase mb-3">4. Add Products</h2>
+                    <div class="relative">
+                        <input type="text" id="prod-search" placeholder="Search product name..."
+                            oninput="filterProducts(this.value)"
+                            class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                        <div id="prod-results" class="absolute z-20 w-full bg-white shadow-xl border rounded mt-1 hidden max-h-56 overflow-y-auto"></div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="bg-white p-5 rounded-lg shadow-sm">
+                    <h2 class="text-sm font-bold text-gray-500 uppercase mb-2">5. Notes <span class="text-gray-300 font-normal normal-case">(optional)</span></h2>
+                    <textarea id="txn-notes" rows="2" placeholder="Any remarks for this transaction..."
+                        class="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm resize-none"></textarea>
+                </div>
+
+                <!-- Commit Button -->
+                <button onclick="submitTransaction()"
+                    class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-lg text-sm transition shadow">
+                    Commit Transaction
+                </button>
+
+                <!-- Confirmation Banner -->
+                <div id="confirm-banner" class="hidden bg-amber-50 border border-amber-300 rounded-lg p-4">
+                    <p class="text-sm font-bold text-amber-800 mb-1">⚠️ Confirm Outstock</p>
+                    <p id="confirm-text" class="text-xs text-amber-700 mb-3"></p>
+                    <div class="flex gap-2">
+                        <button onclick="confirmTransaction()" class="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded text-sm transition">Yes, Commit</button>
+                        <button onclick="cancelConfirm()" class="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded text-sm transition">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Error Banner -->
+                <div id="error-banner" class="hidden bg-red-50 border border-red-300 rounded-lg p-3">
+                    <p class="text-sm font-bold text-red-700" id="error-text"></p>
+                </div>
+            </div>
+
+            <!-- RIGHT: Cart + History -->
+            <div class="lg:col-span-2 space-y-6">
+
+                <!-- Cart -->
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="p-5 border-b flex justify-between items-center">
+                        <h2 class="text-base font-black text-gray-700">Cart</h2>
+                        <span id="cart-count" class="text-xs bg-gray-100 text-gray-500 font-bold px-2 py-1 rounded-full">0 items</span>
+                    </div>
+
+                    <div id="cart-empty" class="p-8 text-center text-gray-400 text-sm">
+                        No items added yet. Search a product to add it.
+                    </div>
+
+                    <div id="cart-table-wrap" class="hidden overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
+                                <tr>
+                                    <th class="px-4 py-3 text-left">Product</th>
+                                    <th class="px-3 py-3 text-center w-20">Stock</th>
+                                    <th class="px-3 py-3 text-center w-20">Qty</th>
+                                    <th id="col-price-header" class="px-3 py-3 text-right w-28">Unit Price</th>
+                                    <th class="px-3 py-3 text-center w-12"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cart-body"></tbody>
+                            <tfoot id="cart-footer" class="border-t hidden">
+                                <tr>
+                                    <td colspan="3" class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Total</td>
+                                    <td class="px-3 py-3 text-right font-black text-gray-800" id="cart-total">$0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="p-5 border-b">
+                        <h2 class="text-base font-black text-gray-700 mb-3">Transaction History</h2>
+                        <div class="flex flex-wrap gap-2">
+                            <select id="filter-type" onchange="loadHistory()" class="p-2 border rounded text-sm bg-gray-50">
+                                <option value="">All Types</option>
+                                <option value="sale">Sale</option>
+                                <option value="adjustment">Adjustment</option>
+                            </select>
+                            <input type="date" id="filter-from" onchange="loadHistory()" class="p-2 border rounded text-sm bg-gray-50">
+                            <input type="date" id="filter-to"   onchange="loadHistory()" class="p-2 border rounded text-sm bg-gray-50">
+                            <button onclick="clearFilters()" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-sm font-bold transition">Clear</button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
+                                <tr>
+                                    <th class="px-4 py-3 text-left">Date</th>
+                                    <th class="px-3 py-3 text-left">Type</th>
+                                    <th class="px-3 py-3 text-left">Customer / Reason</th>
+                                    <th class="px-3 py-3 text-center">Items</th>
+                                    <th class="px-3 py-3 text-right">Value</th>
+                                    <th class="px-3 py-3 text-left">By</th>
+                                    <th class="px-3 py-3 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-body">
+                                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="p-4 border-t flex justify-between items-center text-sm text-gray-500">
+                        <span id="history-info">—</span>
+                        <div class="flex gap-2">
+                            <button id="btn-prev" onclick="changePage(-1)" disabled
+                                class="px-3 py-1 border rounded text-xs font-bold disabled:opacity-40 hover:bg-gray-50 transition">← Prev</button>
+                            <button id="btn-next" onclick="changePage(1)" disabled
+                                class="px-3 py-1 border rounded text-xs font-bold disabled:opacity-40 hover:bg-gray-50 transition">Next →</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expanded Row Detail -->
+                <div id="detail-panel" class="hidden bg-white rounded-lg shadow-sm p-5">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-black text-gray-700">Transaction Detail</h3>
+                        <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600 font-bold text-sm">✕ Close</button>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Product</th>
+                                <th class="px-3 py-2 text-center">Qty</th>
+                                <th class="px-3 py-2 text-right">Unit Price</th>
+                                <th class="px-3 py-2 text-left">Reason</th>
+                                <th class="px-3 py-2 text-left">Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detail-body"></tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+<script>
+const API = 'https://k10system-production.up.railway.app';
+const token = () => localStorage.getItem('k10_token');
+const isAdmin = () => (localStorage.getItem('k10_role') || '').toLowerCase() === 'admin';
+
+const headers = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token()}`
+});
+
+// ── State ────────────────────────────────────────────────────────────────────
+let currentType = 'sale';
+let cart = [];           // [{ product, qty, unit_price, adjustment_reason, notes }]
+let allProducts = [];    // loaded once
+let historyPage = 0;
+const PAGE_SIZE = 25;
+
+const REASON_LABELS = {
+    damage: 'Damaged',
+    loss: 'Lost / Missing',
+    event: 'Event Usage',
+    adjustment: 'Stock Adjustment',
+    return_to_supplier: 'Return to Supplier',
+    giveaway: 'Giveaway',
+    other: 'Other'
+};
+const REASON_BADGE = {
+    damage: 'bg-red-100 text-red-700',
+    loss: 'bg-red-100 text-red-700',
+    event: 'bg-amber-100 text-amber-700',
+    adjustment: 'bg-amber-100 text-amber-700',
+    return_to_supplier: 'bg-teal-100 text-teal-700',
+    giveaway: 'bg-purple-100 text-purple-700',
+    other: 'bg-gray-100 text-gray-600'
+};
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('txn-date').value = new Date().toISOString().slice(0, 10);
+    loadProducts();
+    loadStats();
+    loadHistory();
+});
+
+// ── Type toggle ───────────────────────────────────────────────────────────────
+function setType(type) {
+    currentType = type;
+    const isSale = type === 'sale';
+
+    document.getElementById('btn-sale').className =
+        'flex-1 py-2 rounded-md text-sm font-bold transition ' +
+        (isSale ? 'shadow bg-white text-blue-600' : 'text-gray-500 hover:text-gray-700');
+    document.getElementById('btn-adjustment').className =
+        'flex-1 py-2 rounded-md text-sm font-bold transition ' +
+        (!isSale ? 'shadow bg-white text-orange-600' : 'text-gray-500 hover:text-gray-700');
+
+    document.getElementById('type-desc').textContent = isSale
+        ? 'Sold to a customer. Deducts stock immediately.'
+        : 'Stock removed for damage, loss, event, or other reasons.';
+
+    document.getElementById('customer-section').style.display = isSale ? '' : 'none';
+    document.getElementById('col-price-header').textContent = isSale ? 'Unit Price' : 'Reason';
+    document.getElementById('cart-footer').classList.toggle('hidden', !isSale);
+
+    renderCart();
+}
+
+// ── Products ──────────────────────────────────────────────────────────────────
+async function loadProducts() {
+    try {
+        const r = await fetch(`${API}/api/inventory/status`, { headers: headers() });
+        const data = await r.json();
+        allProducts = data;
+    } catch (e) { console.error('Failed to load products', e); }
+}
+
+function filterProducts(query) {
+    const box = document.getElementById('prod-results');
+    if (!query.trim()) { box.classList.add('hidden'); return; }
+    const q = query.toLowerCase();
+    const matches = allProducts.filter(p =>
+        p.card_name.toLowerCase().includes(q) ||
+        (p.set_name || '').toLowerCase().includes(q)
+    ).slice(0, 15);
+
+    if (!matches.length) { box.classList.add('hidden'); return; }
+
+    box.innerHTML = matches.map(p => `
+        <div onclick="addToCart(${p.id})"
+            class="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-0">
+            <div class="font-bold text-sm text-gray-800">${p.card_name}</div>
+            <div class="text-xs text-gray-400">${p.game_title || ''} · ${p.set_name || ''} · Stock: ${p.stock_quantity}</div>
+        </div>
+    `).join('');
+    box.classList.remove('hidden');
+}
+
+function addToCart(productId) {
+    document.getElementById('prod-results').classList.add('hidden');
+    document.getElementById('prod-search').value = '';
+
+    const product = allProducts.find(p => p.id === productId);
+    if (!product) return;
+
+    const existing = cart.find(c => c.product.id === productId);
+    if (existing) {
+        existing.qty = Math.min(existing.qty + 1, product.stock_quantity);
+    } else {
+        cart.push({
+            product,
+            qty: 1,
+            unit_price: product.price || 0,
+            adjustment_reason: 'damage',
+            notes: ''
+        });
+    }
+    renderCart();
+}
+
+function removeFromCart(index) {
+    cart.splice(index, 1);
+    renderCart();
+}
+
+function updateCartQty(index, val) {
+    const max = cart[index].product.stock_quantity;
+    cart[index].qty = Math.max(1, Math.min(parseInt(val) || 1, max));
+    renderCart();
+}
+
+function updateCartPrice(index, val) {
+    cart[index].unit_price = parseFloat(val) || 0;
+    renderCart();
+}
+
+function updateCartReason(index, val) {
+    cart[index].adjustment_reason = val;
+    renderCart();
+}
+
+function updateCartItemNotes(index, val) {
+    cart[index].notes = val;
+}
+
+function renderCart() {
+    const isEmpty = cart.length === 0;
+    document.getElementById('cart-empty').classList.toggle('hidden', !isEmpty);
+    document.getElementById('cart-table-wrap').classList.toggle('hidden', isEmpty);
+    document.getElementById('cart-count').textContent = `${cart.length} item${cart.length !== 1 ? 's' : ''}`;
+
+    const isSale = currentType === 'sale';
+    document.getElementById('cart-footer').classList.toggle('hidden', !isSale);
+
+    const body = document.getElementById('cart-body');
+    body.innerHTML = cart.map((item, i) => {
+        const p = item.product;
+        const priceOrReason = isSale
+            ? `<input type="number" value="${item.unit_price}" min="0" step="0.01"
+                   onchange="updateCartPrice(${i}, this.value)"
+                   class="w-full p-1 border rounded text-right text-sm font-bold">`
+            : `<select onchange="updateCartReason(${i}, this.value)"
+                   class="w-full p-1 border rounded text-xs">
+                   ${Object.entries(REASON_LABELS).map(([v, l]) =>
+                       `<option value="${v}" ${item.adjustment_reason === v ? 'selected' : ''}>${l}</option>`
+                   ).join('')}
+               </select>`;
+
+        return `<tr class="border-b hover:bg-gray-50">
+            <td class="px-4 py-3">
+                <div class="font-bold text-xs text-gray-800">${p.card_name}</div>
+                <div class="text-xs text-gray-400">${p.set_name || ''}</div>
+            </td>
+            <td class="px-3 py-3 text-center text-xs font-bold ${p.stock_quantity < item.qty ? 'text-red-500' : 'text-gray-500'}">
+                ${p.stock_quantity}
+            </td>
+            <td class="px-3 py-3 text-center">
+                <input type="number" value="${item.qty}" min="1" max="${p.stock_quantity}"
+                    onchange="updateCartQty(${i}, this.value)"
+                    class="w-16 p-1 border rounded text-center text-sm font-bold">
+            </td>
+            <td class="px-3 py-3">${priceOrReason}</td>
+            <td class="px-3 py-3 text-center">
+                <button onclick="removeFromCart(${i})" class="text-red-400 hover:text-red-600 font-bold text-sm">✕</button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    if (isSale) {
+        const total = cart.reduce((s, c) => s + c.qty * c.unit_price, 0);
+        document.getElementById('cart-total').textContent = `$${total.toFixed(2)}`;
+    }
+}
+
+// ── Customer search ───────────────────────────────────────────────────────────
+let custDebounce;
+function searchCustomers(query) {
+    clearTimeout(custDebounce);
+    const box = document.getElementById('cust-results');
+    if (!query.trim()) { box.classList.add('hidden'); return; }
+    custDebounce = setTimeout(async () => {
+        const r = await fetch(`${API}/api/customers?search=${encodeURIComponent(query)}`, { headers: headers() });
+        const data = await r.json();
+        if (!data.length) { box.classList.add('hidden'); return; }
+        box.innerHTML = data.map(c => `
+            <div onclick="selectCustomer(${c.id}, '${escHtml(c.name)}', '${escHtml(c.mobile_number || '')}', '${escHtml(c.email || '')}')"
+                class="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-0">
+                <div class="font-bold text-sm">${c.name}</div>
+                <div class="text-xs text-gray-400">${c.mobile_number || c.email || 'No contact'}</div>
+            </div>
+        `).join('');
+        box.classList.remove('hidden');
+    }, 250);
+}
+
+function selectCustomer(id, name, mobile, email) {
+    document.getElementById('selected-cust-id').value = id;
+    document.getElementById('card-name').textContent = name;
+    document.getElementById('card-info').textContent = mobile || email || 'No contact';
+    document.getElementById('cust-card').classList.remove('hidden');
+    document.getElementById('cust-search').classList.add('hidden');
+    document.getElementById('cust-results').classList.add('hidden');
+}
+
+function clearCustomer() {
+    document.getElementById('selected-cust-id').value = '';
+    document.getElementById('cust-card').classList.add('hidden');
+    document.getElementById('cust-search').classList.remove('hidden');
+    document.getElementById('cust-search').value = '';
+}
+
+// ── Submit / Confirm ──────────────────────────────────────────────────────────
+function submitTransaction() {
+    hideError();
+    if (cart.length === 0) { showError('Add at least one product to the cart.'); return; }
+    if (!document.getElementById('txn-date').value) { showError('Please set a transaction date.'); return; }
+
+    if (currentType === 'sale') {
+        const custId = document.getElementById('selected-cust-id').value;
+        if (!custId) { showError('Please select a customer for a sale.'); return; }
+        const noPrice = cart.find(c => c.unit_price < 0);
+        if (noPrice) { showError('Unit price cannot be negative.'); return; }
+    }
+
+    if (currentType === 'adjustment') {
+        const needsNotes = cart.find(c => c.adjustment_reason === 'other' && !c.notes.trim());
+        if (needsNotes) { showError(`Notes are required when reason is "Other". Please fill in the item notes.`); return; }
+    }
+
+    const totalQty = cart.reduce((s, c) => s + c.qty, 0);
+    const custName = currentType === 'sale'
+        ? document.getElementById('card-name').textContent
+        : null;
+
+    let desc = currentType === 'sale'
+        ? `Sell ${totalQty} unit(s) to ${custName}`
+        : `Adjust ${totalQty} unit(s) out of stock`;
+    desc += ` (${cart.length} product${cart.length !== 1 ? 's' : ''}). Stock will be deducted immediately.`;
+
+    document.getElementById('confirm-text').textContent = desc;
+    document.getElementById('confirm-banner').classList.remove('hidden');
+    document.querySelector('button[onclick="submitTransaction()"]').disabled = true;
+}
+
+function cancelConfirm() {
+    document.getElementById('confirm-banner').classList.add('hidden');
+    document.querySelector('button[onclick="submitTransaction()"]').disabled = false;
+}
+
+async function confirmTransaction() {
+    document.getElementById('confirm-banner').classList.add('hidden');
+
+    const payload = {
+        transaction_type: currentType,
+        customer_id: currentType === 'sale' ? (parseInt(document.getElementById('selected-cust-id').value) || null) : null,
+        transaction_date: document.getElementById('txn-date').value,
+        notes: document.getElementById('txn-notes').value.trim() || null,
+        items: cart.map(c => ({
+            inventory_id: c.product.id,
+            qty: c.qty,
+            unit_price: currentType === 'sale' ? c.unit_price : null,
+            adjustment_reason: currentType === 'adjustment' ? c.adjustment_reason : null,
+            notes: c.notes.trim() || null
+        }))
+    };
+
+    try {
+        const r = await fetch(`${API}/api/outstock`, {
+            method: 'POST',
+            headers: headers(),
+            body: JSON.stringify(payload)
+        });
+        const data = await r.json();
+        if (!r.ok) { showError(data.error || 'Failed to commit transaction.'); return; }
+
+        // Reset form
+        cart = [];
+        renderCart();
+        clearCustomer();
+        document.getElementById('txn-notes').value = '';
+        document.getElementById('txn-date').value = new Date().toISOString().slice(0, 10);
+        document.querySelector('button[onclick="submitTransaction()"]').disabled = false;
+
+        // Refresh products (stock changed) and history
+        await loadProducts();
+        loadStats();
+        loadHistory();
+    } catch (e) {
+        showError('Network error. Please try again.');
+    }
+}
+
+// ── History ────────────────────────────────────────────────────────────────────
+async function loadHistory() {
+    const type = document.getElementById('filter-type').value;
+    const from = document.getElementById('filter-from').value;
+    const to   = document.getElementById('filter-to').value;
+
+    const params = new URLSearchParams({ limit: PAGE_SIZE, offset: historyPage * PAGE_SIZE });
+    if (type) params.set('transaction_type', type);
+    if (from) params.set('date_from', from);
+    if (to)   params.set('date_to', to);
+
+    try {
+        const r = await fetch(`${API}/api/outstock?${params}`, { headers: headers() });
+        const { rows, total } = await r.json();
+
+        const body = document.getElementById('history-body');
+        if (!rows.length) {
+            body.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No transactions found.</td></tr>`;
+        } else {
+            body.innerHTML = rows.map(row => {
+                const typeBadge = row.transaction_type === 'sale'
+                    ? '<span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-bold">Sale</span>'
+                    : '<span class="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full font-bold">Adjustment</span>';
+                const custOrReason = row.transaction_type === 'sale'
+                    ? (row.customer_name || '—')
+                    : '—';
+                const value = row.transaction_type === 'sale' && row.total_value > 0
+                    ? `$${parseFloat(row.total_value).toFixed(2)}`
+                    : '—';
+                const voidBtn = isAdmin()
+                    ? `<button onclick="voidTransaction(${row.id})" class="text-xs text-red-500 hover:text-red-700 font-bold px-2 py-1 border border-red-200 rounded hover:bg-red-50 transition">Void</button>`
+                    : '';
+                return `<tr class="border-b hover:bg-gray-50 cursor-pointer">
+                    <td class="px-4 py-3 text-xs text-gray-600" onclick="loadDetail(${row.id})">${fmtDate(row.transaction_date)}</td>
+                    <td class="px-3 py-3" onclick="loadDetail(${row.id})">${typeBadge}</td>
+                    <td class="px-3 py-3 text-sm text-gray-700" onclick="loadDetail(${row.id})">${escHtml(custOrReason)}</td>
+                    <td class="px-3 py-3 text-center text-sm font-bold text-gray-600" onclick="loadDetail(${row.id})">${row.items_count}</td>
+                    <td class="px-3 py-3 text-right text-sm font-bold text-gray-700" onclick="loadDetail(${row.id})">${value}</td>
+                    <td class="px-3 py-3 text-xs text-gray-400" onclick="loadDetail(${row.id})">${row.changed_by}</td>
+                    <td class="px-3 py-3 text-center">${voidBtn}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        const from_row = historyPage * PAGE_SIZE + 1;
+        const to_row   = Math.min((historyPage + 1) * PAGE_SIZE, total);
+        document.getElementById('history-info').textContent = total
+            ? `Showing ${from_row}–${to_row} of ${total}`
+            : '0 results';
+        document.getElementById('btn-prev').disabled = historyPage === 0;
+        document.getElementById('btn-next').disabled = (historyPage + 1) * PAGE_SIZE >= total;
+    } catch (e) {
+        document.getElementById('history-body').innerHTML =
+            `<tr><td colspan="7" class="px-4 py-8 text-center text-red-400">Failed to load history.</td></tr>`;
+    }
+}
+
+function changePage(dir) {
+    historyPage += dir;
+    loadHistory();
+    closeDetail();
+}
+
+function clearFilters() {
+    document.getElementById('filter-type').value = '';
+    document.getElementById('filter-from').value = '';
+    document.getElementById('filter-to').value = '';
+    historyPage = 0;
+    loadHistory();
+}
+
+async function loadDetail(id) {
+    closeDetail();
+    const r = await fetch(`${API}/api/outstock/${id}`, { headers: headers() });
+    const txn = await r.json();
+    if (!r.ok) return;
+
+    const body = document.getElementById('detail-body');
+    body.innerHTML = txn.items.map(item => {
+        const reasonBadge = item.adjustment_reason
+            ? `<span class="text-xs px-2 py-0.5 rounded-full font-bold ${REASON_BADGE[item.adjustment_reason] || 'bg-gray-100 text-gray-600'}">${REASON_LABELS[item.adjustment_reason] || item.adjustment_reason}</span>`
+            : '—';
+        return `<tr class="border-b">
+            <td class="px-3 py-2">
+                <div class="font-bold text-xs text-gray-800">${escHtml(item.card_name)}</div>
+                <div class="text-xs text-gray-400">${escHtml(item.set_name || '')}</div>
+            </td>
+            <td class="px-3 py-2 text-center text-sm font-bold">${item.qty}</td>
+            <td class="px-3 py-2 text-right text-sm">${item.unit_price != null ? '$' + parseFloat(item.unit_price).toFixed(2) : '—'}</td>
+            <td class="px-3 py-2">${reasonBadge}</td>
+            <td class="px-3 py-2 text-xs text-gray-500">${escHtml(item.notes || '')}</td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('detail-panel').classList.remove('hidden');
+    document.getElementById('detail-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeDetail() {
+    document.getElementById('detail-panel').classList.add('hidden');
+}
+
+async function voidTransaction(id) {
+    if (!confirm(`Void transaction #${id}? This will restore stock for all items.`)) return;
+    const r = await fetch(`${API}/api/outstock/${id}`, { method: 'DELETE', headers: headers() });
+    const data = await r.json();
+    if (!r.ok) { showError(data.error || 'Failed to void.'); return; }
+    await loadProducts();
+    loadStats();
+    loadHistory();
+    closeDetail();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+async function loadStats() {
+    const today = new Date().toISOString().slice(0, 10);
+    const monthStart = today.slice(0, 7) + '-01';
+
+    try {
+        const [rToday, rMonth] = await Promise.all([
+            fetch(`${API}/api/outstock?date_from=${today}&date_to=${today}&limit=1000`, { headers: headers() }),
+            fetch(`${API}/api/outstock?date_from=${monthStart}&limit=1000`, { headers: headers() })
+        ]);
+        const dToday = await rToday.json();
+        const dMonth = await rMonth.json();
+
+        const sumQty = rows => rows.reduce((s, r) => s + Number(r.items_count || 0), 0);
+
+        document.getElementById('stat-txns-today').textContent = dToday.total ?? 0;
+        document.getElementById('stat-qty-today').textContent  = sumQty(dToday.rows || []);
+        document.getElementById('stat-txns-month').textContent = dMonth.total ?? 0;
+        document.getElementById('stat-qty-month').textContent  = sumQty(dMonth.rows || []);
+    } catch (e) {}
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtDate(d) {
+    if (!d) return '—';
+    const dt = new Date(d);
+    return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showError(msg) {
+    const el = document.getElementById('error-banner');
+    document.getElementById('error-text').textContent = msg;
+    el.classList.remove('hidden');
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function hideError() {
+    document.getElementById('error-banner').classList.add('hidden');
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', e => {
+    if (!document.getElementById('cust-search-container')?.contains(e.target))
+        document.getElementById('cust-results').classList.add('hidden');
+    if (!document.getElementById('prod-search')?.contains(e.target) &&
+        !document.getElementById('prod-results')?.contains(e.target))
+        document.getElementById('prod-results').classList.add('hidden');
+});
+</script>
+
+</body>
+</html>

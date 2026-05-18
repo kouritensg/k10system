@@ -852,6 +852,228 @@ app.post('/api/inventory/breakdown/reserve/:id/commit', async (req, res) => {
 });
 
 // ==========================================
+// 5c. OUTSTOCK
+// ==========================================
+
+const VALID_ADJUSTMENT_REASONS = ['damage', 'loss', 'event', 'adjustment', 'return_to_supplier', 'giveaway', 'other'];
+
+async function deductFifoWaves(conn, inventory_id, qty) {
+  const [waves] = await conn.execute(
+    `SELECT id, remaining_qty, wave_name
+     FROM fifo
+     WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0
+     ORDER BY arrival_date ASC, id ASC`,
+    [inventory_id]
+  );
+
+  let remaining = qty;
+  const deductions = [];
+
+  for (const wave of waves) {
+    if (remaining <= 0) break;
+    const take = Math.min(wave.remaining_qty, remaining);
+    remaining -= take;
+    deductions.push({ wave_id: wave.id, wave_name: wave.wave_name, qty: take });
+  }
+
+  if (remaining > 0) {
+    throw new Error(`Insufficient stock. Requested ${qty} but only ${qty - remaining} available in active waves.`);
+  }
+
+  for (const d of deductions) {
+    await conn.execute(
+      'UPDATE fifo SET remaining_qty = remaining_qty - ? WHERE id = ?',
+      [d.qty, d.wave_id]
+    );
+  }
+
+  return deductions;
+}
+
+app.post('/api/outstock', authenticate, async (req, res) => {
+  const { transaction_type, customer_id, transaction_date, notes, items } = req.body;
+
+  if (!['sale', 'adjustment'].includes(transaction_type)) {
+    return res.status(400).json({ error: 'transaction_type must be "sale" or "adjustment"' });
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items must be a non-empty array' });
+  }
+  if (!transaction_date) {
+    return res.status(400).json({ error: 'transaction_date is required' });
+  }
+  if (transaction_type === 'sale' && !customer_id) {
+    return res.status(400).json({ error: 'customer_id is required for sales' });
+  }
+
+  for (const item of items) {
+    if (!item.inventory_id || !item.qty || item.qty < 1) {
+      return res.status(400).json({ error: 'Each item must have inventory_id and qty >= 1' });
+    }
+    if (transaction_type === 'sale' && (item.unit_price === undefined || item.unit_price === null)) {
+      return res.status(400).json({ error: 'unit_price is required for sale items' });
+    }
+    if (transaction_type === 'adjustment') {
+      if (!VALID_ADJUSTMENT_REASONS.includes(item.adjustment_reason)) {
+        return res.status(400).json({ error: `Invalid adjustment_reason: ${item.adjustment_reason}` });
+      }
+      if (item.adjustment_reason === 'other' && (!item.notes || !item.notes.trim())) {
+        return res.status(400).json({ error: 'notes are required when adjustment_reason is "other"' });
+      }
+    }
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    for (const item of items) {
+      await deductFifoWaves(conn, item.inventory_id, item.qty);
+      const source = transaction_type === 'sale' ? 'Sale' : item.adjustment_reason;
+      await syncInventoryStock(item.inventory_id, conn, req.user.username, source);
+    }
+
+    const [txnResult] = await conn.execute(
+      `INSERT INTO outstock_transactions (transaction_type, customer_id, transaction_date, notes, changed_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [transaction_type, customer_id || null, transaction_date, notes || null, req.user.username]
+    );
+    const txn_id = txnResult.insertId;
+
+    for (const item of items) {
+      await conn.execute(
+        `INSERT INTO outstock_items (transaction_id, inventory_id, qty, unit_price, adjustment_reason, notes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          txn_id, item.inventory_id, item.qty,
+          transaction_type === 'sale' ? item.unit_price : null,
+          transaction_type === 'adjustment' ? item.adjustment_reason : null,
+          item.notes || null
+        ]
+      );
+    }
+
+    await conn.commit();
+    res.status(201).json({ id: txn_id, items_count: items.length, message: 'Transaction committed' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(400).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+app.get('/api/outstock', async (req, res) => {
+  const { transaction_type, customer_id, date_from, date_to, limit = 25, offset = 0 } = req.query;
+
+  const where = ['ot.voided_at IS NULL'];
+  const params = [];
+
+  if (transaction_type) { where.push('ot.transaction_type = ?'); params.push(transaction_type); }
+  if (customer_id)       { where.push('ot.customer_id = ?');      params.push(customer_id); }
+  if (date_from)         { where.push('ot.transaction_date >= ?'); params.push(date_from); }
+  if (date_to)           { where.push('ot.transaction_date <= ?'); params.push(date_to); }
+
+  const whereClause = 'WHERE ' + where.join(' AND ');
+
+  try {
+    const [[{ total }]] = await db.execute(
+      `SELECT COUNT(*) AS total FROM outstock_transactions ot ${whereClause}`,
+      params
+    );
+
+    const [rows] = await db.execute(
+      `SELECT
+         ot.id, ot.transaction_type, ot.transaction_date, ot.notes,
+         ot.changed_by, ot.created_at,
+         c.name AS customer_name,
+         COUNT(oi.id) AS items_count,
+         SUM(oi.qty * COALESCE(oi.unit_price, 0)) AS total_value
+       FROM outstock_transactions ot
+       LEFT JOIN customers c ON c.id = ot.customer_id
+       LEFT JOIN outstock_items oi ON oi.transaction_id = ot.id
+       ${whereClause}
+       GROUP BY ot.id
+       ORDER BY ot.transaction_date DESC, ot.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, parseInt(limit), parseInt(offset)]
+    );
+
+    res.json({ rows, total });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/outstock/:id', async (req, res) => {
+  try {
+    const [[txn]] = await db.execute(
+      `SELECT ot.*, c.name AS customer_name
+       FROM outstock_transactions ot
+       LEFT JOIN customers c ON c.id = ot.customer_id
+       WHERE ot.id = ?`,
+      [req.params.id]
+    );
+    if (!txn) return res.status(404).json({ error: 'Transaction not found' });
+
+    const [items] = await db.execute(
+      `SELECT oi.*, i.card_name, i.set_name, i.game_title
+       FROM outstock_items oi
+       JOIN inventory i ON i.id = oi.inventory_id
+       WHERE oi.transaction_id = ?`,
+      [req.params.id]
+    );
+
+    res.json({ ...txn, items });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/outstock/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin only' });
+  }
+
+  const conn = await db.getConnection();
+  try {
+    const [[txn]] = await conn.execute(
+      'SELECT id, voided_at FROM outstock_transactions WHERE id = ?', [req.params.id]
+    );
+    if (!txn) return res.status(404).json({ error: 'Transaction not found' });
+    if (txn.voided_at) return res.status(400).json({ error: 'Transaction already voided' });
+
+    const [items] = await conn.execute(
+      'SELECT inventory_id, qty FROM outstock_items WHERE transaction_id = ?', [req.params.id]
+    );
+
+    await conn.beginTransaction();
+
+    const today = new Date().toISOString().slice(0, 10);
+    for (const item of items) {
+      await conn.execute(
+        `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active)
+         VALUES (?, ?, 0, ?, ?, ?, TRUE)`,
+        [item.inventory_id, `Outstock Void #${req.params.id}`, item.qty, item.qty, today]
+      );
+      await syncInventoryStock(item.inventory_id, conn, req.user.username, `Outstock Void #${req.params.id}`);
+    }
+
+    await conn.execute(
+      'UPDATE outstock_transactions SET voided_at = NOW() WHERE id = ?', [req.params.id]
+    );
+
+    await conn.commit();
+    res.json({ message: 'Transaction voided and stock restored' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ==========================================
 // 6. PURCHASING MODULE
 // ==========================================
 app.post('/api/purchase-orders', async (req, res) => {
