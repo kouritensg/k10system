@@ -182,7 +182,7 @@
                                     <th class="px-4 py-3 text-left">Date</th>
                                     <th class="px-3 py-3 text-left">Type</th>
                                     <th class="px-3 py-3 text-left">Customer / Reason</th>
-                                    <th class="px-3 py-3 text-center">Items</th>
+                                    <th class="px-3 py-3 text-left">Products</th>
                                     <th class="px-3 py-3 text-right">Value</th>
                                     <th class="px-3 py-3 text-left">By</th>
                                     <th class="px-3 py-3 text-center">Actions</th>
@@ -583,7 +583,7 @@ async function loadHistory() {
                     <td class="px-4 py-3 text-xs text-gray-600" onclick="loadDetail(${row.id})">${fmtDate(row.transaction_date)}</td>
                     <td class="px-3 py-3" onclick="loadDetail(${row.id})">${typeBadge}</td>
                     <td class="px-3 py-3 text-sm text-gray-700" onclick="loadDetail(${row.id})">${escHtml(custOrReason)}</td>
-                    <td class="px-3 py-3 text-center text-sm font-bold text-gray-600" onclick="loadDetail(${row.id})">${row.items_count}</td>
+                    <td class="px-3 py-3 text-sm text-gray-700" onclick="loadDetail(${row.id})">${escHtml(row.first_product || '—')}${row.items_count > 1 ? `<span class="text-xs text-gray-400 ml-1">+${row.items_count - 1} more</span>` : ''}</td>
                     <td class="px-3 py-3 text-right text-sm font-bold text-gray-700" onclick="loadDetail(${row.id})">${value}</td>
                     <td class="px-3 py-3 text-xs text-gray-400" onclick="loadDetail(${row.id})">${row.changed_by}</td>
                     <td class="px-3 py-3 text-center">${voidBtn}</td>
