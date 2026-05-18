@@ -1067,7 +1067,7 @@ app.get('/api/outstock', async (req, res) => {
        LEFT JOIN customers c ON c.id = ot.customer_id
        LEFT JOIN outstock_items oi ON oi.transaction_id = ot.id
        ${whereClause}
-       GROUP BY ot.id
+       GROUP BY ot.id, c.name
        ORDER BY ot.transaction_date DESC, ot.created_at DESC
        LIMIT ? OFFSET ?`,
       [...params, parseInt(limit), parseInt(offset)]
