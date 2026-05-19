@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 - Staff Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen flex items-center justify-center">
+
+    <div class="bg-white p-8 rounded-xl shadow-xl w-full max-w-sm border-t-4 border-red-600">
+        <div class="text-center mb-8">
+            <span class="bg-red-600 text-white font-black px-3 py-1.5 rounded text-xl tracking-wider">K10</span>
+            <h1 class="text-2xl font-bold mt-4 text-gray-800">Staff Portal</h1>
+            <p class="text-sm text-gray-400 mt-1">Sign in to access the system</p>
+        </div>
+
+        <div id="error-banner" class="hidden mb-4 bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-lg"></div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Username</label>
+                <input type="text" id="login-user" autocomplete="username"
+                    class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent transition">
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Password</label>
+                <input type="password" id="login-pass" autocomplete="current-password"
+                    class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent transition">
+            </div>
+            <button id="login-btn"
+                class="w-full bg-red-600 hover:bg-red-700 text-white font-bold p-3 rounded-lg transition mt-2 flex items-center justify-center gap-2">
+                <span id="btn-text">Sign In</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+
+        // If already logged in, go straight to dashboard
+        if (localStorage.getItem('k10_token')) {
+            window.location.replace('admin.html');
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('error-banner');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+        }
+
+        function setLoading(loading) {
+            const btn = document.getElementById('login-btn');
+            const txt = document.getElementById('btn-text');
+            btn.disabled = loading;
+            txt.textContent = loading ? 'Signing in...' : 'Sign In';
+            btn.classList.toggle('opacity-70', loading);
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('login-user').value.trim();
+            const password = document.getElementById('login-pass').value;
+
+            document.getElementById('error-banner').classList.add('hidden');
+            if (!username || !password) { showError('Please enter your username and password.'); return; }
+
+            setLoading(true);
+            try {
+                const res = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    localStorage.setItem('k10_token', data.token);
+                    localStorage.setItem('k10_role', data.user.role);
+                    localStorage.setItem('k10_username', data.user.username);
+                    localStorage.setItem('k10_user_id', data.user.id);
+                    window.location.href = 'admin-sales.html';
+                } else {
+                    showError(data.error || 'Login failed. Please try again.');
+                }
+            } catch (e) {
+                showError('Cannot reach server. Please check your connection.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        document.getElementById('login-btn').addEventListener('click', handleLogin);
+        document.getElementById('login-pass').addEventListener('keypress', e => {
+            if (e.key === 'Enter') handleLogin();
+        });
+        document.getElementById('login-user').addEventListener('keypress', e => {
+            if (e.key === 'Enter') document.getElementById('login-pass').focus();
+        });
+    </script>
+</body>
+</html>

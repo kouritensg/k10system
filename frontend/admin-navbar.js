@@ -67,5 +67,6 @@ function logout() {
     localStorage.removeItem('k10_token');
     localStorage.removeItem('k10_role');
     localStorage.removeItem('k10_username');
-    window.location.href = 'admin.html';
+    localStorage.removeItem('k10_user_id');
+    window.location.href = 'login.html';
 }

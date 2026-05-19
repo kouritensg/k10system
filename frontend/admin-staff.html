@@ -10,117 +10,368 @@
 
     <script src="admin-navbar.js"></script>
 
+    <!-- Toast notification -->
+    <div id="toast" class="hidden fixed top-4 right-4 z-50 px-5 py-3 rounded-lg shadow-lg text-sm font-medium text-white max-w-sm"></div>
+
     <div class="max-w-5xl mx-auto px-4 mt-8 pb-12">
-        
-        <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-red-600 mb-8 flex justify-between items-center">
+
+        <!-- Header -->
+        <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-red-600 mb-6 flex justify-between items-center">
             <div>
-                <h2 class="text-2xl font-bold text-gray-800">🛡️ Staff Access Management</h2>
-                <p class="text-gray-500 text-sm">Create accounts and assign system roles.</p>
+                <h2 class="text-2xl font-bold text-gray-800">Staff Access Management</h2>
+                <p class="text-gray-500 text-sm">Manage login accounts and system roles.</p>
             </div>
-            <button onclick="toggleForm()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded shadow transition">
-                + Add New Staff
+            <button onclick="toggleAddForm()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded shadow transition">
+                + Add Staff
             </button>
         </div>
 
-        <div id="add-form" class="bg-white p-6 rounded-lg shadow-sm mb-8 hidden border border-gray-200">
+        <!-- Add Staff Form -->
+        <div id="add-form" class="hidden bg-white p-6 rounded-lg shadow-sm mb-6 border border-gray-200">
             <h3 class="font-bold text-gray-700 mb-4">Register New Account</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Username</label>
-                    <input type="text" id="staff-user" class="w-full p-2 border rounded font-bold outline-none focus:border-red-500">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Username</label>
+                    <input type="text" id="new-username" placeholder="e.g. john_doe"
+                        class="w-full p-2 border rounded font-medium outline-none focus:border-red-500 focus:ring-1 focus:ring-red-200">
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">Password</label>
-                    <input type="password" id="staff-pass" class="w-full p-2 border rounded outline-none focus:border-red-500">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Password</label>
+                    <input type="password" id="new-password" placeholder="Min 6 characters"
+                        class="w-full p-2 border rounded outline-none focus:border-red-500 focus:ring-1 focus:ring-red-200">
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-gray-400 uppercase">System Role</label>
-                    <select id="staff-role" class="w-full p-2 border rounded font-bold text-gray-700 bg-gray-50">
-                        <option value="Staff">Staff (POS & Inventory Only)</option>
-                        <option value="Admin">Full Admin</option>
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Role</label>
+                    <select id="new-role" class="w-full p-2 border rounded font-medium text-gray-700 bg-gray-50 outline-none focus:border-red-500">
+                        <option value="staff">Staff (POS & Inventory)</option>
+                        <option value="admin">Full Admin</option>
                     </select>
                 </div>
             </div>
-            <div class="text-right">
-                <button onclick="saveStaff()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-8 rounded shadow">Save Account</button>
+            <div class="flex justify-end gap-3">
+                <button onclick="toggleAddForm()" class="text-sm text-gray-500 hover:text-gray-700 font-medium py-2 px-4">Cancel</button>
+                <button onclick="createStaff()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-8 rounded shadow">Save Account</button>
             </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow-sm overflow-hidden min-h-[400px]">
+        <!-- Change My Password -->
+        <div class="bg-white rounded-lg shadow-sm mb-6 border border-gray-200 overflow-hidden">
+            <button onclick="togglePwCard()" class="w-full flex justify-between items-center p-4 text-left hover:bg-gray-50 transition">
+                <span class="font-bold text-gray-700 text-sm">Change My Password</span>
+                <span id="pw-card-arrow" class="text-gray-400 text-xs">&#9660;</span>
+            </button>
+            <div id="pw-card" class="hidden border-t px-6 pb-6 pt-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Current Password</label>
+                        <input type="password" id="cur-pw" class="w-full p-2 border rounded outline-none focus:border-red-500 focus:ring-1 focus:ring-red-200">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">New Password</label>
+                        <input type="password" id="new-pw" placeholder="Min 6 characters"
+                            class="w-full p-2 border rounded outline-none focus:border-red-500 focus:ring-1 focus:ring-red-200">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Confirm New Password</label>
+                        <input type="password" id="confirm-pw"
+                            class="w-full p-2 border rounded outline-none focus:border-red-500 focus:ring-1 focus:ring-red-200">
+                    </div>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button onclick="changeMyPassword()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-6 rounded shadow text-sm">Update Password</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff Table -->
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div class="flex justify-between items-center px-4 py-3 border-b">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">All Accounts</span>
+                <label class="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+                    <input type="checkbox" id="show-inactive" onchange="renderTable()" class="rounded">
+                    Show inactive accounts
+                </label>
+            </div>
             <table class="w-full text-left border-collapse">
-                <thead class="bg-gray-50 border-b text-[10px] uppercase font-bold text-gray-400">
+                <thead class="bg-gray-50 border-b text-[10px] uppercase font-bold text-gray-400 tracking-wider">
                     <tr>
-                        <th class="p-4">Username</th>
-                        <th class="p-4">Assigned Role</th>
-                        <th class="p-4">Created Date</th>
-                        <th class="p-4 text-right">Actions</th>
+                        <th class="px-4 py-3">Username</th>
+                        <th class="px-4 py-3">Role</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3">Created</th>
+                        <th class="px-4 py-3 text-right">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="staff-table-body"></tbody>
+                <tbody id="staff-table-body">
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400 text-sm">Loading...</td></tr>
+                </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- Edit Role Modal -->
+    <div id="edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-40 flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 class="font-bold text-gray-800 mb-1">Edit Role</h3>
+            <p id="edit-modal-name" class="text-sm text-gray-500 mb-4"></p>
+            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Role</label>
+            <select id="edit-role-select" class="w-full p-2 border rounded font-medium text-gray-700 bg-gray-50 mb-5 outline-none focus:border-red-500">
+                <option value="staff">Staff (POS & Inventory)</option>
+                <option value="admin">Full Admin</option>
+            </select>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModal('edit-modal')" class="text-sm text-gray-500 hover:text-gray-700 font-medium py-2 px-4">Cancel</button>
+                <button onclick="saveRole()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded shadow text-sm">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div id="pw-modal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-40 flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 class="font-bold text-gray-800 mb-1">Reset Password</h3>
+            <p id="pw-modal-name" class="text-sm text-gray-500 mb-4"></p>
+            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">New Password</label>
+            <input type="password" id="reset-pw-input" placeholder="Min 6 characters"
+                class="w-full p-2 border rounded outline-none focus:border-red-500 focus:ring-1 focus:ring-red-200 mb-5">
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModal('pw-modal')" class="text-sm text-gray-500 hover:text-gray-700 font-medium py-2 px-4">Cancel</button>
+                <button onclick="submitResetPassword()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-6 rounded shadow text-sm">Reset</button>
+            </div>
         </div>
     </div>
 
     <script>
         const API_URL = 'https://k10system.onrender.com/api';
+        const myId = parseInt(localStorage.getItem('k10_user_id'), 10) || null;
 
-        function toggleForm() {
-            document.getElementById('add-form').classList.toggle('hidden');
+        // Admin gate
+        const role = (localStorage.getItem('k10_role') || '').toLowerCase();
+        if (!localStorage.getItem('k10_token')) window.location.replace('login.html');
+        else if (role !== 'admin') window.location.replace('login.html');
+
+        function authHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + localStorage.getItem('k10_token')
+            };
         }
 
+        // Toast
+        let toastTimer;
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `fixed top-4 right-4 z-50 px-5 py-3 rounded-lg shadow-lg text-sm font-medium text-white max-w-sm ${isError ? 'bg-red-600' : 'bg-green-600'}`;
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.classList.add('hidden'), 4000);
+        }
+
+        // --- State ---
+        let allStaff = [];
+        let editingId = null;
+        let resetPwId = null;
+
+        // --- Load ---
         async function loadStaff() {
             try {
-                const res = await fetch(`${API_URL}/staff`);
-                const staff = await res.json();
-                
-                document.getElementById('staff-table-body').innerHTML = staff.map(s => `
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="p-4 font-bold text-gray-800">${s.username}</td>
-                        <td class="p-4">
-                            <span class="px-3 py-1 rounded text-xs font-bold uppercase ${s.role === 'Admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
-                                ${s.role}
-                            </span>
-                        </td>
-                        <td class="p-4 text-sm text-gray-500">${new Date(s.created_at).toLocaleDateString()}</td>
-                        <td class="p-4 text-right">
-                            <button onclick="deleteStaff(${s.id}, '${s.username}')" class="text-red-400 hover:text-red-600 font-bold text-xs uppercase tracking-wider">Delete</button>
-                        </td>
-                    </tr>
-                `).join('');
-            } catch (e) { console.error("Failed to load staff"); }
+                const res = await fetch(`${API_URL}/staff`, { headers: authHeaders() });
+                if (!res.ok) { showToast('Failed to load staff', true); return; }
+                allStaff = await res.json();
+                renderTable();
+            } catch (e) { showToast('Network error loading staff', true); }
         }
 
-        async function saveStaff() {
-            const username = document.getElementById('staff-user').value;
-            const password = document.getElementById('staff-pass').value;
-            const role = document.getElementById('staff-role').value;
+        function renderTable() {
+            const showInactive = document.getElementById('show-inactive').checked;
+            const rows = showInactive ? allStaff : allStaff.filter(s => s.is_active);
+            const tbody = document.getElementById('staff-table-body');
 
-            if (!username || !password) return alert("Username and Password required.");
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400 text-sm">No staff accounts found.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = rows.map(s => {
+                const isSelf = s.id === myId;
+                const roleBadge = s.role === 'admin'
+                    ? `<span class="px-2 py-0.5 rounded text-xs font-bold uppercase bg-red-100 text-red-700">Admin</span>`
+                    : `<span class="px-2 py-0.5 rounded text-xs font-bold uppercase bg-blue-100 text-blue-700">Staff</span>`;
+                const statusBadge = s.is_active
+                    ? `<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>`
+                    : `<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-500">Inactive</span>`;
+                const toggleBtn = isSelf ? '' :
+                    `<button onclick="toggleActive(${s.id})"
+                        class="text-xs font-medium ${s.is_active ? 'text-orange-400 hover:text-orange-600' : 'text-green-500 hover:text-green-700'} transition">
+                        ${s.is_active ? 'Disable' : 'Enable'}
+                    </button>`;
+                const editRoleBtn = isSelf
+                    ? `<span class="text-xs text-gray-300 cursor-not-allowed" title="Cannot edit your own role">Edit Role</span>`
+                    : `<button onclick="openEditModal(${s.id}, '${s.username}', '${s.role}')" class="text-xs font-medium text-gray-500 hover:text-gray-800 transition">Edit Role</button>`;
+
+                return `
+                    <tr class="border-b hover:bg-gray-50 transition ${!s.is_active ? 'opacity-50' : ''}">
+                        <td class="px-4 py-3 font-bold text-gray-800">
+                            ${s.username}${isSelf ? ' <span class="text-[10px] text-gray-400 font-normal">(you)</span>' : ''}
+                        </td>
+                        <td class="px-4 py-3">${roleBadge}</td>
+                        <td class="px-4 py-3">${statusBadge}</td>
+                        <td class="px-4 py-3 text-sm text-gray-500">${new Date(s.created_at).toLocaleDateString()}</td>
+                        <td class="px-4 py-3 text-right">
+                            <div class="flex items-center justify-end gap-4">
+                                ${editRoleBtn}
+                                <button onclick="openResetPwModal(${s.id}, '${s.username}')" class="text-xs font-medium text-gray-500 hover:text-gray-800 transition">Reset PW</button>
+                                ${toggleBtn}
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        // --- Add Staff ---
+        function toggleAddForm() {
+            const f = document.getElementById('add-form');
+            f.classList.toggle('hidden');
+        }
+
+        async function createStaff() {
+            const username = document.getElementById('new-username').value.trim();
+            const password = document.getElementById('new-password').value;
+            const role = document.getElementById('new-role').value;
+
+            if (!username) { showToast('Username is required', true); return; }
+            if (password.length < 6) { showToast('Password must be at least 6 characters', true); return; }
 
             const res = await fetch(`${API_URL}/staff`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders(),
                 body: JSON.stringify({ username, password, role })
             });
-
+            const data = await res.json();
             if (res.ok) {
-                alert("Staff account created!");
-                document.getElementById('staff-user').value = '';
-                document.getElementById('staff-pass').value = '';
-                toggleForm();
+                showToast('Account created successfully');
+                document.getElementById('new-username').value = '';
+                document.getElementById('new-password').value = '';
+                toggleAddForm();
                 loadStaff();
             } else {
-                const err = await res.json();
-                alert(err.error);
+                showToast(data.error || 'Failed to create account', true);
             }
         }
 
-        async function deleteStaff(id, username) {
-            if (confirm(`Are you sure you want to delete the account for ${username}?`)) {
-                await fetch(`${API_URL}/staff/${id}`, { method: 'DELETE' });
+        // --- Edit Role Modal ---
+        function openEditModal(id, username, currentRole) {
+            editingId = id;
+            document.getElementById('edit-modal-name').textContent = `@${username}`;
+            document.getElementById('edit-role-select').value = currentRole;
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        async function saveRole() {
+            const role = document.getElementById('edit-role-select').value;
+            const res = await fetch(`${API_URL}/staff/${editingId}`, {
+                method: 'PUT',
+                headers: authHeaders(),
+                body: JSON.stringify({ role })
+            });
+            const data = await res.json();
+            closeModal('edit-modal');
+            if (res.ok) {
+                showToast('Role updated');
                 loadStaff();
+            } else {
+                showToast(data.error || 'Failed to update role', true);
             }
         }
+
+        // --- Reset Password Modal ---
+        function openResetPwModal(id, username) {
+            resetPwId = id;
+            document.getElementById('pw-modal-name').textContent = `@${username}`;
+            document.getElementById('reset-pw-input').value = '';
+            document.getElementById('pw-modal').classList.remove('hidden');
+        }
+
+        async function submitResetPassword() {
+            const new_password = document.getElementById('reset-pw-input').value;
+            if (new_password.length < 6) { showToast('Password must be at least 6 characters', true); return; }
+            const res = await fetch(`${API_URL}/staff/${resetPwId}/password`, {
+                method: 'PATCH',
+                headers: authHeaders(),
+                body: JSON.stringify({ new_password })
+            });
+            const data = await res.json();
+            closeModal('pw-modal');
+            if (res.ok) {
+                showToast('Password reset successfully');
+            } else {
+                showToast(data.error || 'Failed to reset password', true);
+            }
+        }
+
+        // --- Toggle Active ---
+        async function toggleActive(id) {
+            const res = await fetch(`${API_URL}/staff/${id}/toggle-active`, {
+                method: 'PATCH',
+                headers: authHeaders()
+            });
+            const data = await res.json();
+            if (res.ok) {
+                const s = allStaff.find(x => x.id === id);
+                if (s) s.is_active = data.is_active;
+                renderTable();
+                showToast(data.is_active ? 'Account enabled' : 'Account disabled');
+            } else {
+                showToast(data.error || 'Failed to toggle account', true);
+            }
+        }
+
+        // --- Change My Password ---
+        function togglePwCard() {
+            const card = document.getElementById('pw-card');
+            const arrow = document.getElementById('pw-card-arrow');
+            card.classList.toggle('hidden');
+            arrow.innerHTML = card.classList.contains('hidden') ? '&#9660;' : '&#9650;';
+        }
+
+        async function changeMyPassword() {
+            const current_password = document.getElementById('cur-pw').value;
+            const new_password = document.getElementById('new-pw').value;
+            const confirm = document.getElementById('confirm-pw').value;
+
+            if (!current_password) { showToast('Enter your current password', true); return; }
+            if (new_password.length < 6) { showToast('New password must be at least 6 characters', true); return; }
+            if (new_password !== confirm) { showToast('New passwords do not match', true); return; }
+
+            const res = await fetch(`${API_URL}/auth/change-password`, {
+                method: 'PATCH',
+                headers: authHeaders(),
+                body: JSON.stringify({ current_password, new_password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast('Password changed successfully');
+                document.getElementById('cur-pw').value = '';
+                document.getElementById('new-pw').value = '';
+                document.getElementById('confirm-pw').value = '';
+            } else {
+                showToast(data.error || 'Failed to change password', true);
+            }
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // Close modals on backdrop click
+        document.getElementById('edit-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal('edit-modal');
+        });
+        document.getElementById('pw-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal('pw-modal');
+        });
+
+        loadStaff();
     </script>
 </body>
 </html>
