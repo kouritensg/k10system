@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 5000;
 // --- CONFIGURATION ---
 const corsOptions = {
   origin: 'https://kouritensg.github.io',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
   optionsSuccessStatus: 200
@@ -27,7 +27,7 @@ app.use(express.json());
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   try {
-    const [users] = await db.execute('SELECT * FROM staff WHERE username = ?', [username]);
+    const [users] = await db.execute('SELECT * FROM staff WHERE username = ? AND is_active = 1', [username]);
     if (users.length === 0) return res.status(400).json({ error: 'Invalid login' });
 
     const user = users[0];
@@ -42,6 +42,95 @@ app.post('/api/auth/login', async (req, res) => {
 // Debug endpoint — returns what the server resolves from the current token
 app.get('/api/auth/me', authenticate, (req, res) => {
   res.json({ resolved_user: req.user });
+});
+
+// --- HARD AUTH MIDDLEWARE (blocks with 401/403 — used for staff management routes) ---
+function requireAuth(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
+  try {
+    req.user = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET || 'secret');
+    next();
+  } catch (e) { res.status(401).json({ error: 'Invalid or expired token' }); }
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  next();
+}
+
+// ==========================================
+// 1b. STAFF MANAGEMENT
+// ==========================================
+app.get('/api/staff', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT id, username, role, is_active, created_at FROM staff ORDER BY created_at ASC');
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch staff' }); }
+});
+
+app.post('/api/staff', requireAuth, requireAdmin, async (req, res) => {
+  const { username, password, role } = req.body;
+  if (!username?.trim()) return res.status(400).json({ error: 'Username is required' });
+  if (!password || password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (!['staff', 'admin'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    const [result] = await db.execute('INSERT INTO staff (username, password_hash, role) VALUES (?, ?, ?)', [username.trim(), hash, role]);
+    res.status(201).json({ id: result.insertId, message: 'Staff account created' });
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Username already exists' });
+    res.status(500).json({ error: 'Failed to create account' });
+  }
+});
+
+app.put('/api/staff/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { role } = req.body;
+  if (!['staff', 'admin'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (String(req.user.id) === String(req.params.id) && role === 'staff')
+    return res.status(400).json({ error: 'You cannot demote yourself' });
+  try {
+    await db.execute('UPDATE staff SET role = ? WHERE id = ?', [role, req.params.id]);
+    res.json({ message: 'Role updated' });
+  } catch (e) { res.status(500).json({ error: 'Failed to update role' }); }
+});
+
+app.patch('/api/staff/:id/toggle-active', requireAuth, requireAdmin, async (req, res) => {
+  if (String(req.user.id) === String(req.params.id))
+    return res.status(400).json({ error: 'Cannot deactivate your own account' });
+  try {
+    const [[staff]] = await db.execute('SELECT is_active FROM staff WHERE id = ?', [req.params.id]);
+    if (!staff) return res.status(404).json({ error: 'Staff not found' });
+    const newState = staff.is_active ? 0 : 1;
+    await db.execute('UPDATE staff SET is_active = ? WHERE id = ?', [newState, req.params.id]);
+    res.json({ is_active: newState });
+  } catch (e) { res.status(500).json({ error: 'Failed to toggle account' }); }
+});
+
+app.patch('/api/staff/:id/password', requireAuth, requireAdmin, async (req, res) => {
+  const { new_password } = req.body;
+  if (!new_password || new_password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  try {
+    const hash = await bcrypt.hash(new_password, 10);
+    const [r] = await db.execute('UPDATE staff SET password_hash = ? WHERE id = ?', [hash, req.params.id]);
+    if (r.affectedRows === 0) return res.status(404).json({ error: 'Staff not found' });
+    res.json({ message: 'Password updated' });
+  } catch (e) { res.status(500).json({ error: 'Failed to update password' }); }
+});
+
+app.patch('/api/auth/change-password', requireAuth, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password || new_password.length < 6)
+    return res.status(400).json({ error: 'Provide current and new password (min 6 chars)' });
+  try {
+    const [[user]] = await db.execute('SELECT password_hash FROM staff WHERE id = ?', [req.user.id]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!await bcrypt.compare(current_password, user.password_hash))
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    const hash = await bcrypt.hash(new_password, 10);
+    await db.execute('UPDATE staff SET password_hash = ? WHERE id = ?', [hash, req.user.id]);
+    res.json({ message: 'Password changed successfully' });
+  } catch (e) { res.status(500).json({ error: 'Failed to change password' }); }
 });
 
 // --- AUTHENTICATE MIDDLEWARE (soft — enriches req.user, never blocks existing routes) ---

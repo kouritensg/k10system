@@ -8,90 +8,81 @@
 </head>
 <body class="bg-gray-100 font-sans">
 
-    <div id="login-section" class="fixed inset-0 z-[60] bg-gray-100 flex items-center justify-center">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-blue-600">
-            <div class="text-center mb-6">
-                <span class="bg-blue-600 text-white font-bold p-2 rounded text-xl">K10</span>
-                <h1 class="text-2xl font-bold mt-4 text-gray-800">Staff Portal</h1>
-            </div>
-            <div class="space-y-4">
-                <input type="text" id="login-user" placeholder="Username" class="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <input type="password" id="login-pass" placeholder="Password" class="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button id="login-btn" class="w-full bg-blue-600 text-white font-bold p-3 rounded hover:bg-blue-700 transition">
-                    Secure Login
-                </button>
-            </div>
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-5xl mx-auto px-4 mt-10 pb-12">
+
+        <!-- Welcome header -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-800">Dashboard</h2>
+            <p class="text-gray-500 text-sm mt-1">Welcome back, <span id="welcome-name" class="font-semibold text-gray-700"></span>. Select a module to get started.</p>
         </div>
-    </div>
 
-    <div id="dashboard-section" class="hidden">
-        
-        <script src="admin-navbar.js"></script>
+        <!-- All-staff shortcuts -->
+        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Daily Operations</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <a href="admin-sales.html" class="bg-white p-5 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-green-500 text-center">
+                <div class="text-2xl mb-2">💳</div>
+                <div class="font-bold text-gray-800 text-sm">POS</div>
+                <div class="text-xs text-gray-400 mt-0.5">New Sale</div>
+            </a>
+            <a href="admin-inventory.html" class="bg-white p-5 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-blue-500 text-center">
+                <div class="text-2xl mb-2">📦</div>
+                <div class="font-bold text-gray-800 text-sm">Inventory</div>
+                <div class="text-xs text-gray-400 mt-0.5">Manage Stock</div>
+            </a>
+            <a href="admin-outstock.html" class="bg-white p-5 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-orange-400 text-center">
+                <div class="text-2xl mb-2">📤</div>
+                <div class="font-bold text-gray-800 text-sm">Outstock</div>
+                <div class="text-xs text-gray-400 mt-0.5">Record Removals</div>
+            </a>
+            <a href="admin-customers.html" class="bg-white p-5 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-teal-500 text-center">
+                <div class="text-2xl mb-2">👥</div>
+                <div class="font-bold text-gray-800 text-sm">Customers</div>
+                <div class="text-xs text-gray-400 mt-0.5">Master List</div>
+            </a>
+        </div>
 
-        <div class="max-w-7xl mx-auto px-4 mt-12 text-center">
-            <h2 class="text-3xl font-bold text-gray-800 mb-4">Welcome to the K10 Manager System</h2>
-            <p class="text-gray-500 text-lg mb-8">Select a module from the menu above to begin.</p>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                <a href="admin-sales.html" class="bg-white p-6 rounded-lg shadow hover:shadow-md transition border-t-4 border-green-500">
-                    <div class="text-2xl mb-2">💰</div>
-                    <div class="font-bold text-gray-800">New Sale (POS)</div>
+        <!-- Admin-only shortcuts -->
+        <div id="admin-section" class="hidden">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Admin</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <a href="admin-purchase.html" class="bg-white p-5 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-purple-500 text-center">
+                    <div class="text-2xl mb-2">🛒</div>
+                    <div class="font-bold text-gray-800 text-sm">Order Stock</div>
+                    <div class="text-xs text-gray-400 mt-0.5">Purchase Orders</div>
                 </a>
-                <a href="admin-inventory.html" class="bg-white p-6 rounded-lg shadow hover:shadow-md transition border-t-4 border-blue-500">
-                    <div class="text-2xl mb-2">📦</div>
-                    <div class="font-bold text-gray-800">Manage Inventory</div>
+                <a href="admin-PurchaseHistory.html" class="bg-white p-5 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-purple-300 text-center">
+                    <div class="text-2xl mb-2">📜</div>
+                    <div class="font-bold text-gray-800 text-sm">PO History</div>
+                    <div class="text-xs text-gray-400 mt-0.5">Past Orders</div>
                 </a>
-                <a href="admin-purchase.html" class="bg-white p-6 rounded-lg shadow hover:shadow-md transition border-t-4 border-purple-500">
-                    <div class="text-2xl mb-2">🚚</div>
-                    <div class="font-bold text-gray-800">Order Stock</div>
+                <a href="admin-suppliers.html" class="bg-white p-5 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-yellow-500 text-center">
+                    <div class="text-2xl mb-2">🏢</div>
+                    <div class="font-bold text-gray-800 text-sm">Suppliers</div>
+                    <div class="text-xs text-gray-400 mt-0.5">Manage Vendors</div>
+                </a>
+                <a href="admin-staff.html" class="bg-white p-5 rounded-xl shadow-sm hover:shadow-md transition border-t-4 border-red-500 text-center">
+                    <div class="text-2xl mb-2">🛡️</div>
+                    <div class="font-bold text-gray-800 text-sm">Staff</div>
+                    <div class="text-xs text-gray-400 mt-0.5">Access Management</div>
                 </a>
             </div>
         </div>
     </div>
 
     <script>
-        const API_URL = 'https://k10system.onrender.com/api';
-
-        document.addEventListener('DOMContentLoaded', () => {
-            if (localStorage.getItem('k10_token')) {
-                showDashboard();
-            }
-
-            document.getElementById('login-btn').addEventListener('click', handleLogin);
-            
-            document.getElementById('login-pass').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') handleLogin();
-            });
-        });
-
-   async function handleLogin() {
-    const username = document.getElementById('login-user').value;
-    const password = document.getElementById('login-pass').value;
-    
-    try {
-        const res = await fetch(`${API_URL}/auth/login`, {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        const data = await res.json();
-        
-        if (res.ok) { 
-            // 1. SAVE THE TOKEN, ROLE, AND USERNAME
-            localStorage.setItem('k10_token', data.token); 
-            localStorage.setItem('k10_role', data.user.role);
-            localStorage.setItem('k10_username', data.user.username);
-            
-            // 2. REDIRECT SO THE NAVBAR LOADS WITH THE NEW PERMISSIONS
-            window.location.href = 'admin-sales.html'; 
-        } else { 
-            alert(data.error); 
+        // Auth gate — redirect to login if not authenticated
+        if (!localStorage.getItem('k10_token')) {
+            window.location.replace('login.html');
         }
-    } catch (err) { alert("Login failed."); }
-}
-        function showDashboard() {
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('dashboard-section').classList.remove('hidden');
+
+        // Personalise welcome + show admin section if applicable
+        const username = localStorage.getItem('k10_username') || 'User';
+        const role = (localStorage.getItem('k10_role') || '').toLowerCase();
+        document.getElementById('welcome-name').textContent = username;
+        if (role === 'admin') {
+            document.getElementById('admin-section').classList.remove('hidden');
         }
     </script>
 </body>
