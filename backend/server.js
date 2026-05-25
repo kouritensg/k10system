@@ -195,6 +195,86 @@ app.delete('/api/categories/:id', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Cannot delete. Category might be linked to products.' }); }
 });
 
+app.patch('/api/categories/:id', async (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  try {
+    const [result] = await db.execute('UPDATE categories SET name = ? WHERE id = ?', [name.trim(), req.params.id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Category not found' });
+    res.json({ message: 'Category renamed' });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Category name already exists' });
+    res.status(500).json({ error: 'Failed to rename category' });
+  }
+});
+
+// ==========================================
+// 2.5 GAMES MANAGEMENT
+// ==========================================
+app.get('/api/games', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT * FROM games WHERE archived = 0 ORDER BY sort_order ASC, name ASC');
+    res.json(rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch games' }); }
+});
+
+app.post('/api/games', async (req, res) => {
+  const { name, display_label, sort_order } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  try {
+    const [result] = await db.execute(
+      'INSERT INTO games (name, display_label, sort_order) VALUES (?, ?, ?)',
+      [name.trim(), display_label?.trim() || null, sort_order || 0]
+    );
+    res.status(201).json({ id: result.insertId, message: 'Game created' });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Game name already exists' });
+    res.status(500).json({ error: 'Failed to create game' });
+  }
+});
+
+app.patch('/api/games/:id', async (req, res) => {
+  const { name, display_label, sort_order } = req.body;
+  try {
+    const updates = [];
+    const params = [];
+    if (name !== undefined) { updates.push('name = ?'); params.push(name.trim()); }
+    if (display_label !== undefined) { updates.push('display_label = ?'); params.push(display_label?.trim() || null); }
+    if (sort_order !== undefined) { updates.push('sort_order = ?'); params.push(sort_order); }
+    if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
+    params.push(req.params.id);
+    const [result] = await db.execute(`UPDATE games SET ${updates.join(', ')} WHERE id = ?`, params);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Game not found' });
+    res.json({ message: 'Game updated' });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Game name already exists' });
+    res.status(500).json({ error: 'Failed to update game' });
+  }
+});
+
+app.delete('/api/games/:id', async (req, res) => {
+  try {
+    const [[inUse]] = await db.execute(
+      'SELECT COUNT(*) AS cnt FROM inventory_families WHERE game_id = ?', [req.params.id]
+    );
+    if (inUse.cnt > 0) {
+      return res.status(409).json({ error: 'Game has existing families — archive it instead.', can_archive: true });
+    }
+    await db.execute('DELETE FROM games WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Game deleted' });
+  } catch (error) { res.status(500).json({ error: 'Failed to delete game' }); }
+});
+
+app.patch('/api/games/:id/archive', async (req, res) => {
+  try {
+    const [[game]] = await db.execute('SELECT archived FROM games WHERE id = ?', [req.params.id]);
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+    const newState = game.archived ? 0 : 1;
+    await db.execute('UPDATE games SET archived = ? WHERE id = ?', [newState, req.params.id]);
+    res.json({ archived: newState, message: newState ? 'Game archived' : 'Game restored' });
+  } catch (error) { res.status(500).json({ error: 'Failed to toggle archive' }); }
+});
+
 // ==========================================
 // 3. SUPPLIER MANAGEMENT
 // ==========================================
@@ -255,39 +335,118 @@ app.get('/api/inventory/status', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Database Query Failed' }); }
 });
 
-// Family list — groups inventory by set_name for the inventory landing page
-app.get('/api/inventory/families', async (req, res) => {
+// Latest family per game — for the All tab overview
+app.get('/api/inventory/latest-by-game', async (req, res) => {
   try {
     const [rows] = await db.execute(`
       SELECT
-        i.set_name,
+        g.id                                                          AS game_id,
+        g.name                                                        AS game_name,
+        g.display_label,
+        g.sort_order,
+        (SELECT f.id FROM inventory_families f
+         WHERE f.game_id = g.id
+         ORDER BY COALESCE(f.release_date, '1900-01-01') DESC, f.id DESC
+         LIMIT 1)                                                     AS latest_family_id,
+        (SELECT f.set_code FROM inventory_families f
+         WHERE f.game_id = g.id
+         ORDER BY COALESCE(f.release_date, '1900-01-01') DESC, f.id DESC
+         LIMIT 1)                                                     AS latest_set_code,
+        (SELECT f.set_name FROM inventory_families f
+         WHERE f.game_id = g.id
+         ORDER BY COALESCE(f.release_date, '1900-01-01') DESC, f.id DESC
+         LIMIT 1)                                                     AS latest_set_name,
+        (SELECT f.release_date FROM inventory_families f
+         WHERE f.game_id = g.id
+         ORDER BY COALESCE(f.release_date, '1900-01-01') DESC, f.id DESC
+         LIMIT 1)                                                     AS latest_release_date,
+        COALESCE(SUM(i.stock_quantity), 0)                           AS total_stock,
+        COALESCE(SUM(i.stock_quantity * i.cost_price), 0)            AS total_cost_value,
+        COALESCE(SUM(i.stock_quantity * i.price), 0)                 AS total_retail_value
+      FROM games g
+      LEFT JOIN inventory_families gf ON gf.game_id = g.id
+      LEFT JOIN inventory i ON i.family_id = gf.id AND i.product_type = 'sealed'
+      WHERE g.archived = 0
+      GROUP BY g.id
+      ORDER BY g.sort_order ASC`
+    );
+    res.json(rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch latest by game' }); }
+});
+
+// Family list — grouped by inventory_families for the inventory grid
+app.get('/api/inventory/families', async (req, res) => {
+  try {
+    // Families from the inventory_families table
+    const [rows] = await db.execute(`
+      SELECT
+        f.id,
+        f.set_code,
+        f.set_name                                        AS family_set_name,
+        f.release_date,
+        f.sort_order                                      AS family_sort_order,
+        g.id                                              AS game_id,
+        g.name                                            AS game_title,
+        g.display_label,
+        c.name                                            AS category_name,
+        COUNT(i.id)                                       AS category_count,
+        COALESCE(SUM(i.stock_quantity), 0)                AS category_stock,
+        COALESCE(SUM(i.is_bundle), 0)                     AS category_bundles,
+        COALESCE(SUM(i.stock_quantity * i.cost_price), 0) AS category_cost_value,
+        COALESCE(SUM(i.stock_quantity * i.price), 0)      AS category_retail_value
+      FROM inventory_families f
+      JOIN games g ON g.id = f.game_id AND g.archived = 0
+      LEFT JOIN inventory i ON i.family_id = f.id AND i.product_type = 'sealed'
+      LEFT JOIN categories c ON c.id = i.category_id
+      GROUP BY f.id, c.id
+      ORDER BY g.sort_order ASC, f.sort_order ASC, f.release_date DESC, c.name ASC`
+    );
+
+    // Orphaned inventory rows (family_id IS NULL) — backward compat
+    const [orphanRows] = await db.execute(`
+      SELECT
+        NULL                                              AS id,
+        i.set_name                                        AS set_code,
+        i.set_name                                        AS family_set_name,
+        MIN(i.release_date)                               AS release_date,
+        999                                               AS family_sort_order,
+        NULL                                              AS game_id,
         i.game_title,
-        c.name                                       AS category_name,
-        COUNT(*)                                     AS category_count,
-        SUM(i.stock_quantity)                        AS category_stock,
-        SUM(i.is_bundle)                             AS category_bundles,
-        SUM(i.stock_quantity * i.cost_price)         AS category_cost_value,
-        SUM(i.stock_quantity * i.price)              AS category_retail_value
+        NULL                                              AS display_label,
+        c.name                                            AS category_name,
+        COUNT(*)                                          AS category_count,
+        SUM(i.stock_quantity)                             AS category_stock,
+        SUM(i.is_bundle)                                  AS category_bundles,
+        SUM(i.stock_quantity * i.cost_price)              AS category_cost_value,
+        SUM(i.stock_quantity * i.price)                   AS category_retail_value
       FROM inventory i
       LEFT JOIN categories c ON c.id = i.category_id
-      WHERE i.product_type = 'sealed'
+      WHERE i.family_id IS NULL AND i.product_type = 'sealed'
+        AND i.set_name IS NOT NULL AND i.set_name != ''
       GROUP BY i.set_name, i.game_title, i.category_id, c.name
       ORDER BY i.game_title, i.set_name, c.name ASC`
     );
 
+    const allRows = [...rows, ...orphanRows];
     const familyMap = {};
-    rows.forEach(row => {
-      const key = `${row.set_name}|||${row.game_title}`;
+    allRows.forEach(row => {
+      const key = row.id != null ? `id:${row.id}` : `orphan:${row.set_code}|||${row.game_title}`;
       if (!familyMap[key]) {
         familyMap[key] = {
-          set_name: row.set_name,
-          game_title: row.game_title,
-          total_products:    0,
-          total_stock:       0,
-          bundle_count:      0,
+          id:                 row.id,
+          set_code:           row.set_code,
+          set_name:           row.family_set_name,
+          release_date:       row.release_date,
+          sort_order:         row.family_sort_order,
+          game_id:            row.game_id,
+          game_title:         row.game_title,
+          display_label:      row.display_label,
+          total_products:     0,
+          total_stock:        0,
+          bundle_count:       0,
           total_cost_value:   0,
           total_retail_value: 0,
-          categories: []
+          categories:         []
         };
       }
       const f = familyMap[key];
@@ -296,7 +455,9 @@ app.get('/api/inventory/families', async (req, res) => {
       f.bundle_count      += Number(row.category_bundles);
       f.total_cost_value  += Number(row.category_cost_value   || 0);
       f.total_retail_value+= Number(row.category_retail_value || 0);
-      f.categories.push({ name: row.category_name || 'Uncategorized', stock: Number(row.category_stock) });
+      if (Number(row.category_count) > 0) {
+        f.categories.push({ name: row.category_name || 'Uncategorized', stock: Number(row.category_stock) });
+      }
     });
 
     res.json(Object.values(familyMap));
@@ -393,6 +554,94 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to fetch family' }); }
 });
 
+// Create a new family
+app.post('/api/inventory/families', async (req, res) => {
+  const { game_id, set_code, set_name, release_date } = req.body;
+  if (!game_id || !set_code || !set_name) {
+    return res.status(400).json({ error: 'game_id, set_code, and set_name are required' });
+  }
+  try {
+    const [result] = await db.execute(
+      'INSERT INTO inventory_families (game_id, set_code, set_name, release_date) VALUES (?, ?, ?, ?)',
+      [game_id, set_code.trim(), set_name.trim(), release_date || null]
+    );
+    res.status(201).json({ id: result.insertId, message: 'Family created' });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'A family with this set code already exists for this game' });
+    res.status(500).json({ error: 'Failed to create family' });
+  }
+});
+
+// Get family by ID including all products (supports empty families)
+app.get('/api/inventory/family-by-id/:id', async (req, res) => {
+  try {
+    const [[family]] = await db.execute(
+      `SELECT f.*, g.name AS game_title, g.id AS game_id
+       FROM inventory_families f
+       JOIN games g ON g.id = f.game_id
+       WHERE f.id = ?`,
+      [req.params.id]
+    );
+    if (!family) return res.status(404).json({ error: 'Family not found' });
+
+    const [rows] = await db.execute(`
+      SELECT
+        i.id, i.card_name, i.game_title, i.set_name, i.family_id, i.sort_order,
+        i.stock_quantity, i.price, i.cost_price, i.is_bundle, i.barcode,
+        i.quick_description, i.long_description, i.category_id,
+        c.name                    AS category_name,
+        pb_up.parent_product_id   AS parent_id,
+        pb_up.quantity_per_parent AS qty_in_parent
+      FROM inventory i
+      LEFT JOIN categories      c     ON c.id = i.category_id
+      LEFT JOIN product_bundles pb_up ON pb_up.child_product_id = i.id
+      WHERE i.family_id = ? AND i.product_type = 'sealed'
+      ORDER BY i.sort_order ASC, i.is_bundle DESC, i.id ASC
+    `, [req.params.id]);
+
+    if (rows.length === 0) return res.json({ family, products: [] });
+
+    const productIds = rows.map(r => r.id);
+    const placeholders = productIds.map(() => '?').join(',');
+
+    const [[children], [waves], [reservations]] = await Promise.all([
+      db.execute(`
+        SELECT pb.parent_product_id, pb.child_product_id, pb.id AS bundle_id, pb.quantity_per_parent,
+               i.card_name AS child_name, i.stock_quantity AS child_stock
+        FROM product_bundles pb JOIN inventory i ON i.id = pb.child_product_id
+        WHERE pb.parent_product_id IN (${placeholders})
+      `, productIds),
+      db.execute(`
+        SELECT f.id, f.inventory_id, f.wave_name, f.cost_price, f.remaining_qty, f.allocated_qty,
+               f.parent_fifo_id, pf.wave_name AS parent_wave_name, pi.card_name AS parent_product_name
+        FROM fifo f
+        LEFT JOIN fifo pf ON pf.id = f.parent_fifo_id
+        LEFT JOIN inventory pi ON pi.id = pf.inventory_id
+        WHERE f.is_active = TRUE AND f.remaining_qty > 0 AND f.inventory_id IN (${placeholders})
+      `, productIds),
+      db.execute(`
+        SELECT id, parent_product_id, reserved_qty, \`type\`, notes
+        FROM inventory_reservations
+        WHERE parent_product_id IN (${placeholders}) AND \`status\` = 'pending'
+      `, productIds),
+    ]);
+
+    const childMap = {}, waveMap = {}, reservationMap = {};
+    children.forEach(c => { if (!childMap[c.parent_product_id]) childMap[c.parent_product_id] = []; childMap[c.parent_product_id].push(c); });
+    waves.forEach(w => { if (!waveMap[w.inventory_id]) waveMap[w.inventory_id] = []; waveMap[w.inventory_id].push(w); });
+    reservations.forEach(r => { if (!reservationMap[r.parent_product_id]) reservationMap[r.parent_product_id] = []; reservationMap[r.parent_product_id].push(r); });
+
+    const products = rows.map(r => ({
+      ...r,
+      children: childMap[r.id] || [],
+      waves: waveMap[r.id] || [],
+      reservations: reservationMap[r.id] || []
+    }));
+
+    res.json({ family, products });
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch family' }); }
+});
+
 // ==========================================
 // 4.1 SINGLES MANAGEMENT
 // ==========================================
@@ -448,30 +697,53 @@ app.get('/api/inventory/singles', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to fetch singles' }); }
 });
 
-// Add new product — updated, removed packs_per_box/boxes_per_case, added set_name + is_bundle + product_type
+// Add new product — accepts family_id (preferred) or legacy game_title+set_name
 app.post('/api/inventory/add', async (req, res) => {
   const {
-    barcode, game_title, set_name, category_id, card_id, card_name,
+    family_id, barcode, game_title, set_name, category_id, card_id, card_name,
     price, cost_price, stock_quantity, is_bundle, quick_description, long_description,
     product_type, card_condition, card_finish
   } = req.body;
+  const conn = await db.getConnection();
   try {
-    const [result] = await db.execute(
+    let resolvedGameTitle = game_title || null;
+    let resolvedSetName   = set_name   || '';
+    let resolvedFamilyId  = family_id  || null;
+    let sortOrder         = 0;
+
+    if (family_id) {
+      const [[fam]] = await conn.execute(
+        `SELECT f.set_code, f.set_name AS fam_name, g.name AS game_title
+         FROM inventory_families f JOIN games g ON g.id = f.game_id WHERE f.id = ?`,
+        [family_id]
+      );
+      if (!fam) return res.status(404).json({ error: 'Family not found' });
+      resolvedGameTitle = fam.game_title;
+      resolvedSetName   = fam.set_code;
+      const [[maxSort]] = await conn.execute(
+        'SELECT COALESCE(MAX(sort_order), 0) AS mx FROM inventory WHERE family_id = ?',
+        [family_id]
+      );
+      sortOrder = maxSort.mx + 1;
+    }
+
+    const [result] = await conn.execute(
       `INSERT INTO inventory
-        (barcode, game_title, set_name, category_id, card_id, card_name,
+        (family_id, barcode, game_title, set_name, category_id, card_id, card_name,
          price, cost_price, stock_quantity, is_bundle, quick_description, long_description,
-         product_type, card_condition, card_finish)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         product_type, card_condition, card_finish, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        barcode || null, game_title || null, set_name || '',
+        resolvedFamilyId, barcode || null, resolvedGameTitle, resolvedSetName,
         category_id || null, card_id || null, card_name,
         price || 0, cost_price || 0, stock_quantity || 0,
         is_bundle || 0, quick_description || null, long_description || null,
-        product_type || 'sealed', card_condition || null, card_finish || null
+        product_type || 'sealed', card_condition || null, card_finish || null, sortOrder
       ]
     );
     res.status(201).json({ id: result.insertId, message: 'Product registered!' });
   } catch (error) { res.status(500).json({ error: error.message }); }
+  finally { conn.release(); }
 });
 
 // Update product — updated, added set_name + is_bundle + quick_description + long_description + card_id + card_name + product_type
@@ -533,6 +805,42 @@ app.get('/api/inventory/:id/history', async (req, res) => {
     );
     res.json(rows);
   } catch (error) { res.status(500).json({ error: 'Failed to fetch history' }); }
+});
+
+// Reorder products within a family
+app.patch('/api/inventory/reorder', authenticate, async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array required' });
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    for (const item of items) {
+      await conn.execute('UPDATE inventory SET sort_order = ? WHERE id = ?', [item.sort_order, item.id]);
+    }
+    await conn.commit();
+    res.json({ message: 'Order updated' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
+});
+
+// Reorder families within a game
+app.patch('/api/inventory/families/reorder', authenticate, async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array required' });
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    for (const item of items) {
+      await conn.execute('UPDATE inventory_families SET sort_order = ? WHERE id = ?', [item.sort_order, item.id]);
+    }
+    await conn.commit();
+    res.json({ message: 'Order updated' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
 });
 
 // ==========================================
