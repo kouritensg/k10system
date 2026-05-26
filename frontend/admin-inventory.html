@@ -18,9 +18,9 @@
             <h1 class="text-2xl font-bold text-gray-900">Inventory</h1>
             <p class="text-sm text-gray-500 mt-0.5">Select a product family to manage</p>
         </div>
-        <button onclick="openAddProductModal()" class="btn-primary">
+        <button onclick="openAddFamilyModal()" class="btn-primary">
             <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-            Add Family
+            Add Inventory (Family)
         </button>
     </div>
     <div class="mb-3">
@@ -67,7 +67,7 @@
             <div class="flex items-center gap-3 flex-1 justify-end">
                 <input type="text" id="tree-search" placeholder="Search products..." oninput="renderTreeBody()"
                     class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" style="max-width:220px">
-                <button onclick="loadFamilyTree(currentFamily)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
+                <button onclick="loadFamilyTree(currentFamily.id)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
             </div>
         </div>
         <!-- Category filter pills — hidden when only 1 category -->
@@ -377,9 +377,102 @@
     </div>
 </div>
 
-<!-- ADD PRODUCT MODAL -->
+<!-- ADD INVENTORY (FAMILY) MODAL -->
+<div id="add-family-modal" class="modal-backdrop">
+    <div class="modal-box" style="max-width:480px">
+        <div class="modal-header">
+            <h2 class="modal-title">Add Inventory (Family)</h2>
+            <button onclick="closeAddFamilyModal()" class="modal-close">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="space-y-4">
+            <div>
+                <label class="field-label">Game *</label>
+                <select id="family-game" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:white"><option value="">Select game...</option></select>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Set Code * <span class="normal-case font-normal text-gray-400">(e.g. OP17)</span></label>
+                    <input type="text" id="family-set-code" placeholder="OP17">
+                </div>
+                <div>
+                    <label class="field-label">Release Date</label>
+                    <input type="date" id="family-release-date">
+                </div>
+            </div>
+            <div>
+                <label class="field-label">Set Name * <span class="normal-case font-normal text-gray-400">(e.g. Royal Bloodlines)</span></label>
+                <input type="text" id="family-set-name" placeholder="Royal Bloodlines">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeAddFamilyModal()" class="btn-ghost">Cancel</button>
+            <button onclick="saveFamily()" class="btn-primary">Save Family</button>
+        </div>
+    </div>
+</div>
+
+<!-- ADD / EDIT GAME MODAL -->
+<div id="game-modal" class="modal-backdrop">
+    <div class="modal-box" style="max-width:420px">
+        <div class="modal-header">
+            <h2 class="modal-title" id="game-modal-title">Add Game</h2>
+            <button onclick="closeGameModal()" class="modal-close">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <input type="hidden" id="game-modal-id">
+        <div class="space-y-4">
+            <div>
+                <label class="field-label">Game Name *</label>
+                <input type="text" id="game-modal-name" placeholder="e.g. One Piece">
+            </div>
+            <div>
+                <label class="field-label">Display Label <span class="normal-case font-normal text-gray-400">(shown on tabs)</span></label>
+                <input type="text" id="game-modal-label" placeholder="e.g. One Piece TCG">
+            </div>
+            <div>
+                <label class="field-label">Sort Order</label>
+                <input type="number" id="game-modal-sort" placeholder="0" value="0">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <div id="game-modal-archive-wrap" class="hidden">
+                <button onclick="archiveGame()" id="game-modal-archive-btn" class="btn-ghost text-amber-600 hover:bg-amber-50">Archive</button>
+            </div>
+            <button onclick="closeGameModal()" class="btn-ghost">Cancel</button>
+            <button onclick="saveGame()" class="btn-primary">Save Game</button>
+        </div>
+    </div>
+</div>
+
+<!-- ADD / EDIT CATEGORY MODAL -->
+<div id="category-modal" class="modal-backdrop">
+    <div class="modal-box" style="max-width:380px">
+        <div class="modal-header">
+            <h2 class="modal-title" id="cat-modal-title">Add Category</h2>
+            <button onclick="closeCategoryModal()" class="modal-close">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <input type="hidden" id="cat-modal-id">
+        <div class="space-y-3">
+            <div>
+                <label class="field-label">Category Name *</label>
+                <input type="text" id="cat-modal-name" placeholder="e.g. Booster Box">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeCategoryModal()" class="btn-ghost">Cancel</button>
+            <button onclick="saveCategory()" class="btn-primary">Save Category</button>
+        </div>
+    </div>
+</div>
+
+<!-- ADD PRODUCT MODAL (family-level fields removed — inherited from current family) -->
 <div id="add-modal" class="modal-backdrop">
-    <div class="modal-box" style="max-width:560px">
+    <div class="modal-box" style="max-width:500px">
         <div class="modal-header">
             <h2 class="modal-title">Add Product</h2>
             <button onclick="closeAddProductModal()" class="modal-close">
@@ -389,18 +482,8 @@
         <div class="space-y-4">
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="field-label">Game *</label>
-                    <select id="add-game"></select>
-                </div>
-                <div>
-                    <label class="field-label">Set Name * <span class="normal-case font-normal text-gray-400">(e.g. OP17)</span></label>
-                    <input type="text" id="add-set-name" placeholder="OP17">
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="field-label">Category *</label>
-                    <select id="add-category"><option value="">Loading...</option></select>
+                    <label class="field-label">Category Type *</label>
+                    <select id="add-category"><option value="">-- Select --</option></select>
                 </div>
                 <div>
                     <label class="field-label">Card / Set ID</label>
@@ -477,60 +560,57 @@ const API_URL = 'https://k10system.onrender.com/api';
 function authHeaders() {
   return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
 }
+let gameList      = [];   // fetched from /api/games
 let categories    = [];
 let allProducts   = [];
-let currentFamily = null;
+let currentFamily = null; // object: { id, set_code, set_name, game_id, game_title, release_date, ... }
 let familyData    = [];
-let activeGame    = '';
+let activeGame    = '';   // game id (number) or '' for All
 let activeCategory = '';
-
-const GAME_LIST = [
-  { label: 'All',                  value: '' },
-  { label: 'One Piece TCG',        value: 'One Piece' },
-  { label: 'Pokémon TCG',          value: 'Pokemon' },
-  { label: 'Digimon TCG',          value: 'Digimon' },
-  { label: 'Hololive TCG',         value: 'Hololive' },
-  { label: 'Union Arena TCG',      value: 'Union Arena' },
-  { label: 'Dragon Ball TCG',      value: 'Dragon Ball' },
-  { label: 'Gundam TCG',           value: 'Gundam' },
-  { label: 'Ultraman TCG',         value: 'Ultraman' },
-  { label: 'Vanguard TCG',         value: 'Vanguard' },
-  { label: 'Riftbound TCG',        value: 'Riftbound' },
-  { label: 'Cookie Run TCG',       value: 'Cookie Run' },
-  { label: 'Lorcana TCG',          value: 'Lorcana' },
-  { label: 'Force of Will TCG',    value: 'Force of Will' },
-  { label: 'Grand Archive TCG',    value: 'Grand Archive' },
-  { label: 'Pudgy Penguins TCG',   value: 'Pudgy Penguins' },
-  { label: 'Final Fantasy TCG',    value: 'Final Fantasy' },
-  { label: 'Magic: The Gathering', value: 'Magic' },
-  { label: 'Accessories',          value: 'Accessories' },
-  { label: 'Other',                value: 'Other' },
-];
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
-    populateGameSelect('add-game');
-    await Promise.all([loadCategories(), loadFamilies()]);
-    document.getElementById('family-search').addEventListener('input', renderFamilyGrid);
+    await Promise.all([loadGames(), loadCategories(), loadFamilies()]);
+    document.getElementById('family-search').addEventListener('input', () => renderFamilyGrid());
     document.getElementById('d-price').addEventListener('input', calcMargin);
 
-    // Deep-link: ?family=OP17 auto-opens that family's detail view
+    // Deep-link: ?family=OP17 auto-opens that family's tree view
     const urlParams = new URLSearchParams(window.location.search);
     const paramFamily = urlParams.get('family');
     if (paramFamily) {
-        const match = familyData.find(f => f.set_name === paramFamily);
-        if (match) openFamily(match.set_name, match.game_title || '');
+        const match = familyData.find(f => f.set_code === paramFamily || f.set_name === paramFamily);
+        if (match && match.id) openFamily(match.id);
     }
 });
+
+async function loadGames() {
+    try {
+        const res = await fetch(`${API_URL}/games`);
+        gameList = await res.json();
+        renderTabs();
+        populateFamilyGameSelect();
+    } catch(e) { console.error('Failed to load games'); }
+}
 
 async function loadCategories() {
     try {
         const res = await fetch(`${API_URL}/categories`);
         categories = await res.json();
-        const opts = '<option value="">-- Select --</option>' +
-            categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-        document.getElementById('add-category').innerHTML = opts;
+        populateCategorySelect();
     } catch(e) { console.error('Failed to load categories'); }
+}
+
+function populateCategorySelect() {
+    const opts = '<option value="">-- Select --</option>' +
+        categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    document.getElementById('add-category').innerHTML = opts;
+}
+
+function populateFamilyGameSelect() {
+    const el = document.getElementById('family-game');
+    if (!el) return;
+    el.innerHTML = '<option value="">Select game...</option>' +
+        gameList.map(g => `<option value="${g.id}">${g.display_label || g.name}</option>`).join('');
 }
 
 async function loadFamilies() {
@@ -538,7 +618,7 @@ async function loadFamilies() {
         const res = await fetch(`${API_URL}/inventory/families`);
         familyData = await res.json();
         renderTabs();
-        renderFamilyGrid();
+        await renderFamilyGrid();
         renderInventorySummary();
     } catch(e) {
         document.getElementById('family-grid').innerHTML =
@@ -548,44 +628,49 @@ async function loadFamilies() {
 
 function renderTabs() {
     const container = document.getElementById('game-tabs');
-    container.innerHTML = GAME_LIST.map(g => {
-        const count = g.value ? familyData.filter(f => f.game_title === g.value).length : familyData.length;
-        const isActive = activeGame === g.value;
-        return `<button
-            onclick="setGameTab('${g.value}')"
-            class="game-tab${isActive ? ' game-tab-active' : ''}"
-        >${g.label}${count > 0 ? `<span class="tab-badge">${count}</span>` : ''}</button>`;
+    const allCount = familyData.length;
+    const allActive = activeGame === '';
+    let html = `<button onclick="setGameTab('')" class="game-tab${allActive ? ' game-tab-active' : ''}">All${allCount > 0 ? `<span class="tab-badge">${allCount}</span>` : ''}</button>`;
+
+    html += gameList.map(g => {
+        const count = familyData.filter(f => f.game_id === g.id).length;
+        const isActive = activeGame === g.id;
+        const editBtn = isActive
+            ? `<span class="tab-edit-btn" onclick="event.stopPropagation(); openEditGameModal(${g.id})" title="Edit game" style="font-size:11px;margin-right:2px;opacity:0.7;cursor:pointer">✎</span>`
+            : '';
+        return `<button onclick="setGameTab(${g.id})" class="game-tab${isActive ? ' game-tab-active' : ''}">${editBtn}${g.display_label || g.name}${count > 0 ? `<span class="tab-badge">${count}</span>` : ''}</button>`;
     }).join('');
+
+    html += `<button onclick="openAddGameModal()" class="game-tab" style="opacity:0.6;font-size:18px;padding:4px 12px;line-height:1" title="Add game">+</button>`;
+    container.innerHTML = html;
 }
 
-function setGameTab(value) {
-    activeGame = value;
+async function setGameTab(gameId) {
+    activeGame = gameId;
     renderTabs();
-    renderFamilyGrid();
+    await renderFamilyGrid();
 }
 
-function populateGameSelect(selectId) {
-    const el = document.getElementById(selectId);
-    if (!el) return;
-    el.innerHTML = GAME_LIST
-        .filter(g => g.value)
-        .map(g => `<option value="${g.value}">${g.label}</option>`)
-        .join('');
-}
-
-function renderFamilyGrid() {
-    const search = document.getElementById('family-search').value.toLowerCase();
-    const filtered = familyData.filter(f => {
-        const ms = !search || f.set_name.toLowerCase().includes(search) || (f.game_title||'').toLowerCase().includes(search);
-        const mg = !activeGame || f.game_title === activeGame;
-        return ms && mg;
-    });
-    const grid = document.getElementById('family-grid');
-    if (!filtered.length) {
-        grid.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-sm">No families found.</div>`;
+async function renderFamilyGrid() {
+    if (activeGame === '') {
+        await renderAllTabGrid();
         return;
     }
-    grid.innerHTML = filtered.map(f => {
+    const search = document.getElementById('family-search').value.toLowerCase();
+    const filtered = familyData.filter(f => {
+        const ms = !search ||
+            (f.set_code  || '').toLowerCase().includes(search) ||
+            (f.set_name  || '').toLowerCase().includes(search) ||
+            (f.game_title|| '').toLowerCase().includes(search);
+        return f.game_id === activeGame && ms;
+    }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || (b.release_date || '').localeCompare(a.release_date || ''));
+
+    const grid = document.getElementById('family-grid');
+    if (!filtered.length) {
+        grid.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-sm">No families found. Click <strong>Add Inventory (Family)</strong> to create one.</div>`;
+        return;
+    }
+    grid.innerHTML = filtered.map((f, idx) => {
         const sc = f.total_stock > 50 ? 'text-green-600' : f.total_stock > 0 ? 'text-amber-600' : 'text-red-400';
         const catBreakdown = f.categories
             .filter(c => c.stock > 0)
@@ -595,20 +680,29 @@ function renderFamilyGrid() {
         const retailVal = parseFloat(f.total_retail_value || 0);
         const valueRow  = costVal > 0 || retailVal > 0
             ? `<div class="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 text-xs">
-                   <span class="text-gray-400">Cost</span>
-                   <span class="font-semibold text-gray-600">$${costVal.toFixed(0)}</span>
+                   <span class="text-gray-400">Cost</span><span class="font-semibold text-gray-600">$${costVal.toFixed(0)}</span>
                    <span class="text-gray-300">·</span>
-                   <span class="text-gray-400">Retail</span>
-                   <span class="font-semibold text-green-600">$${retailVal.toFixed(0)}</span>
+                   <span class="text-gray-400">Retail</span><span class="font-semibold text-green-600">$${retailVal.toFixed(0)}</span>
                </div>`
             : '';
+        const subName = f.set_name && f.set_name !== f.set_code
+            ? `<p class="text-xs text-gray-400 mb-1">${esc(f.set_name)}</p>` : '';
+        const clickFn = f.id ? `openFamily(${f.id})` : '';
+        const draggable = f.id ? 'true' : 'false';
         return `
-        <div class="family-card fade-in" onclick="openFamily('${esc(f.set_name)}', '${esc(f.game_title||'')}')">
-            <div class="flex items-start justify-between mb-3">
-                <div class="text-2xl">${gameIcon(f.game_title)}</div>
+        <div class="family-card fade-in" data-family-id="${f.id || ''}" data-family-idx="${idx}"
+             draggable="${draggable}"
+             ondragstart="familyDragStart(event, ${idx})" ondragover="familyDragOver(event)" ondragleave="familyDragLeave(event)" ondrop="familyDrop(event, ${idx})"
+             onclick="${clickFn}">
+            <div class="flex items-start justify-between mb-2">
+                <div class="flex items-center gap-1.5">
+                    ${f.id ? '<span class="drag-handle" title="Drag to reorder" style="cursor:grab;color:#d1d5db;font-size:14px;line-height:1;user-select:none">⠿</span>' : ''}
+                    <div class="text-xl">${gameIcon(f.game_title)}</div>
+                </div>
                 <span class="badge badge-gray">${f.game_title || 'Other'}</span>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 mb-1">${f.set_name}</h3>
+            <h3 class="text-lg font-bold text-gray-900 mb-0">${esc(f.set_code)}</h3>
+            ${subName}
             <div class="flex items-center gap-2 text-sm flex-wrap mb-1">
                 <span class="text-gray-500">${f.total_products} product${f.total_products != 1 ? 's' : ''}</span>
                 ${f.bundle_count > 0 ? `<span class="badge badge-blue">${f.bundle_count} bundle${f.bundle_count != 1 ? 's' : ''}</span>` : ''}
@@ -619,6 +713,54 @@ function renderFamilyGrid() {
             ${valueRow}
         </div>`;
     }).join('');
+
+    setupFamilyDragDrop(filtered);
+}
+
+async function renderAllTabGrid() {
+    const grid = document.getElementById('family-grid');
+    grid.innerHTML = '<div class="col-span-full text-center py-16 text-gray-400 text-sm">Loading...</div>';
+    try {
+        const res = await fetch(`${API_URL}/inventory/latest-by-game`);
+        const games = await res.json();
+        const hasData = games.some(g => g.latest_family_id || g.total_stock > 0);
+        if (!hasData) {
+            grid.innerHTML = '<div class="col-span-full text-center py-16 text-gray-400 text-sm">No inventory yet. Select a game tab and add a family to start.</div>';
+            return;
+        }
+        grid.innerHTML = games
+            .filter(g => g.latest_family_id || g.total_stock > 0)
+            .map(g => {
+                const sc = g.total_stock > 50 ? 'text-green-600' : g.total_stock > 0 ? 'text-amber-600' : 'text-red-400';
+                const costVal   = parseFloat(g.total_cost_value   || 0);
+                const retailVal = parseFloat(g.total_retail_value || 0);
+                const latestLine = g.latest_set_code
+                    ? `<p class="text-xs text-gray-400 mt-0.5">Latest: <span class="font-medium">${esc(g.latest_set_code)}</span>${g.latest_release_date ? ' · ' + g.latest_release_date.split('T')[0] : ''}</p>`
+                    : '<p class="text-xs text-gray-400 mt-0.5">No sets yet</p>';
+                const clickFn = g.latest_family_id ? `openFamily(${g.latest_family_id})` : '';
+                return `
+                <div class="family-card fade-in" ${clickFn ? `onclick="${clickFn}" style="cursor:pointer"` : ''}>
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="text-xl">${gameIcon(g.game_name)}</div>
+                        <span class="badge badge-gray">${g.display_label || g.game_name}</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-900 mb-0">${esc(g.display_label || g.game_name)}</h3>
+                    ${latestLine}
+                    <div class="flex items-center gap-2 text-sm flex-wrap mt-2">
+                        <span class="font-semibold ${sc}">${Number(g.total_stock).toLocaleString()}</span>
+                        <span class="text-gray-500">units in stock</span>
+                    </div>
+                    ${costVal > 0 || retailVal > 0 ? `
+                    <div class="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 text-xs">
+                        <span class="text-gray-400">Cost</span><span class="font-semibold text-gray-600">$${costVal.toFixed(0)}</span>
+                        <span class="text-gray-300">·</span>
+                        <span class="text-gray-400">Retail</span><span class="font-semibold text-green-600">$${retailVal.toFixed(0)}</span>
+                    </div>` : ''}
+                </div>`;
+            }).join('');
+    } catch(e) {
+        grid.innerHTML = '<div class="col-span-full text-center py-16 text-red-400 text-sm">Failed to load overview.</div>';
+    }
 }
 
 function renderInventorySummary() {
@@ -642,26 +784,23 @@ function renderInventorySummary() {
         stat('Retail Value',   `$${totalRetail.toFixed(0)}`,        `${margin.toFixed(1)}% gross margin`, 'text-green-600');
 }
 
-async function openFamily(setName, gameTitle) {
-    currentFamily  = setName;
+async function openFamily(familyId) {
     activeCategory = '';
     document.getElementById('family-view').classList.add('hidden');
     document.getElementById('tree-view').classList.remove('hidden');
     document.getElementById('tree-view').classList.add('fade-in');
-    document.getElementById('tree-title').textContent    = setName;
-    document.getElementById('tree-subtitle').textContent = gameTitle || '';
-    document.getElementById('singles-nav-link').href = `admin-singles.html?family=${encodeURIComponent(setName)}`;
-    await loadFamilyTree(setName);
+    await loadFamilyTree(familyId);
 }
 
 function showFamilyView() {
     currentFamily = null;
     document.getElementById('tree-view').classList.add('hidden');
+    document.getElementById('product-edit-view').classList.add('hidden');
     document.getElementById('family-view').classList.remove('hidden');
     loadFamilies();
 }
 
-async function loadFamilyTree(setName) {
+async function loadFamilyTree(familyId) {
     const body    = document.getElementById('tree-body');
     const loading = document.getElementById('tree-loading');
     const empty   = document.getElementById('tree-empty');
@@ -671,33 +810,53 @@ async function loadFamilyTree(setName) {
     loading.classList.remove('hidden');
     empty.classList.add('hidden');
     try {
-        const res = await fetch(`${API_URL}/inventory/family/${encodeURIComponent(setName)}`);
-        const products = await res.json();
-        allProducts = products;
+        const res = await fetch(`${API_URL}/inventory/family-by-id/${familyId}`);
+        if (!res.ok) throw new Error('Family not found');
+        const data = await res.json();
+        currentFamily = data.family;
+        allProducts   = data.products || [];
+
+        document.getElementById('tree-title').textContent    = currentFamily.set_code;
+        document.getElementById('tree-subtitle').textContent =
+            (currentFamily.set_name !== currentFamily.set_code ? currentFamily.set_name + ' — ' : '') +
+            (currentFamily.game_title || '');
+        document.getElementById('singles-nav-link').href =
+            `admin-singles.html?family=${encodeURIComponent(currentFamily.set_code)}`;
+
         loading.classList.add('hidden');
-        document.getElementById('tree-count').textContent = `${products.length} product${products.length !== 1 ? 's' : ''}`;
-        if (!products.length) { empty.classList.remove('hidden'); return; }
+        document.getElementById('tree-count').textContent =
+            `${allProducts.length} product${allProducts.length !== 1 ? 's' : ''}`;
+        if (!allProducts.length) { empty.classList.remove('hidden'); return; }
         renderCategoryPills();
         renderTreeBody();
-    } catch(e) { loading.textContent = 'Failed to load products.'; }
+    } catch(e) {
+        loading.classList.add('hidden');
+        document.getElementById('tree-body').innerHTML =
+            `<div class="py-16 text-center text-red-400 text-sm">Failed to load family.</div>`;
+    }
 }
 
 function renderCategoryPills() {
     const bar = document.getElementById('tree-cat-filter');
     const cats = [...new Set(allProducts.map(p => p.category_name).filter(Boolean))].sort();
-    // Hide pill bar when there's only one category (nothing to filter)
-    if (cats.length <= 1) { bar.classList.add('hidden'); return; }
     bar.classList.remove('hidden');
-    bar.innerHTML = ['All', ...cats].map(cat => {
-        const val     = cat === 'All' ? '' : cat;
-        const active  = activeCategory === val;
-        const count   = val ? allProducts.filter(p => p.category_name === val).length : allProducts.length;
+    const pills = ['All', ...cats].map(cat => {
+        const val    = cat === 'All' ? '' : cat;
+        const active = activeCategory === val;
+        const count  = val ? allProducts.filter(p => p.category_name === val).length : allProducts.length;
+        const catObj = val ? categories.find(c => c.name === val) : null;
+        const editBtn = catObj
+            ? `<span onclick="event.stopPropagation(); openEditCategoryModal(${catObj.id}, '${esc(catObj.name)}')" title="Rename" style="margin-left:3px;opacity:0.6;cursor:pointer;font-size:10px">✎</span>`
+            : '';
         return `<button onclick="setCategoryFilter('${val}')"
             class="px-3 py-1 rounded-full text-xs font-bold border transition-colors
                    ${active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-500'}">
-            ${cat} <span class="${active ? 'opacity-70' : 'text-gray-400'}">${count}</span>
+            ${cat}${editBtn} <span class="${active ? 'opacity-70' : 'text-gray-400'}">${count}</span>
         </button>`;
     }).join('');
+    const addBtn = `<button onclick="openAddCategoryModal()" title="Add category"
+        class="px-2 py-1 rounded-full text-xs font-bold border border-dashed border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors">+ Cat</button>`;
+    bar.innerHTML = pills + addBtn;
 }
 
 function setCategoryFilter(val) {
@@ -734,6 +893,7 @@ function renderTreeBody() {
             document.getElementById(`bd-panel-${btn.dataset.id}`).classList.toggle('open');
         });
     });
+    setupProductDrag();
 }
 
 function renderProductRow(p, allProds) {
@@ -755,7 +915,7 @@ function renderProductRow(p, allProds) {
             <span class="font-medium text-gray-700 flex-1">${c.child_name}</span>
             <span class="badge badge-gray">× ${c.quantity_per_parent}</span>
             <span class="text-xs text-gray-400">${c.child_stock} in stock</span>
-            <button onclick="removeBundleChild(${c.bundle_id}, '${esc(currentFamily)}')"
+            <button onclick="removeBundleChild(${c.bundle_id})"
                 class="text-red-300 hover:text-red-500 ml-auto" title="Remove relationship">
                 <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
@@ -838,8 +998,9 @@ function renderProductRow(p, allProds) {
 
 
     return `
-    <div class="product-row fade-in">
+    <div class="product-row fade-in" data-product-id="${p.id}" draggable="true">
         <div class="py-3 px-4 flex flex-wrap items-center gap-3">
+            <span class="drag-handle" title="Drag to reorder" style="cursor:grab;color:#d1d5db;font-size:16px;line-height:1;user-select:none;flex-shrink:0">⠿</span>
             <div class="flex-1 min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                     <span class="font-semibold text-gray-900">${p.card_name}</span>
@@ -921,7 +1082,7 @@ async function refreshFullEditView() {
     const id = parseInt(document.getElementById('pe-id').value);
     if (!id) return;
     try {
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
         const p = allProducts.find(x => x.id === id);
         if (p) {
             populateFullEditView(p);
@@ -1156,7 +1317,7 @@ async function savePeNewWave() {
         document.getElementById('pe-stock').textContent = json.total_stock;
         hidePeAddWave();
         await loadPeWaves(id);
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1188,7 +1349,7 @@ async function peSaveEditWave(waveId) {
         showToast('Wave updated', 'success');
         document.getElementById('pe-stock').textContent = json.total_stock;
         await loadPeWaves(id);
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1214,7 +1375,7 @@ async function peConfirmSplit(waveId) {
         if (!res.ok) throw new Error(json.error);
         showToast(`Split — new wave "${json.new_wave_name}" created`, 'success');
         await loadPeWaves(id);
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1228,7 +1389,7 @@ async function peDeleteWave(waveId) {
         showToast('Wave deleted', 'success');
         document.getElementById('pe-stock').textContent = json.total_stock;
         await loadPeWaves(id);
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1255,7 +1416,7 @@ async function saveFullProduct() {
         if (!res.ok) throw new Error(json.error);
         showToast('Product updated!', 'success');
         document.getElementById('pe-title').textContent = data.card_name;
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1372,7 +1533,7 @@ async function saveNewWave() {
         showToast('Wave added', 'success');
         document.getElementById('d-stock').value = json.total_stock;
         await loadWaves(id);
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1403,7 +1564,7 @@ async function saveEditWave(waveId) {
         showToast('Wave updated', 'success');
         document.getElementById('d-stock').value = json.total_stock;
         await loadWaves(id);
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1417,7 +1578,7 @@ async function deleteWave(waveId) {
         showToast('Wave deleted', 'success');
         document.getElementById('d-stock').value = json.total_stock;
         await loadWaves(id);
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 function calcMargin() {
@@ -1462,7 +1623,7 @@ async function saveDrawer() {
         if (!res.ok) throw new Error(json.error);
         showToast('Product updated!', 'success');
         closeDrawer();
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1514,7 +1675,7 @@ async function doBreakdown(parentId) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1529,7 +1690,7 @@ async function doReserve(parentId) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1544,7 +1705,7 @@ async function doEventReserve(parentId) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1557,7 +1718,7 @@ async function doCancelReservation(reservationId) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1578,21 +1739,27 @@ async function doCommitReservation(reservationId, parentId) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
 // ADD PRODUCT
 function openAddProductModal() {
-    if (currentFamily) document.getElementById('add-set-name').value = currentFamily;
+    document.getElementById('add-category').value  = '';
+    document.getElementById('add-card-id').value   = '';
+    document.getElementById('add-name').value      = '';
+    document.getElementById('add-price').value     = '';
+    document.getElementById('add-desc').value      = '';
+    document.getElementById('add-long-desc').value = '';
+    document.getElementById('add-is-bundle').checked = false;
     document.getElementById('add-modal').classList.add('open');
 }
 function closeAddProductModal() { document.getElementById('add-modal').classList.remove('open'); }
 async function addProduct() {
+    if (!currentFamily || !currentFamily.id) return showToast('No family selected', 'error');
     const data = {
-        game_title:        document.getElementById('add-game').value,
-        set_name:          document.getElementById('add-set-name').value.trim(),
-        category_id:       document.getElementById('add-category').value,
+        family_id:         currentFamily.id,
+        category_id:       document.getElementById('add-category').value || null,
         card_id:           document.getElementById('add-card-id').value.trim() || null,
         card_name:         document.getElementById('add-name').value.trim(),
         price:             parseFloat(document.getElementById('add-price').value) || 0,
@@ -1601,7 +1768,7 @@ async function addProduct() {
         is_bundle:         document.getElementById('add-is-bundle').checked ? 1 : 0,
         product_type:      'sealed'
     };
-    if (!data.card_name || !data.set_name) return showToast('Product name and set name are required', 'error');
+    if (!data.card_name) return showToast('Product name is required', 'error');
     try {
         const res = await fetch(`${API_URL}/inventory/add`, {
             method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
@@ -1610,7 +1777,7 @@ async function addProduct() {
         if (!res.ok) throw new Error(json.error);
         showToast('Product added!', 'success');
         closeAddProductModal();
-        if (currentFamily) await loadFamilyTree(currentFamily); else await loadFamilies();
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1622,7 +1789,7 @@ async function deleteProduct(id) {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Product deleted', 'success');
-        if (currentFamily) await loadFamilyTree(currentFamily); else await loadFamilies();
+        if (currentFamily) await loadFamilyTree(currentFamily.id); else await loadFamilies();
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1655,7 +1822,7 @@ async function saveBundleChild() {
         if (!res.ok) throw new Error(json.error);
         showToast('Child product linked!', 'success');
         closeBundleModal();
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
         // Refresh bundle + breakdown sections if advanced edit is open
         const peView = document.getElementById('product-edit-view');
         if (!peView.classList.contains('hidden')) {
@@ -1665,14 +1832,14 @@ async function saveBundleChild() {
         }
     } catch(e) { showToast(e.message, 'error'); }
 }
-async function removeBundleChild(bundleId, setName) {
+async function removeBundleChild(bundleId) {
     if (!confirm('Remove this bundle relationship?')) return;
     try {
         const res = await fetch(`${API_URL}/bundles/${bundleId}`, { method: 'DELETE', headers: authHeaders() });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Relationship removed', 'success');
-        await loadFamilyTree(setName);
+        await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -1710,7 +1877,7 @@ async function removePeBundleChild(bundleId) {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Relationship removed', 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
         // Refresh PE bundle + breakdown sections
         const peId = parseInt(document.getElementById('pe-id').value);
         const p = allProducts.find(x => x.id === peId);
@@ -1829,7 +1996,7 @@ async function doPeBreakdown() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
         const p = allProducts.find(x => x.id === id);
         if (p) {
             document.getElementById('pe-stock').textContent = p.stock_quantity || 0;
@@ -1850,7 +2017,7 @@ async function doPeReserve() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
         const p = allProducts.find(x => x.id === id);
         if (p) renderPeBreakdownSection(p);
     } catch(e) { showToast(e.message, 'error'); }
@@ -1874,7 +2041,7 @@ async function doPeCommitReservation() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
         const p = allProducts.find(x => x.id === id);
         if (p) {
             document.getElementById('pe-stock').textContent = p.stock_quantity || 0;
@@ -1894,10 +2061,239 @@ async function doPeCancelReservation(reservationId) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         showToast(data.message, 'success');
-        await loadFamilyTree(currentFamily);
+        await loadFamilyTree(currentFamily.id);
         const p = allProducts.find(x => x.id === id);
         if (p) renderPeBreakdownSection(p);
     } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ==========================================
+// FAMILY MODAL
+// ==========================================
+function openAddFamilyModal() {
+    document.getElementById('family-set-code').value    = '';
+    document.getElementById('family-set-name').value    = '';
+    document.getElementById('family-release-date').value = '';
+    populateFamilyGameSelect();
+    const gameEl = document.getElementById('family-game');
+    if (activeGame !== '') {
+        gameEl.value    = activeGame;
+        gameEl.disabled = true;
+        gameEl.style.opacity = '0.7';
+    } else {
+        gameEl.disabled      = false;
+        gameEl.style.opacity = '';
+    }
+    document.getElementById('add-family-modal').classList.add('open');
+}
+function closeAddFamilyModal() { document.getElementById('add-family-modal').classList.remove('open'); }
+
+async function saveFamily() {
+    const gameId      = document.getElementById('family-game').value;
+    const setCode     = document.getElementById('family-set-code').value.trim();
+    const setName     = document.getElementById('family-set-name').value.trim();
+    const releaseDate = document.getElementById('family-release-date').value;
+    if (!gameId || !setCode || !setName) return showToast('Game, Set Code, and Set Name are required', 'error');
+    try {
+        const res = await fetch(`${API_URL}/inventory/families`, {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ game_id: gameId, set_code: setCode, set_name: setName, release_date: releaseDate || null })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Family created!', 'success');
+        closeAddFamilyModal();
+        await loadFamilies();
+        openFamily(json.id);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ==========================================
+// GAME MODAL
+// ==========================================
+function openAddGameModal() {
+    document.getElementById('game-modal-id').value    = '';
+    document.getElementById('game-modal-name').value  = '';
+    document.getElementById('game-modal-label').value = '';
+    document.getElementById('game-modal-sort').value  = gameList.length + 1;
+    document.getElementById('game-modal-title').textContent = 'Add Game';
+    document.getElementById('game-modal-archive-wrap').classList.add('hidden');
+    document.getElementById('game-modal').classList.add('open');
+}
+function openEditGameModal(gameId) {
+    const g = gameList.find(x => x.id === gameId);
+    if (!g) return;
+    document.getElementById('game-modal-id').value    = g.id;
+    document.getElementById('game-modal-name').value  = g.name;
+    document.getElementById('game-modal-label').value = g.display_label || '';
+    document.getElementById('game-modal-sort').value  = g.sort_order || 0;
+    document.getElementById('game-modal-title').textContent = 'Edit Game';
+    document.getElementById('game-modal-archive-wrap').classList.remove('hidden');
+    document.getElementById('game-modal-archive-btn').textContent = g.archived ? 'Restore' : 'Archive';
+    document.getElementById('game-modal').classList.add('open');
+}
+function closeGameModal() { document.getElementById('game-modal').classList.remove('open'); }
+
+async function saveGame() {
+    const id    = document.getElementById('game-modal-id').value;
+    const name  = document.getElementById('game-modal-name').value.trim();
+    const label = document.getElementById('game-modal-label').value.trim() || null;
+    const sort  = parseInt(document.getElementById('game-modal-sort').value) || 0;
+    if (!name) return showToast('Game name is required', 'error');
+    try {
+        const url = id ? `${API_URL}/games/${id}` : `${API_URL}/games`;
+        const res = await fetch(url, {
+            method: id ? 'PATCH' : 'POST', headers: authHeaders(),
+            body: JSON.stringify({ name, display_label: label, sort_order: sort })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast(id ? 'Game updated!' : 'Game added!', 'success');
+        closeGameModal();
+        await loadGames();
+        await loadFamilies();
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function archiveGame() {
+    const id = document.getElementById('game-modal-id').value;
+    if (!id) return;
+    if (!confirm('Archive this game? It will be hidden from the tab strip.')) return;
+    try {
+        const res = await fetch(`${API_URL}/games/${id}/archive`, { method: 'PATCH', headers: authHeaders() });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast(json.message, 'success');
+        closeGameModal();
+        if (activeGame === parseInt(id)) activeGame = '';
+        await loadGames();
+        await loadFamilies();
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ==========================================
+// CATEGORY MODAL
+// ==========================================
+function openAddCategoryModal() {
+    document.getElementById('cat-modal-id').value          = '';
+    document.getElementById('cat-modal-name').value        = '';
+    document.getElementById('cat-modal-title').textContent = 'Add Category';
+    document.getElementById('category-modal').classList.add('open');
+    setTimeout(() => document.getElementById('cat-modal-name').focus(), 50);
+}
+function openEditCategoryModal(id, name) {
+    document.getElementById('cat-modal-id').value          = id;
+    document.getElementById('cat-modal-name').value        = name;
+    document.getElementById('cat-modal-title').textContent = 'Edit Category';
+    document.getElementById('category-modal').classList.add('open');
+    setTimeout(() => document.getElementById('cat-modal-name').focus(), 50);
+}
+function closeCategoryModal() { document.getElementById('category-modal').classList.remove('open'); }
+
+async function saveCategory() {
+    const id   = document.getElementById('cat-modal-id').value;
+    const name = document.getElementById('cat-modal-name').value.trim();
+    if (!name) return showToast('Category name is required', 'error');
+    try {
+        const url = id ? `${API_URL}/categories/${id}` : `${API_URL}/categories`;
+        const res = await fetch(url, {
+            method: id ? 'PATCH' : 'POST', headers: authHeaders(),
+            body: JSON.stringify({ name })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast(id ? 'Category renamed!' : 'Category added!', 'success');
+        closeCategoryModal();
+        await loadCategories();
+        if (currentFamily) renderCategoryPills();
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ==========================================
+// DRAG-TO-REORDER — products in tree view
+// ==========================================
+let dragProductId = null;
+
+function setupProductDrag() {
+    document.querySelectorAll('.product-row[data-product-id]').forEach(row => {
+        const productId = parseInt(row.dataset.productId);
+        row.addEventListener('dragstart', e => {
+            dragProductId = productId;
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => row.style.opacity = '0.5', 0);
+        });
+        row.addEventListener('dragend', () => {
+            dragProductId = null;
+            row.style.opacity = '';
+            document.querySelectorAll('.product-row').forEach(r => r.classList.remove('drag-over'));
+        });
+        row.addEventListener('dragover', e => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            row.classList.add('drag-over');
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+        row.addEventListener('drop', async e => {
+            e.preventDefault();
+            row.classList.remove('drag-over');
+            const targetId = parseInt(row.dataset.productId);
+            if (!dragProductId || dragProductId === targetId) return;
+            const srcIdx = allProducts.findIndex(p => p.id === dragProductId);
+            const dstIdx = allProducts.findIndex(p => p.id === targetId);
+            if (srcIdx < 0 || dstIdx < 0) return;
+            const [moved] = allProducts.splice(srcIdx, 1);
+            allProducts.splice(dstIdx, 0, moved);
+            const updates = allProducts.map((p, i) => ({ id: p.id, sort_order: i + 1 }));
+            try {
+                const res = await fetch(`${API_URL}/inventory/reorder`, {
+                    method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ items: updates })
+                });
+                if (!res.ok) throw new Error((await res.json()).error);
+                renderTreeBody();
+            } catch(err) { showToast('Failed to save order', 'error'); }
+        });
+    });
+}
+
+// ==========================================
+// DRAG-TO-REORDER — families in game grid
+// ==========================================
+let dragFamilySrcIdx = -1;
+let dragFamilyList   = [];
+
+function setupFamilyDragDrop(filteredFamilies) {
+    dragFamilyList = filteredFamilies;
+}
+function familyDragStart(e, idx) {
+    dragFamilySrcIdx = idx;
+    e.dataTransfer.effectAllowed = 'move';
+}
+function familyDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+}
+function familyDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+}
+async function familyDrop(e, destIdx) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    document.querySelectorAll('.family-card').forEach(c => c.classList.remove('drag-over'));
+    const src = dragFamilySrcIdx;
+    dragFamilySrcIdx = -1;
+    if (src < 0 || src === destIdx) return;
+    const list = [...dragFamilyList];
+    const [moved] = list.splice(src, 1);
+    list.splice(destIdx, 0, moved);
+    const updates = list.filter(f => f.id).map((f, i) => ({ id: f.id, sort_order: i + 1 }));
+    if (!updates.length) return;
+    try {
+        const res = await fetch(`${API_URL}/inventory/families/reorder`, {
+            method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ items: updates })
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        await loadFamilies();
+    } catch(err) { showToast('Failed to save order', 'error'); }
 }
 
 // HELPERS
