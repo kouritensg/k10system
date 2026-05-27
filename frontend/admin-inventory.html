@@ -47,7 +47,12 @@
                 Back
             </button>
             <div>
-                <h1 class="text-2xl font-bold text-gray-900" id="tree-title">—</h1>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-2xl font-bold text-gray-900" id="tree-title">—</h1>
+                    <button onclick="openEditFamilyModal()" class="text-gray-400 hover:text-gray-700 transition-colors" title="Edit family">
+                        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                </div>
                 <p class="text-sm text-gray-500 mt-0.5" id="tree-subtitle">—</p>
             </div>
         </div>
@@ -153,12 +158,12 @@
                 <p class="text-xs text-blue-600 mt-1">Calculated from all active waves.</p>
             </div>
 
-            <!-- Bundle Children Card — visible only for bundle products -->
+            <!-- Linked Children Card — visible only for products that can break down -->
             <div id="pe-bundle-section" class="hidden bg-white rounded-xl border border-blue-200 p-5 shadow-sm">
                 <div class="flex justify-between items-center mb-3 border-b pb-2">
-                    <h3 class="text-base font-bold text-gray-800">Bundle Children</h3>
+                    <h3 class="text-base font-bold text-gray-800">Linked Children</h3>
                     <button onclick="openBundlePeModal()" class="text-sm bg-blue-50 border border-blue-200 text-blue-700 px-3 py-1 rounded font-medium hover:bg-blue-100 transition">
-                        + Add Child
+                        + Link Child Product
                     </button>
                 </div>
                 <div id="pe-bundle-children" class="space-y-2">
@@ -166,11 +171,11 @@
                 </div>
             </div>
 
-            <!-- Breakdown Card — visible only for bundle products that have children -->
+            <!-- Breakdown Card — visible only for products whose tier allows breakdown -->
             <div id="pe-breakdown-section" class="hidden bg-amber-50 rounded-xl border border-amber-200 p-5 shadow-sm">
                 <div class="flex items-center gap-2 mb-3 border-b border-amber-200 pb-2">
                     <svg width="15" height="15" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    <h3 class="text-base font-bold text-amber-800">Break Down Bundle</h3>
+                    <h3 class="text-base font-bold text-amber-800">Create Breakdown</h3>
                 </div>
                 <div id="pe-breakdown-body" class="space-y-3 mb-4"></div>
                 <div class="flex items-center gap-3 pt-3 border-t border-amber-200 flex-wrap">
@@ -462,6 +467,10 @@
                 <label class="field-label">Category Name *</label>
                 <input type="text" id="cat-modal-name" placeholder="e.g. Booster Box">
             </div>
+            <div>
+                <label class="field-label">Tier <span class="normal-case font-normal text-gray-400">(1=Case, 2=Box, 3=Pack…)</span></label>
+                <input type="number" id="cat-modal-tier" placeholder="Leave empty if N/A" min="1" step="1">
+            </div>
         </div>
         <div class="modal-footer">
             <button onclick="closeCategoryModal()" class="btn-ghost">Cancel</button>
@@ -506,11 +515,6 @@
                 <label class="field-label">Sell Price ($) <span class="normal-case font-normal text-gray-400">— optional, update via waves later</span></label>
                 <input type="number" id="add-price" placeholder="0.00" step="0.01">
             </div>
-            <label class="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" id="add-is-bundle" class="w-4 h-4">
-                <span class="text-sm text-gray-700 font-medium">This is a bundle product</span>
-                <span class="badge badge-blue">contains children</span>
-            </label>
         </div>
         <div class="modal-footer">
             <button onclick="closeAddProductModal()" class="btn-ghost">Cancel</button>
@@ -519,12 +523,12 @@
     </div>
 </div>
 
-<!-- ADD BUNDLE CHILD MODAL -->
+<!-- LINK CHILD PRODUCT MODAL -->
 <div id="bundle-modal" class="modal-backdrop">
     <div class="modal-box">
         <div class="modal-header">
             <div>
-                <h2 class="modal-title">Add Bundle Child</h2>
+                <h2 class="modal-title">Link Child Product</h2>
                 <p class="text-sm text-gray-500 mt-0.5">Link a child product to <strong id="bundle-parent-name">—</strong></p>
             </div>
             <button onclick="closeBundleModal()" class="modal-close">
@@ -553,6 +557,52 @@
     </div>
 </div>
 
+<!-- EDIT FAMILY MODAL -->
+<div id="edit-family-modal" class="modal-backdrop">
+    <div class="modal-box" style="max-width:480px">
+        <div class="modal-header">
+            <h2 class="modal-title">Edit Family</h2>
+            <button onclick="closeEditFamilyModal()" class="modal-close">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Set Code *</label>
+                    <input type="text" id="ef-set-code" placeholder="e.g. OP17">
+                </div>
+                <div>
+                    <label class="field-label">Release Date</label>
+                    <input type="date" id="ef-release-date">
+                </div>
+            </div>
+            <div>
+                <label class="field-label">Set Name *</label>
+                <input type="text" id="ef-set-name" placeholder="e.g. Royal Bloodlines">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeEditFamilyModal()" class="btn-ghost">Cancel</button>
+            <button onclick="saveEditFamily()" class="btn-primary">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- REMOVE RELATIONSHIP MODAL -->
+<div id="reversibility-modal" class="modal-backdrop">
+    <div class="modal-box" style="max-width:440px">
+        <div class="modal-header">
+            <h2 class="modal-title" id="rev-modal-title">Remove Relationship</h2>
+            <button onclick="closeReversibilityModal()" class="modal-close">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div id="rev-modal-body" class="mb-4 text-sm text-gray-600"></div>
+        <div class="modal-footer" id="rev-modal-footer"></div>
+    </div>
+</div>
+
 <div id="toast-container"></div>
 
 <script>
@@ -567,6 +617,14 @@ let currentFamily = null; // object: { id, set_code, set_name, game_id, game_tit
 let familyData    = [];
 let activeGame    = '';   // game id (number) or '' for All
 let activeCategory = '';
+
+// Returns true iff p's category tier is non-null AND at least one other product in the
+// same family has a category tier strictly greater than p's — meaning p can be broken down.
+function canShowBreakdownUI(p, allProds) {
+    const myTier = p.category_tier;
+    if (myTier == null) return false;
+    return allProds.some(x => x.id !== p.id && x.category_tier != null && x.category_tier > myTier);
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
@@ -630,7 +688,8 @@ function renderTabs() {
     const container = document.getElementById('game-tabs');
     const allCount = familyData.length;
     const allActive = activeGame === '';
-    let html = `<button onclick="setGameTab('')" class="game-tab${allActive ? ' game-tab-active' : ''}">All${allCount > 0 ? `<span class="tab-badge">${allCount}</span>` : ''}</button>`;
+    const tabStyle = 'font-size:21px;padding:14px 22px';
+    let html = `<button onclick="setGameTab('')" class="game-tab${allActive ? ' game-tab-active' : ''}" style="${tabStyle}">All${allCount > 0 ? `<span class="tab-badge">${allCount}</span>` : ''}</button>`;
 
     html += gameList.map(g => {
         const count = familyData.filter(f => f.game_id === g.id).length;
@@ -638,7 +697,13 @@ function renderTabs() {
         const editBtn = isActive
             ? `<span class="tab-edit-btn" onclick="event.stopPropagation(); openEditGameModal(${g.id})" title="Edit game" style="font-size:11px;margin-right:2px;opacity:0.7;cursor:pointer">✎</span>`
             : '';
-        return `<button onclick="setGameTab(${g.id})" class="game-tab${isActive ? ' game-tab-active' : ''}">${editBtn}${g.display_label || g.name}${count > 0 ? `<span class="tab-badge">${count}</span>` : ''}</button>`;
+        return `<button onclick="setGameTab(${g.id})" class="game-tab${isActive ? ' game-tab-active' : ''}" style="${tabStyle}"
+            draggable="true"
+            ondragstart="tabDragStart(event,${g.id})"
+            ondragover="tabDragOver(event)"
+            ondragleave="tabDragLeave(event)"
+            ondrop="tabDrop(event,${g.id})"
+        >${editBtn}${g.display_label || g.name}${count > 0 ? `<span class="tab-badge">${count}</span>` : ''}</button>`;
     }).join('');
 
     html += `<button onclick="openAddGameModal()" class="game-tab" style="opacity:0.6;font-size:18px;padding:4px 12px;line-height:1" title="Add game">+</button>`;
@@ -656,21 +721,28 @@ async function renderFamilyGrid() {
         await renderAllTabGrid();
         return;
     }
-    const search = document.getElementById('family-search').value.toLowerCase();
+    const tokens = document.getElementById('family-search').value.toLowerCase().split(/\s+/).filter(Boolean);
     const filtered = familyData.filter(f => {
-        const ms = !search ||
-            (f.set_code  || '').toLowerCase().includes(search) ||
-            (f.set_name  || '').toLowerCase().includes(search) ||
-            (f.game_title|| '').toLowerCase().includes(search);
+        const ms = !tokens.length || tokens.every(t =>
+            (f.set_code  || '').toLowerCase().includes(t) ||
+            (f.set_name  || '').toLowerCase().includes(t) ||
+            (f.game_title|| '').toLowerCase().includes(t)
+        );
         return f.game_id === activeGame && ms;
-    }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || (b.release_date || '').localeCompare(a.release_date || ''));
+    }).sort((a, b) => {
+        const ad = a.release_date ? a.release_date.split('T')[0] : '';
+        const bd = b.release_date ? b.release_date.split('T')[0] : '';
+        if (!ad && bd) return 1;
+        if (ad && !bd) return -1;
+        return bd.localeCompare(ad);
+    });
 
     const grid = document.getElementById('family-grid');
     if (!filtered.length) {
         grid.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-sm">No families found. Click <strong>Add Inventory (Family)</strong> to create one.</div>`;
         return;
     }
-    grid.innerHTML = filtered.map((f, idx) => {
+    grid.innerHTML = filtered.map(f => {
         const sc = f.total_stock > 50 ? 'text-green-600' : f.total_stock > 0 ? 'text-amber-600' : 'text-red-400';
         const catBreakdown = f.categories
             .filter(c => c.stock > 0)
@@ -687,25 +759,20 @@ async function renderFamilyGrid() {
             : '';
         const subName = f.set_name && f.set_name !== f.set_code
             ? `<p class="text-xs text-gray-400 mb-1">${esc(f.set_name)}</p>` : '';
+        const releaseLine = f.release_date
+            ? `<p class="text-[10px] text-gray-400 mb-1">${f.release_date.split('T')[0]}</p>` : '';
         const clickFn = f.id ? `openFamily(${f.id})` : '';
-        const draggable = f.id ? 'true' : 'false';
         return `
-        <div class="family-card fade-in" data-family-id="${f.id || ''}" data-family-idx="${idx}"
-             draggable="${draggable}"
-             ondragstart="familyDragStart(event, ${idx})" ondragover="familyDragOver(event)" ondragleave="familyDragLeave(event)" ondrop="familyDrop(event, ${idx})"
-             onclick="${clickFn}">
+        <div class="family-card fade-in" data-family-id="${f.id || ''}" onclick="${clickFn}">
             <div class="flex items-start justify-between mb-2">
-                <div class="flex items-center gap-1.5">
-                    ${f.id ? '<span class="drag-handle" title="Drag to reorder" style="cursor:grab;color:#d1d5db;font-size:14px;line-height:1;user-select:none">⠿</span>' : ''}
-                    <div class="text-xl">${gameIcon(f.game_title)}</div>
-                </div>
+                <div class="text-xl">${gameIcon(f.game_title)}</div>
                 <span class="badge badge-gray">${f.game_title || 'Other'}</span>
             </div>
             <h3 class="text-lg font-bold text-gray-900 mb-0">${esc(f.set_code)}</h3>
-            ${subName}
+            ${subName}${releaseLine}
             <div class="flex items-center gap-2 text-sm flex-wrap mb-1">
                 <span class="text-gray-500">${f.total_products} product${f.total_products != 1 ? 's' : ''}</span>
-                ${f.bundle_count > 0 ? `<span class="badge badge-blue">${f.bundle_count} bundle${f.bundle_count != 1 ? 's' : ''}</span>` : ''}
+                ${f.bundle_count > 0 ? `<span class="badge badge-blue">${f.bundle_count} breakdown${f.bundle_count != 1 ? 's' : ''}</span>` : ''}
             </div>
             <div class="flex flex-wrap items-center gap-y-1 text-sm">
                 ${catBreakdown || `<span class="text-gray-400">No stock</span>`}
@@ -713,8 +780,6 @@ async function renderFamilyGrid() {
             ${valueRow}
         </div>`;
     }).join('');
-
-    setupFamilyDragDrop(filtered);
 }
 
 async function renderAllTabGrid() {
@@ -816,12 +881,15 @@ async function loadFamilyTree(familyId) {
         currentFamily = data.family;
         allProducts   = data.products || [];
 
-        document.getElementById('tree-title').textContent    = currentFamily.set_code;
+        document.getElementById('tree-title').textContent = currentFamily.set_code;
+        const releaseStr = currentFamily.release_date ? ' · ' + currentFamily.release_date.split('T')[0] : '';
         document.getElementById('tree-subtitle').textContent =
             (currentFamily.set_name !== currentFamily.set_code ? currentFamily.set_name + ' — ' : '') +
-            (currentFamily.game_title || '');
+            (currentFamily.game_title || '') + releaseStr;
         document.getElementById('singles-nav-link').href =
             `admin-singles.html?family=${encodeURIComponent(currentFamily.set_code)}`;
+
+        await loadFamilyCategories(familyId);
 
         loading.classList.add('hidden');
         document.getElementById('tree-count').textContent =
@@ -836,6 +904,16 @@ async function loadFamilyTree(familyId) {
     }
 }
 
+async function loadFamilyCategories(familyId) {
+    try {
+        const res = await fetch(`${API_URL}/categories?family_id=${familyId}`);
+        if (res.ok) {
+            categories = await res.json();
+            populateCategorySelect();
+        }
+    } catch(e) { /* non-fatal */ }
+}
+
 function renderCategoryPills() {
     const bar = document.getElementById('tree-cat-filter');
     const cats = [...new Set(allProducts.map(p => p.category_name).filter(Boolean))].sort();
@@ -846,7 +924,7 @@ function renderCategoryPills() {
         const count  = val ? allProducts.filter(p => p.category_name === val).length : allProducts.length;
         const catObj = val ? categories.find(c => c.name === val) : null;
         const editBtn = catObj
-            ? `<span onclick="event.stopPropagation(); openEditCategoryModal(${catObj.id}, '${esc(catObj.name)}')" title="Rename" style="margin-left:3px;opacity:0.6;cursor:pointer;font-size:10px">✎</span>`
+            ? `<span onclick="event.stopPropagation(); openEditCategoryModal(${catObj.id}, '${esc(catObj.name)}', ${catObj.tier ?? 'null'})" title="Edit" style="margin-left:3px;opacity:0.6;cursor:pointer;font-size:10px">✎</span>`
             : '';
         return `<button onclick="setCategoryFilter('${val}')"
             class="px-3 py-1 rounded-full text-xs font-bold border transition-colors
@@ -869,11 +947,14 @@ function renderTreeBody() {
     const body   = document.getElementById('tree-body');
     const empty  = document.getElementById('tree-empty');
     const search = (document.getElementById('tree-search')?.value || '').toLowerCase();
+    const tokens = search.split(/\s+/).filter(Boolean);
     const filtered = allProducts.filter(p => {
-        const matchSearch = !search ||
-            p.card_name.toLowerCase().includes(search) ||
-            (p.card_id || '').toLowerCase().includes(search) ||
-            (p.barcode  || '').toLowerCase().includes(search);
+        const matchSearch = !tokens.length || tokens.every(t =>
+            p.card_name.toLowerCase().includes(t) ||
+            (p.card_id       || '').toLowerCase().includes(t) ||
+            (p.category_name || '').toLowerCase().includes(t) ||
+            (p.barcode       || '').toLowerCase().includes(t)
+        );
         const matchCat = !activeCategory || p.category_name === activeCategory;
         return matchSearch && matchCat;
     });
@@ -922,7 +1003,7 @@ function renderProductRow(p, allProds) {
         </div>`).join('');
 
     let breakdownBlock = '';
-    if (p.is_bundle) {
+    if (canShowBreakdownUI(p, allProds)) {
         // Store template data globally so onclick only needs IDs (avoids quote-escaping in HTML attributes)
         window._bdTemplates = window._bdTemplates || {};
         if (p.children) p.children.forEach(c => {
@@ -1004,7 +1085,7 @@ function renderProductRow(p, allProds) {
             <div class="flex-1 min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                     <span class="font-semibold text-gray-900">${p.card_name}</span>
-                    ${p.is_bundle ? `<span class="badge badge-blue">bundle</span>` : ''}
+                    ${p.category_tier != null ? `<span class="badge badge-blue">Tier ${p.category_tier}</span>` : ''}
                     ${p.category_name ? `<span class="badge badge-gray">${p.category_name}</span>` : ''}
                     ${sharedBadge}${parentLabel}
                 </div>
@@ -1025,14 +1106,14 @@ function renderProductRow(p, allProds) {
                 <span class="font-semibold text-gray-800">${stockText}</span>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
-                ${p.is_bundle ? `
+                ${canShowBreakdownUI(p, allProds) ? `
                 <button class="btn-teal breakdown-toggle" data-id="${p.id}">
                     <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                     Break Down
                 </button>
                 <button onclick="openBundleModal(${p.id}, '${esc(p.card_name)}')" class="btn-ghost">
                     <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-                    Add Child
+                    Link Child Product
                 </button>` : ''}
                 <button onclick="openDrawer(${p.id})" class="btn-ghost">
                     <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1067,8 +1148,8 @@ function populateFullEditView(p) {
     document.getElementById('pe-game').textContent = p.game_title || '—';
     document.getElementById('pe-stock').textContent = p.stock_quantity || 0;
 
-    // Bundle children + breakdown sections
-    if (p.is_bundle) {
+    // Linked children + breakdown sections — gated on tier-based canShowBreakdownUI
+    if (canShowBreakdownUI(p, allProducts)) {
         document.getElementById('pe-bundle-section').classList.remove('hidden');
         renderPeBundleChildren(p.children || []);
         renderPeBreakdownSection(p);
@@ -1293,17 +1374,23 @@ function showPeAddWave() {
     document.getElementById('pe-add-wave-form').classList.remove('hidden');
     document.getElementById('pe-w-name').value = `Wave ${peCurrentWaves.length + 1}`;
     document.getElementById('pe-w-date').value = new Date().toISOString().split('T')[0];
-    document.getElementById('pe-w-cost').value = document.getElementById('pe-cost').value;
+    const avgCost = parseFloat(document.getElementById('pe-cost').value) || 0;
+    document.getElementById('pe-w-cost').value = avgCost > 0 ? avgCost : '';
     document.getElementById('pe-w-qty').value = '';
 }
 function hidePeAddWave() { document.getElementById('pe-add-wave-form').classList.add('hidden'); }
 
 async function savePeNewWave() {
     const id = document.getElementById('pe-id').value;
+    const rawCost = document.getElementById('pe-w-cost').value;
+    const cost = parseFloat(rawCost);
+    if (!rawCost.trim() || isNaN(cost) || cost <= 0) {
+        if (!confirm('Cost is set to $0.00 — is this intentional?')) return;
+    }
     const data = {
         wave_name: document.getElementById('pe-w-name').value,
         arrival_date: document.getElementById('pe-w-date').value,
-        cost_price: parseFloat(document.getElementById('pe-w-cost').value) || 0,
+        cost_price: (!isNaN(cost) && cost > 0) ? cost : 0,
         initial_qty: parseInt(document.getElementById('pe-w-qty').value) || 0,
         invoice_number: document.getElementById('pe-w-invoice').value
     };
@@ -1332,10 +1419,15 @@ function peCancelEditWave(waveId) {
 
 async function peSaveEditWave(waveId) {
     const id = document.getElementById('pe-id').value;
+    const rawCost = document.getElementById(`pe-ew-cost-${waveId}`).value;
+    const cost = parseFloat(rawCost);
+    if (!rawCost.trim() || isNaN(cost) || cost <= 0) {
+        if (!confirm('Cost is set to $0.00 — is this intentional?')) return;
+    }
     const data = {
         wave_name: document.getElementById(`pe-ew-name-${waveId}`).value,
         arrival_date: document.getElementById(`pe-ew-date-${waveId}`).value,
-        cost_price: parseFloat(document.getElementById(`pe-ew-cost-${waveId}`).value) || 0,
+        cost_price: (!isNaN(cost) && cost > 0) ? cost : 0,
         remaining_qty: parseInt(document.getElementById(`pe-ew-qty-${waveId}`).value) || 0,
         allocated_qty: parseInt(document.getElementById(`pe-ew-alloc-${waveId}`).value) || 0,
         invoice_number: document.getElementById(`pe-ew-invoice-${waveId}`).value
@@ -1435,7 +1527,7 @@ async function openDrawer(id) {
     document.getElementById('d-game').textContent        = p.game_title || '—';
     const badges = document.getElementById('drawer-badges');
     badges.innerHTML = '';
-    if (p.is_bundle)     badges.innerHTML += `<span class="badge badge-blue">bundle</span>`;
+    if (p.category_tier != null) badges.innerHTML += `<span class="badge badge-blue">Tier ${p.category_tier}</span>`;
     if (p.category_name) badges.innerHTML += `<span class="badge badge-gray">${p.category_name}</span>`;
     calcMargin();
     
@@ -1510,17 +1602,23 @@ function showAddWaveForm() {
     document.getElementById('add-wave-form').classList.remove('hidden');
     document.getElementById('w-name').value = `Wave ${currentWaves.length + 1}`;
     document.getElementById('w-date').value = new Date().toISOString().split('T')[0];
-    document.getElementById('w-cost').value = document.getElementById('d-cost').value;
+    const avgCost = parseFloat(document.getElementById('d-cost').value) || 0;
+    document.getElementById('w-cost').value = avgCost > 0 ? avgCost : '';
     document.getElementById('w-qty').value = '';
 }
 function hideAddWaveForm() { document.getElementById('add-wave-form').classList.add('hidden'); }
 
 async function saveNewWave() {
     const id = document.getElementById('drawer-id').value;
+    const rawCost = document.getElementById('w-cost').value;
+    const cost = parseFloat(rawCost);
+    if (!rawCost.trim() || isNaN(cost) || cost <= 0) {
+        if (!confirm('Cost is set to $0.00 — is this intentional?')) return;
+    }
     const data = {
         wave_name: document.getElementById('w-name').value,
         arrival_date: document.getElementById('w-date').value,
-        cost_price: parseFloat(document.getElementById('w-cost').value) || 0,
+        cost_price: (!isNaN(cost) && cost > 0) ? cost : 0,
         initial_qty: parseInt(document.getElementById('w-qty').value) || 0,
         invoice_number: document.getElementById('w-invoice').value
     };
@@ -1548,10 +1646,15 @@ function cancelEditWave(waveId) {
 
 async function saveEditWave(waveId) {
     const id = document.getElementById('drawer-id').value;
+    const rawCost = document.getElementById(`ew-cost-${waveId}`).value;
+    const cost = parseFloat(rawCost);
+    if (!rawCost.trim() || isNaN(cost) || cost <= 0) {
+        if (!confirm('Cost is set to $0.00 — is this intentional?')) return;
+    }
     const data = {
         wave_name: document.getElementById(`ew-name-${waveId}`).value,
         arrival_date: document.getElementById(`ew-date-${waveId}`).value,
-        cost_price: parseFloat(document.getElementById(`ew-cost-${waveId}`).value) || 0,
+        cost_price: (!isNaN(cost) && cost > 0) ? cost : 0,
         remaining_qty: parseInt(document.getElementById(`ew-qty-${waveId}`).value) || 0,
         invoice_number: document.getElementById(`ew-invoice-${waveId}`).value
     };
@@ -1751,7 +1854,6 @@ function openAddProductModal() {
     document.getElementById('add-price').value     = '';
     document.getElementById('add-desc').value      = '';
     document.getElementById('add-long-desc').value = '';
-    document.getElementById('add-is-bundle').checked = false;
     document.getElementById('add-modal').classList.add('open');
 }
 function closeAddProductModal() { document.getElementById('add-modal').classList.remove('open'); }
@@ -1765,7 +1867,6 @@ async function addProduct() {
         price:             parseFloat(document.getElementById('add-price').value) || 0,
         quick_description: document.getElementById('add-desc').value.trim() || null,
         long_description:  document.getElementById('add-long-desc').value.trim() || null,
-        is_bundle:         document.getElementById('add-is-bundle').checked ? 1 : 0,
         product_type:      'sealed'
     };
     if (!data.card_name) return showToast('Product name is required', 'error');
@@ -1799,10 +1900,19 @@ function openBundleModal(parentId, parentName) {
     document.getElementById('bundle-parent-name').textContent = parentName;
     document.getElementById('bundle-qty').value   = 1;
     document.getElementById('bundle-notes').value = '';
+    const parent = allProducts.find(p => p.id === parentId);
+    const parentTier = parent?.category_tier ?? null;
+    const candidates = allProducts.filter(p => {
+        if (p.id === parentId) return false;
+        // Pre-filter: child tier must be strictly greater than parent tier
+        if (parentTier != null && p.category_tier != null && p.category_tier <= parentTier) return false;
+        return true;
+    });
     const opts = '<option value="">Select a product...</option>' +
-        allProducts.filter(p => p.id !== parentId).map(p =>
-            `<option value="${p.id}">${p.card_name} (stock: ${p.stock_quantity})</option>`
-        ).join('');
+        candidates.map(p => {
+            const tierLabel = p.category_tier != null ? ` [Tier ${p.category_tier}]` : '';
+            return `<option value="${p.id}">${p.card_name}${tierLabel} (stock: ${p.stock_quantity})</option>`;
+        }).join('');
     document.getElementById('bundle-child-id').innerHTML = opts;
     document.getElementById('bundle-modal').classList.add('open');
 }
@@ -1833,14 +1943,9 @@ async function saveBundleChild() {
     } catch(e) { showToast(e.message, 'error'); }
 }
 async function removeBundleChild(bundleId) {
-    if (!confirm('Remove this bundle relationship?')) return;
-    try {
-        const res = await fetch(`${API_URL}/bundles/${bundleId}`, { method: 'DELETE', headers: authHeaders() });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error);
-        showToast('Relationship removed', 'success');
-        await loadFamilyTree(currentFamily.id);
-    } catch(e) { showToast(e.message, 'error'); }
+    _pendingBundleId = bundleId;
+    _pendingPeBundle = false;
+    await _showReversibilityModal(bundleId);
 }
 
 // Bundle children helpers for Advanced Edit view
@@ -1853,7 +1958,7 @@ function openBundlePeModal() {
 function renderPeBundleChildren(children) {
     const container = document.getElementById('pe-bundle-children');
     if (!children.length) {
-        container.innerHTML = '<div class="text-xs text-gray-400 text-center py-3">No children linked yet. Click "+ Add Child" to link products.</div>';
+        container.innerHTML = '<div class="text-xs text-gray-400 text-center py-3">No children linked yet. Click "+ Link Child Product" to link products.</div>';
         return;
     }
     container.innerHTML = children.map(c => `
@@ -1871,23 +1976,14 @@ function renderPeBundleChildren(children) {
         </div>`).join('');
 }
 async function removePeBundleChild(bundleId) {
-    if (!confirm('Remove this bundle relationship?')) return;
-    try {
-        const res = await fetch(`${API_URL}/bundles/${bundleId}`, { method: 'DELETE', headers: authHeaders() });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error);
-        showToast('Relationship removed', 'success');
-        await loadFamilyTree(currentFamily.id);
-        // Refresh PE bundle + breakdown sections
-        const peId = parseInt(document.getElementById('pe-id').value);
-        const p = allProducts.find(x => x.id === peId);
-        if (p) { renderPeBundleChildren(p.children || []); renderPeBreakdownSection(p); }
-    } catch(e) { showToast(e.message, 'error'); }
+    _pendingBundleId = bundleId;
+    _pendingPeBundle = true;
+    await _showReversibilityModal(bundleId);
 }
 
 function renderPeBreakdownSection(p) {
     const section = document.getElementById('pe-breakdown-section');
-    if (!p.is_bundle) {
+    if (!canShowBreakdownUI(p, allProducts)) {
         section.classList.add('hidden');
         return;
     }
@@ -2177,13 +2273,15 @@ async function archiveGame() {
 function openAddCategoryModal() {
     document.getElementById('cat-modal-id').value          = '';
     document.getElementById('cat-modal-name').value        = '';
+    document.getElementById('cat-modal-tier').value        = '';
     document.getElementById('cat-modal-title').textContent = 'Add Category';
     document.getElementById('category-modal').classList.add('open');
     setTimeout(() => document.getElementById('cat-modal-name').focus(), 50);
 }
-function openEditCategoryModal(id, name) {
+function openEditCategoryModal(id, name, tier) {
     document.getElementById('cat-modal-id').value          = id;
     document.getElementById('cat-modal-name').value        = name;
+    document.getElementById('cat-modal-tier').value        = tier != null ? tier : '';
     document.getElementById('cat-modal-title').textContent = 'Edit Category';
     document.getElementById('category-modal').classList.add('open');
     setTimeout(() => document.getElementById('cat-modal-name').focus(), 50);
@@ -2191,21 +2289,30 @@ function openEditCategoryModal(id, name) {
 function closeCategoryModal() { document.getElementById('category-modal').classList.remove('open'); }
 
 async function saveCategory() {
-    const id   = document.getElementById('cat-modal-id').value;
-    const name = document.getElementById('cat-modal-name').value.trim();
+    const id      = document.getElementById('cat-modal-id').value;
+    const name    = document.getElementById('cat-modal-name').value.trim();
+    const tierVal = document.getElementById('cat-modal-tier').value;
+    const tier    = tierVal !== '' ? parseInt(tierVal) : null;
     if (!name) return showToast('Category name is required', 'error');
     try {
-        const url = id ? `${API_URL}/categories/${id}` : `${API_URL}/categories`;
+        const url  = id ? `${API_URL}/categories/${id}` : `${API_URL}/categories`;
+        const body = id
+            ? { name, tier }
+            : { name, tier, family_id: currentFamily?.id || null };
         const res = await fetch(url, {
             method: id ? 'PATCH' : 'POST', headers: authHeaders(),
-            body: JSON.stringify({ name })
+            body: JSON.stringify(body)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
-        showToast(id ? 'Category renamed!' : 'Category added!', 'success');
+        showToast(id ? 'Category updated!' : 'Category added!', 'success');
         closeCategoryModal();
-        await loadCategories();
-        if (currentFamily) renderCategoryPills();
+        if (currentFamily) {
+            await loadFamilyCategories(currentFamily.id);
+            renderCategoryPills();
+        } else {
+            await loadCategories();
+        }
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -2294,6 +2401,132 @@ async function familyDrop(e, destIdx) {
         if (!res.ok) throw new Error((await res.json()).error);
         await loadFamilies();
     } catch(err) { showToast('Failed to save order', 'error'); }
+}
+
+// ==========================================
+// TAB DRAG-TO-REORDER
+// ==========================================
+let _tabDragSrcId = null;
+
+function tabDragStart(e, gameId) {
+    _tabDragSrcId = gameId;
+    e.dataTransfer.effectAllowed = 'move';
+}
+function tabDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.style.opacity = '0.6';
+}
+function tabDragLeave(e) {
+    e.currentTarget.style.opacity = '';
+}
+async function tabDrop(e, gameId) {
+    e.preventDefault();
+    e.currentTarget.style.opacity = '';
+    const srcId = _tabDragSrcId;
+    _tabDragSrcId = null;
+    if (!srcId || srcId === gameId) return;
+    const srcIdx = gameList.findIndex(g => g.id === srcId);
+    const dstIdx = gameList.findIndex(g => g.id === gameId);
+    if (srcIdx < 0 || dstIdx < 0) return;
+    const [moved] = gameList.splice(srcIdx, 1);
+    gameList.splice(dstIdx, 0, moved);
+    const updates = gameList.map((g, i) => ({ id: g.id, sort_order: i + 1 }));
+    try {
+        const res = await fetch(`${API_URL}/games/reorder`, {
+            method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ items: updates })
+        });
+        if (!res.ok) throw new Error((await res.json()).error);
+        renderTabs();
+    } catch(err) { showToast('Failed to save tab order', 'error'); }
+}
+
+// ==========================================
+// EDIT FAMILY MODAL
+// ==========================================
+function openEditFamilyModal() {
+    if (!currentFamily) return;
+    document.getElementById('ef-set-code').value    = currentFamily.set_code || '';
+    document.getElementById('ef-set-name').value    = currentFamily.set_name || '';
+    document.getElementById('ef-release-date').value = currentFamily.release_date
+        ? currentFamily.release_date.split('T')[0] : '';
+    document.getElementById('edit-family-modal').classList.add('open');
+}
+function closeEditFamilyModal() { document.getElementById('edit-family-modal').classList.remove('open'); }
+
+async function saveEditFamily() {
+    if (!currentFamily) return;
+    const setCode     = document.getElementById('ef-set-code').value.trim();
+    const setName     = document.getElementById('ef-set-name').value.trim();
+    const releaseDate = document.getElementById('ef-release-date').value;
+    if (!setCode || !setName) return showToast('Set Code and Set Name are required', 'error');
+    try {
+        const res = await fetch(`${API_URL}/inventory/families/${currentFamily.id}`, {
+            method: 'PATCH', headers: authHeaders(),
+            body: JSON.stringify({ set_code: setCode, set_name: setName, release_date: releaseDate || null })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Family updated!', 'success');
+        closeEditFamilyModal();
+        await Promise.all([loadFamilyTree(currentFamily.id), loadFamilies()]);
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ==========================================
+// REVERSIBILITY MODAL
+// ==========================================
+let _pendingBundleId = null;
+let _pendingPeBundle = false;
+
+async function _showReversibilityModal(bundleId) {
+    document.getElementById('rev-modal-body').innerHTML = '<p class="text-gray-400 text-sm">Checking…</p>';
+    document.getElementById('rev-modal-footer').innerHTML = '';
+    document.getElementById('reversibility-modal').classList.add('open');
+    try {
+        const res  = await fetch(`${API_URL}/bundles/${bundleId}/reversibility`, { headers: authHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        if (data.reversible) {
+            document.getElementById('rev-modal-body').innerHTML = `
+                <p class="mb-2"><strong>Reverse Breakdown</strong> restores ${data.child_fifo_qty} unit${data.child_fifo_qty !== 1 ? 's' : ''} to the parent wave and deactivates the child wave.</p>
+                <p class="text-gray-500">Or choose <strong>Unlink Only</strong> to remove the relationship without touching stock.</p>`;
+            document.getElementById('rev-modal-footer').innerHTML = `
+                <button onclick="closeReversibilityModal()" class="btn-ghost">Cancel</button>
+                <button onclick="confirmRemoveBundle('unlink')" class="btn-ghost" style="color:#b91c1c">Unlink Only</button>
+                <button onclick="confirmRemoveBundle('reverse')" class="btn-primary">Reverse Breakdown</button>`;
+        } else {
+            document.getElementById('rev-modal-body').innerHTML = `
+                <p class="mb-2 text-amber-700"><strong>Cannot reverse:</strong> ${esc(data.blocker || 'child has outstock transactions or sub-children.')}</p>
+                <p class="text-gray-500"><strong>Unlink Only</strong> removes the relationship but leaves all stock unchanged.</p>`;
+            document.getElementById('rev-modal-footer').innerHTML = `
+                <button onclick="closeReversibilityModal()" class="btn-ghost">Cancel</button>
+                <button onclick="confirmRemoveBundle('unlink')" class="text-sm bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded font-medium hover:bg-red-100 transition">Unlink Only</button>`;
+        }
+    } catch(e) {
+        document.getElementById('rev-modal-body').innerHTML = `<p class="text-red-500 text-sm">Failed to check: ${esc(e.message)}</p>`;
+        document.getElementById('rev-modal-footer').innerHTML = `<button onclick="closeReversibilityModal()" class="btn-ghost">Close</button>`;
+    }
+}
+
+function closeReversibilityModal() { document.getElementById('reversibility-modal').classList.remove('open'); }
+
+async function confirmRemoveBundle(action) {
+    closeReversibilityModal();
+    const bundleId = _pendingBundleId;
+    const isPe     = _pendingPeBundle;
+    if (!bundleId) return;
+    try {
+        const res  = await fetch(`${API_URL}/bundles/${bundleId}?action=${action}`, { method: 'DELETE', headers: authHeaders() });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast(action === 'reverse' ? 'Breakdown reversed — stock restored' : 'Relationship unlinked', 'success');
+        await loadFamilyTree(currentFamily.id);
+        if (isPe) {
+            const peId = parseInt(document.getElementById('pe-id').value);
+            const p    = allProducts.find(x => x.id === peId);
+            if (p) { renderPeBundleChildren(p.children || []); renderPeBreakdownSection(p); }
+        }
+    } catch(e) { showToast(e.message, 'error'); }
 }
 
 // HELPERS

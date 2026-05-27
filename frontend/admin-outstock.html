@@ -183,13 +183,14 @@
                                     <th class="px-3 py-3 text-left">Type</th>
                                     <th class="px-3 py-3 text-left">Customer / Reason</th>
                                     <th class="px-3 py-3"></th>
+                                    <th class="px-3 py-3 text-left">Notes</th>
                                     <th class="px-3 py-3 text-right">Value</th>
                                     <th class="px-3 py-3 text-left">By</th>
                                     <th class="px-3 py-3 text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="history-body">
-                                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
+                                <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -211,6 +212,9 @@
                     <div class="flex justify-between items-center mb-3">
                         <h3 class="font-black text-gray-700">Transaction Detail</h3>
                         <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600 font-bold text-sm">✕ Close</button>
+                    </div>
+                    <div id="detail-txn-notes-wrap" class="hidden mb-3 px-3 py-2 bg-gray-50 rounded border border-gray-200 text-sm text-gray-600">
+                        <span class="font-semibold text-gray-500 text-xs uppercase mr-2">Notes:</span><span id="detail-txn-notes"></span>
                     </div>
                     <table class="w-full text-sm">
                         <thead class="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
@@ -309,10 +313,14 @@ async function loadProducts() {
 function filterProducts(query) {
     const box = document.getElementById('prod-results');
     if (!query.trim()) { box.classList.add('hidden'); return; }
-    const q = query.toLowerCase();
+    const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
     const matches = allProducts.filter(p =>
-        p.card_name.toLowerCase().includes(q) ||
-        (p.set_name || '').toLowerCase().includes(q)
+        tokens.every(t =>
+            p.card_name.toLowerCase().includes(t) ||
+            (p.set_name   || '').toLowerCase().includes(t) ||
+            (p.game_title || '').toLowerCase().includes(t) ||
+            (p.set_code   || '').toLowerCase().includes(t)
+        )
     ).slice(0, 15);
 
     if (!matches.length) { box.classList.add('hidden'); return; }
@@ -557,14 +565,14 @@ async function loadHistory() {
         const data = await r.json();
         if (!r.ok) {
             document.getElementById('history-body').innerHTML =
-                `<tr><td colspan="7" class="px-4 py-8 text-center text-red-400">Failed to load history: ${escHtml(data.error || r.statusText)}</td></tr>`;
+                `<tr><td colspan="8" class="px-4 py-8 text-center text-red-400">Failed to load history: ${escHtml(data.error || r.statusText)}</td></tr>`;
             return;
         }
         const { rows, total } = data;
 
         const body = document.getElementById('history-body');
         if (!rows.length) {
-            body.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No transactions found.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No transactions found.</td></tr>`;
         } else {
             body.innerHTML = rows.map(row => {
                 const typeBadge = row.transaction_type === 'sale'
@@ -579,11 +587,15 @@ async function loadHistory() {
                 const voidBtn = isAdmin()
                     ? `<button onclick="voidTransaction(${row.id})" class="text-xs text-red-500 hover:text-red-700 font-bold px-2 py-1 border border-red-200 rounded hover:bg-red-50 transition">Void</button>`
                     : '';
+                const notesSnippet = row.notes
+                    ? escHtml(row.notes.length > 40 ? row.notes.slice(0, 40) + '…' : row.notes)
+                    : '';
                 return `<tr class="border-b hover:bg-gray-50 cursor-pointer">
                     <td class="px-4 py-3 text-xs text-gray-600" onclick="loadDetail(${row.id})">${fmtDate(row.transaction_date)}</td>
                     <td class="px-3 py-3" onclick="loadDetail(${row.id})">${typeBadge}</td>
                     <td class="px-3 py-3 text-sm text-gray-700" onclick="loadDetail(${row.id})">${escHtml(custOrReason)}</td>
                     <td class="px-3 py-3 text-xs text-gray-400 italic" onclick="loadDetail(${row.id})">click to view details</td>
+                    <td class="px-3 py-3 text-xs text-gray-500" onclick="loadDetail(${row.id})">${notesSnippet}</td>
                     <td class="px-3 py-3 text-right text-sm font-bold text-gray-700" onclick="loadDetail(${row.id})">${value}</td>
                     <td class="px-3 py-3 text-xs text-gray-400" onclick="loadDetail(${row.id})">${row.changed_by}</td>
                     <td class="px-3 py-3 text-center">${voidBtn}</td>
@@ -601,7 +613,7 @@ async function loadHistory() {
     } catch (e) {
         console.error('loadHistory error:', e);
         document.getElementById('history-body').innerHTML =
-            `<tr><td colspan="7" class="px-4 py-8 text-center text-red-400">Failed to load history.</td></tr>`;
+            `<tr><td colspan="8" class="px-4 py-8 text-center text-red-400">Failed to load history.</td></tr>`;
     }
 }
 
@@ -624,6 +636,18 @@ async function loadDetail(id) {
     const r = await fetch(`${API}/api/outstock/${id}`, { headers: headers() });
     const txn = await r.json();
     if (!r.ok) return;
+
+    // Show transaction-level notes above the items table
+    const notesWrap = document.getElementById('detail-txn-notes-wrap');
+    const notesEl   = document.getElementById('detail-txn-notes');
+    if (notesWrap && notesEl) {
+        if (txn.notes) {
+            notesEl.textContent = txn.notes;
+            notesWrap.classList.remove('hidden');
+        } else {
+            notesWrap.classList.add('hidden');
+        }
+    }
 
     const body = document.getElementById('detail-body');
     body.innerHTML = txn.items.map(item => {

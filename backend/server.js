@@ -173,19 +173,40 @@ async function logChange(conn, inventory_id, username, field_name, old_value, ne
 // ==========================================
 // 2. CATEGORY MANAGEMENT
 // ==========================================
+// Per-family categories — GET ?family_id=X returns only that family's categories.
+// No family_id param returns all (used by admin-categories.html POC page).
 app.get('/api/categories', async (req, res) => {
+  const { family_id } = req.query;
   try {
-    const [rows] = await db.execute('SELECT * FROM categories ORDER BY name ASC');
+    let query = 'SELECT * FROM categories';
+    const params = [];
+    if (family_id) {
+      query += ' WHERE family_id = ?';
+      params.push(family_id);
+    }
+    query += ' ORDER BY COALESCE(tier, 999) ASC, name ASC';
+    const [rows] = await db.execute(query, params);
     res.json(rows);
   } catch (error) { res.status(500).json({ error: 'Failed to fetch categories' }); }
 });
 
 app.post('/api/categories', async (req, res) => {
-  const { name } = req.body;
+  const { name, family_id, tier } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
+  if (tier !== undefined && tier !== null) {
+    const t = parseInt(tier);
+    if (!Number.isInteger(t) || t < 1) return res.status(400).json({ error: 'tier must be a positive integer' });
+  }
   try {
-    const [result] = await db.execute('INSERT INTO categories (name) VALUES (?)', [name]);
+    const [result] = await db.execute(
+      'INSERT INTO categories (family_id, name, tier) VALUES (?, ?, ?)',
+      [family_id || null, name.trim(), (tier !== undefined && tier !== null) ? parseInt(tier) : null]
+    );
     res.status(201).json({ id: result.insertId, message: 'Category added' });
-  } catch (error) { res.status(500).json({ error: 'Category already exists or DB error' }); }
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Category already exists for this family' });
+    res.status(500).json({ error: 'Failed to add category' });
+  }
 });
 
 app.delete('/api/categories/:id', async (req, res) => {
@@ -196,15 +217,27 @@ app.delete('/api/categories/:id', async (req, res) => {
 });
 
 app.patch('/api/categories/:id', async (req, res) => {
-  const { name } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  const { name, tier } = req.body;
+  if (tier !== undefined && tier !== null) {
+    const t = parseInt(tier);
+    if (!Number.isInteger(t) || t < 1) return res.status(400).json({ error: 'tier must be a positive integer' });
+  }
+  const updates = [];
+  const params = [];
+  if (name !== undefined) {
+    if (!name.trim()) return res.status(400).json({ error: 'name cannot be empty' });
+    updates.push('name = ?'); params.push(name.trim());
+  }
+  if (tier !== undefined) { updates.push('tier = ?'); params.push(tier === null ? null : parseInt(tier)); }
+  if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
+  params.push(req.params.id);
   try {
-    const [result] = await db.execute('UPDATE categories SET name = ? WHERE id = ?', [name.trim(), req.params.id]);
+    const [result] = await db.execute(`UPDATE categories SET ${updates.join(', ')} WHERE id = ?`, params);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Category not found' });
-    res.json({ message: 'Category renamed' });
+    res.json({ message: 'Category updated' });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Category name already exists' });
-    res.status(500).json({ error: 'Failed to rename category' });
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Category name already exists for this family' });
+    res.status(500).json({ error: 'Failed to update category' });
   }
 });
 
@@ -231,6 +264,24 @@ app.post('/api/games', async (req, res) => {
     if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Game name already exists' });
     res.status(500).json({ error: 'Failed to create game' });
   }
+});
+
+// Must be registered before PATCH /api/games/:id — bulk reorder games
+app.patch('/api/games/reorder', authenticate, async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array required' });
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    for (const item of items) {
+      await conn.execute('UPDATE games SET sort_order = ? WHERE id = ?', [item.sort_order, item.id]);
+    }
+    await conn.commit();
+    res.json({ message: 'Game order updated' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
 });
 
 app.patch('/api/games/:id', async (req, res) => {
@@ -590,6 +641,7 @@ app.get('/api/inventory/family-by-id/:id', async (req, res) => {
         i.stock_quantity, i.price, i.cost_price, i.is_bundle, i.barcode,
         i.quick_description, i.long_description, i.category_id,
         c.name                    AS category_name,
+        c.tier                    AS category_tier,
         pb_up.parent_product_id   AS parent_id,
         pb_up.quantity_per_parent AS qty_in_parent
       FROM inventory i
@@ -697,47 +749,42 @@ app.get('/api/inventory/singles', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to fetch singles' }); }
 });
 
-// Add new product — accepts family_id (preferred) or legacy game_title+set_name
+// Add new product — family_id is required (orphan inventory rows are not allowed)
 app.post('/api/inventory/add', async (req, res) => {
   const {
-    family_id, barcode, game_title, set_name, category_id, card_id, card_name,
-    price, cost_price, stock_quantity, is_bundle, quick_description, long_description,
+    family_id, barcode, category_id, card_id, card_name,
+    price, cost_price, stock_quantity, quick_description, long_description,
     product_type, card_condition, card_finish
   } = req.body;
+
+  if (!family_id) return res.status(400).json({ error: 'family_id is required' });
+
   const conn = await db.getConnection();
   try {
-    let resolvedGameTitle = game_title || null;
-    let resolvedSetName   = set_name   || '';
-    let resolvedFamilyId  = family_id  || null;
-    let sortOrder         = 0;
+    const [[fam]] = await conn.execute(
+      `SELECT f.set_code, f.set_name AS fam_name, g.name AS game_title
+       FROM inventory_families f JOIN games g ON g.id = f.game_id WHERE f.id = ?`,
+      [family_id]
+    );
+    if (!fam) return res.status(400).json({ error: 'family_id does not match an existing family' });
 
-    if (family_id) {
-      const [[fam]] = await conn.execute(
-        `SELECT f.set_code, f.set_name AS fam_name, g.name AS game_title
-         FROM inventory_families f JOIN games g ON g.id = f.game_id WHERE f.id = ?`,
-        [family_id]
-      );
-      if (!fam) return res.status(404).json({ error: 'Family not found' });
-      resolvedGameTitle = fam.game_title;
-      resolvedSetName   = fam.set_code;
-      const [[maxSort]] = await conn.execute(
-        'SELECT COALESCE(MAX(sort_order), 0) AS mx FROM inventory WHERE family_id = ?',
-        [family_id]
-      );
-      sortOrder = maxSort.mx + 1;
-    }
+    const [[maxSort]] = await conn.execute(
+      'SELECT COALESCE(MAX(sort_order), 0) AS mx FROM inventory WHERE family_id = ?',
+      [family_id]
+    );
+    const sortOrder = maxSort.mx + 1;
 
     const [result] = await conn.execute(
       `INSERT INTO inventory
         (family_id, barcode, game_title, set_name, category_id, card_id, card_name,
-         price, cost_price, stock_quantity, is_bundle, quick_description, long_description,
+         price, cost_price, stock_quantity, quick_description, long_description,
          product_type, card_condition, card_finish, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        resolvedFamilyId, barcode || null, resolvedGameTitle, resolvedSetName,
+        family_id, barcode || null, fam.game_title, fam.set_code,
         category_id || null, card_id || null, card_name,
         price || 0, cost_price || 0, stock_quantity || 0,
-        is_bundle || 0, quick_description || null, long_description || null,
+        quick_description || null, long_description || null,
         product_type || 'sealed', card_condition || null, card_finish || null, sortOrder
       ]
     );
@@ -840,6 +887,36 @@ app.patch('/api/inventory/families/reorder', authenticate, async (req, res) => {
   } catch (err) {
     await conn.rollback();
     res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
+});
+
+// Edit family metadata — must be registered after /families/reorder (specific before generic)
+app.patch('/api/inventory/families/:id', authenticate, async (req, res) => {
+  const { set_name, set_code, release_date } = req.body;
+  const fid = req.params.id;
+  if (!set_name?.trim() && !set_code?.trim() && release_date === undefined) {
+    return res.status(400).json({ error: 'Provide set_name, set_code, or release_date to update' });
+  }
+  const conn = await db.getConnection();
+  try {
+    const [[fam]] = await conn.execute('SELECT game_id FROM inventory_families WHERE id = ?', [fid]);
+    if (!fam) return res.status(404).json({ error: 'Family not found' });
+
+    const updates = [];
+    const params = [];
+    if (set_name !== undefined) { updates.push('set_name = ?'); params.push(set_name.trim()); }
+    if (set_code !== undefined) { updates.push('set_code = ?'); params.push(set_code.trim()); }
+    if (release_date !== undefined) { updates.push('release_date = ?'); params.push(release_date || null); }
+    params.push(fid);
+
+    await conn.execute(`UPDATE inventory_families SET ${updates.join(', ')} WHERE id = ?`, params);
+    const [[updated]] = await conn.execute(
+      'SELECT id, set_code, set_name, release_date FROM inventory_families WHERE id = ?', [fid]
+    );
+    res.json({ message: 'Family updated', family: updated });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'A family with this set code already exists for this game' });
+    res.status(500).json({ error: error.message });
   } finally { conn.release(); }
 });
 
@@ -1034,6 +1111,37 @@ app.post('/api/inventory/waves/:wave_id/split', authenticate, async (req, res) =
 // 5. BUNDLE MANAGEMENT
 // ==========================================
 
+// Tier-based breakdown validation. Returns {ok, reason}.
+// ok iff both products belong to the same family AND parent tier < child tier.
+// A NULL tier on either side blocks the breakdown (user must assign tier first).
+async function canBreakdown(conn, parent_product_id, child_product_id) {
+  const [[parent]] = await conn.execute(
+    `SELECT i.family_id, c.tier AS category_tier
+     FROM inventory i LEFT JOIN categories c ON c.id = i.category_id
+     WHERE i.id = ?`, [parent_product_id]
+  );
+  const [[child]] = await conn.execute(
+    `SELECT i.family_id, c.tier AS category_tier
+     FROM inventory i LEFT JOIN categories c ON c.id = i.category_id
+     WHERE i.id = ?`, [child_product_id]
+  );
+  if (!parent) return { ok: false, reason: 'Parent product not found' };
+  if (!child)  return { ok: false, reason: 'Child product not found' };
+  if (parent.family_id !== child.family_id) {
+    return { ok: false, reason: 'Products must belong to the same family' };
+  }
+  if (parent.category_tier == null) {
+    return { ok: false, reason: "Parent product's category has no tier assigned — set a tier first" };
+  }
+  if (child.category_tier == null) {
+    return { ok: false, reason: "Child product's category has no tier assigned — set a tier first" };
+  }
+  if (parent.category_tier >= child.category_tier) {
+    return { ok: false, reason: `Breakdown blocked: parent tier (${parent.category_tier}) must be lower than child tier (${child.category_tier})` };
+  }
+  return { ok: true, reason: null };
+}
+
 // Get children of a product
 app.get('/api/bundles/:product_id', async (req, res) => {
   try {
@@ -1047,38 +1155,228 @@ app.get('/api/bundles/:product_id', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to fetch bundle' }); }
 });
 
-// Add a child relationship
-app.post('/api/bundles', async (req, res) => {
+// Link a child product to a parent (creates breakdown relationship)
+app.post('/api/bundles', authenticate, async (req, res) => {
   const { parent_product_id, child_product_id, quantity_per_parent, notes } = req.body;
+  if (!parent_product_id || !child_product_id) {
+    return res.status(400).json({ error: 'parent_product_id and child_product_id are required' });
+  }
+  const conn = await db.getConnection();
   try {
-    await db.execute(
+    const check = await canBreakdown(conn, parseInt(parent_product_id), parseInt(child_product_id));
+    if (!check.ok) return res.status(400).json({ error: check.reason });
+
+    await conn.beginTransaction();
+    const [result] = await conn.execute(
       `INSERT INTO product_bundles (parent_product_id, child_product_id, quantity_per_parent, notes)
        VALUES (?, ?, ?, ?)`,
-      [parent_product_id, child_product_id, quantity_per_parent, notes || null]
+      [parent_product_id, child_product_id, quantity_per_parent || 1, notes || null]
     );
-    // Mark parent as a bundle
-    await db.execute('UPDATE inventory SET is_bundle = 1 WHERE id = ?', [parent_product_id]);
-    res.status(201).json({ message: 'Bundle relationship added' });
-  } catch (error) { res.status(500).json({ error: 'Failed — relationship may already exist' }); }
+    await conn.execute('UPDATE inventory SET is_bundle = 1 WHERE id = ?', [parent_product_id]);
+    await conn.execute(
+      `INSERT INTO relationship_audit (action, parent_product_id, child_product_id, changed_by, notes)
+       VALUES ('break_created', ?, ?, ?, ?)`,
+      [parent_product_id, child_product_id, req.user.username, notes || null]
+    );
+    await conn.commit();
+    res.status(201).json({ id: result.insertId, message: 'Child product linked' });
+  } catch (error) {
+    await conn.rollback();
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Relationship already exists' });
+    res.status(500).json({ error: error.message });
+  } finally { conn.release(); }
 });
 
-// Remove a child relationship
-app.delete('/api/bundles/:id', async (req, res) => {
+// Check if a parent-child relationship can be reversed (child FIFO deleted + qty restored)
+app.get('/api/bundles/:id/reversibility', async (req, res) => {
   try {
-    const [[row]] = await db.execute(
-      'SELECT parent_product_id FROM product_bundles WHERE id = ?', [req.params.id]
+    const [[pb]] = await db.execute(
+      'SELECT parent_product_id, child_product_id FROM product_bundles WHERE id = ?', [req.params.id]
     );
-    await db.execute('DELETE FROM product_bundles WHERE id = ?', [req.params.id]);
+    if (!pb) return res.status(404).json({ error: 'Relationship not found' });
 
-    // If no children left, unmark as bundle
-    const [[count]] = await db.execute(
-      'SELECT COUNT(*) AS cnt FROM product_bundles WHERE parent_product_id = ?', [row.parent_product_id]
+    // Find the most recent breakdown log entry for this parent-child pair
+    const [[log]] = await db.execute(
+      `SELECT child_wave_id, parent_wave_id, quantity_broken, broken_at
+       FROM bundle_breakdown_log
+       WHERE parent_product_id = ? AND child_product_id = ?
+       ORDER BY broken_at DESC LIMIT 1`,
+      [pb.parent_product_id, pb.child_product_id]
     );
-    if (count.cnt === 0) {
-      await db.execute('UPDATE inventory SET is_bundle = 0 WHERE id = ?', [row.parent_product_id]);
+
+    if (!log || !log.child_wave_id) {
+      return res.json({
+        reversible: false,
+        blocker: 'No breakdown log found for this relationship — unlink only',
+        child_fifo_id: null, child_fifo_qty: null, parent_fifo_id: null
+      });
     }
-    res.json({ message: 'Relationship removed' });
-  } catch (error) { res.status(500).json({ error: 'Failed to remove relationship' }); }
+
+    // Check for sub-children of the child FIFO wave
+    const [[subChildren]] = await db.execute(
+      'SELECT COUNT(*) AS cnt FROM fifo WHERE parent_fifo_id = ? AND is_active = TRUE',
+      [log.child_wave_id]
+    );
+
+    // Conservative outstock check: any non-voided outstock on the child product since the breakdown
+    // (outstock_items does not store wave IDs, so we cannot narrow to the specific wave)
+    const [[outstockCheck]] = await db.execute(
+      `SELECT COUNT(*) AS cnt
+       FROM outstock_transactions ot
+       JOIN outstock_items oi ON oi.transaction_id = ot.id
+       WHERE oi.inventory_id = ? AND ot.voided_at IS NULL
+         AND ot.transaction_date >= DATE(?)`,
+      [pb.child_product_id, log.broken_at]
+    );
+
+    const [[childWave]] = await db.execute(
+      'SELECT remaining_qty FROM fifo WHERE id = ? AND is_active = TRUE',
+      [log.child_wave_id]
+    );
+
+    if (subChildren.cnt > 0) {
+      return res.json({
+        reversible: false,
+        blocker: `Child wave has ${subChildren.cnt} sub-breakdown(s). Cannot reverse without breaking the audit trail.`,
+        child_fifo_id: log.child_wave_id,
+        child_fifo_qty: childWave?.remaining_qty ?? null,
+        parent_fifo_id: log.parent_wave_id
+      });
+    }
+    if (outstockCheck.cnt > 0) {
+      return res.json({
+        reversible: false,
+        blocker: `Child product has ${outstockCheck.cnt} outstock transaction(s) since the breakdown date. Cannot reverse.`,
+        child_fifo_id: log.child_wave_id,
+        child_fifo_qty: childWave?.remaining_qty ?? null,
+        parent_fifo_id: log.parent_wave_id
+      });
+    }
+
+    res.json({
+      reversible: true,
+      blocker: null,
+      child_fifo_id: log.child_wave_id,
+      child_fifo_qty: childWave?.remaining_qty ?? null,
+      parent_fifo_id: log.parent_wave_id
+    });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// Remove or reverse a parent-child relationship.
+// ?action=reverse  → Branch A: delete child FIFO, restore qty to parent FIFO
+// ?action=unlink   → Branch B: delete product_bundles row only, no FIFO change
+// No action param  → 400
+app.delete('/api/bundles/:id', authenticate, async (req, res) => {
+  const { action } = req.query;
+  if (!action) return res.status(400).json({ error: 'action query param required: "reverse" or "unlink"' });
+  if (!['reverse', 'unlink'].includes(action)) {
+    return res.status(400).json({ error: 'action must be "reverse" or "unlink"' });
+  }
+
+  const conn = await db.getConnection();
+  try {
+    const [[pb]] = await conn.execute(
+      'SELECT parent_product_id, child_product_id FROM product_bundles WHERE id = ?', [req.params.id]
+    );
+    if (!pb) return res.status(404).json({ error: 'Relationship not found' });
+
+    await conn.beginTransaction();
+
+    if (action === 'reverse') {
+      // Re-check reversibility server-side (don't trust client)
+      const [[log]] = await conn.execute(
+        `SELECT child_wave_id, parent_wave_id, quantity_broken, broken_at
+         FROM bundle_breakdown_log
+         WHERE parent_product_id = ? AND child_product_id = ?
+         ORDER BY broken_at DESC LIMIT 1`,
+        [pb.parent_product_id, pb.child_product_id]
+      );
+      if (!log || !log.child_wave_id) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'No breakdown log found — use action=unlink instead' });
+      }
+
+      const [[subChildren]] = await conn.execute(
+        'SELECT COUNT(*) AS cnt FROM fifo WHERE parent_fifo_id = ? AND is_active = TRUE',
+        [log.child_wave_id]
+      );
+      const [[outstockCheck]] = await conn.execute(
+        `SELECT COUNT(*) AS cnt FROM outstock_transactions ot
+         JOIN outstock_items oi ON oi.transaction_id = ot.id
+         WHERE oi.inventory_id = ? AND ot.voided_at IS NULL AND ot.transaction_date >= DATE(?)`,
+        [pb.child_product_id, log.broken_at]
+      );
+
+      if (subChildren.cnt > 0 || outstockCheck.cnt > 0) {
+        await conn.rollback();
+        return res.status(409).json({ error: 'Relationship is no longer reversible — use action=unlink' });
+      }
+
+      const [[childWave]] = await conn.execute(
+        'SELECT remaining_qty FROM fifo WHERE id = ? AND is_active = TRUE',
+        [log.child_wave_id]
+      );
+      const qtyToRestore = childWave?.remaining_qty ?? 0;
+
+      // Soft-delete child FIFO line
+      await conn.execute('UPDATE fifo SET is_active = 0 WHERE id = ?', [log.child_wave_id]);
+
+      // Restore quantity to parent FIFO wave if it still exists
+      if (log.parent_wave_id && qtyToRestore > 0) {
+        await conn.execute(
+          'UPDATE fifo SET remaining_qty = remaining_qty + ? WHERE id = ?',
+          [qtyToRestore, log.parent_wave_id]
+        );
+      }
+
+      await conn.execute('DELETE FROM product_bundles WHERE id = ?', [req.params.id]);
+
+      await syncInventoryStock(pb.parent_product_id, conn, req.user.username, 'Breakdown Reversed');
+      await syncInventoryStock(pb.child_product_id,  conn, req.user.username, 'Breakdown Reversed');
+
+      // Flip is_bundle if parent has no more children
+      const [[remaining]] = await conn.execute(
+        'SELECT COUNT(*) AS cnt FROM product_bundles WHERE parent_product_id = ?', [pb.parent_product_id]
+      );
+      if (remaining.cnt === 0) {
+        await conn.execute('UPDATE inventory SET is_bundle = 0 WHERE id = ?', [pb.parent_product_id]);
+      }
+
+      await conn.execute(
+        `INSERT INTO relationship_audit
+           (action, parent_product_id, child_product_id, parent_fifo_id, child_fifo_id, quantity, changed_by)
+         VALUES ('break_reversed', ?, ?, ?, ?, ?, ?)`,
+        [pb.parent_product_id, pb.child_product_id, log.parent_wave_id, log.child_wave_id, qtyToRestore, req.user.username]
+      );
+
+      await conn.commit();
+      return res.json({ message: `Breakdown reversed: ${qtyToRestore} unit(s) restored to parent FIFO` });
+    }
+
+    // action === 'unlink'
+    await conn.execute('DELETE FROM product_bundles WHERE id = ?', [req.params.id]);
+
+    const [[remaining]] = await conn.execute(
+      'SELECT COUNT(*) AS cnt FROM product_bundles WHERE parent_product_id = ?', [pb.parent_product_id]
+    );
+    if (remaining.cnt === 0) {
+      await conn.execute('UPDATE inventory SET is_bundle = 0 WHERE id = ?', [pb.parent_product_id]);
+    }
+
+    await conn.execute(
+      `INSERT INTO relationship_audit
+         (action, parent_product_id, child_product_id, changed_by)
+       VALUES ('unlinked_only', ?, ?, ?)`,
+      [pb.parent_product_id, pb.child_product_id, req.user.username]
+    );
+
+    await conn.commit();
+    res.json({ message: 'Relationship unlinked (FIFO unchanged)' });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ error: error.message });
+  } finally { conn.release(); }
 });
 
 // Shared breakdown logic — source product → one target product, one breakdown at a time
@@ -1194,6 +1492,9 @@ app.post('/api/inventory/breakdown', async (req, res) => {
   }
   const conn = await db.getConnection();
   try {
+    const check = await canBreakdown(conn, parseInt(source_id), parseInt(target_id));
+    if (!check.ok) return res.status(400).json({ error: check.reason });
+
     await conn.beginTransaction();
     const result = await executeBreakdown(conn, parseInt(source_id), parseInt(source_qty), parseInt(target_id), parseFloat(qty_per_source), target_cost ?? null);
     await conn.commit();
@@ -1221,12 +1522,9 @@ app.post('/api/inventory/breakdown/reserve', async (req, res) => {
   }
   try {
     const [[parent]] = await db.execute(
-      'SELECT stock_quantity, card_name, is_bundle FROM inventory WHERE id = ?', [parent_id]
+      'SELECT stock_quantity, card_name FROM inventory WHERE id = ?', [parent_id]
     );
     if (!parent) return res.status(404).json({ error: 'Product not found' });
-    if (type === 'breakdown' && !parent.is_bundle) {
-      return res.status(400).json({ error: 'Only bundle products can have breakdown reservations' });
-    }
 
     // Upsert: one pending reservation per (product, type)
     const [[existing]] = await db.execute(
@@ -1291,6 +1589,9 @@ app.post('/api/inventory/breakdown/reserve/:id/commit', async (req, res) => {
     if (reservation.type !== 'breakdown') {
       return res.status(400).json({ error: 'Only breakdown reservations can be committed' });
     }
+
+    const check = await canBreakdown(conn, reservation.parent_product_id, parseInt(target_id));
+    if (!check.ok) return res.status(400).json({ error: check.reason });
 
     const qtyToBreak = quantity || reservation.reserved_qty;
     if (qtyToBreak > reservation.reserved_qty) {
