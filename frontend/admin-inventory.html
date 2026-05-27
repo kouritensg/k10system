@@ -39,7 +39,8 @@
 </div>
 
 <!-- TREE DETAIL VIEW -->
-<div id="tree-view" class="hidden max-w-6xl mx-auto px-4 mt-8 pb-16">
+<div id="tree-view" class="hidden max-w-7xl mx-auto px-4 mt-8 pb-16">
+    <!-- Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div class="flex items-center gap-3">
             <button onclick="showFamilyView()" class="btn-ghost">
@@ -66,20 +67,53 @@
             </button>
         </div>
     </div>
-    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div class="bg-gray-50 border-b px-5 py-3 flex flex-wrap justify-between items-center gap-3">
-            <span class="text-xs font-bold text-gray-500 uppercase tracking-wide" id="tree-count">—</span>
-            <div class="flex items-center gap-3 flex-1 justify-end">
-                <input type="text" id="tree-search" placeholder="Search products..." oninput="renderTreeBody()"
-                    class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" style="max-width:220px">
-                <button onclick="loadFamilyTree(currentFamily.id)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
+
+    <!-- Body: left sidebar + main content -->
+    <div class="flex gap-4 items-start">
+
+        <!-- LEFT SIDEBAR -->
+        <div class="w-44 flex-shrink-0 flex flex-col gap-3">
+
+            <!-- Categories panel -->
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-3 py-2 bg-gray-50 border-b flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Categories</span>
+                </div>
+                <div id="tree-cat-sidebar" class="divide-y divide-gray-100">
+                    <!-- populated by renderCategorySidebar() -->
+                </div>
+            </div>
+
+            <!-- Tier map panel — hidden when no tiered categories -->
+            <div id="tier-map-panel" class="hidden bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-3 py-2 bg-gray-50 border-b">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Tier Map</span>
+                    <span class="text-[9px] text-gray-400 block mt-0.5">breakdown order ↓</span>
+                </div>
+                <div id="tier-map-body" class="p-3">
+                    <!-- populated by renderTierMap() -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="flex-1 min-w-0">
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50 border-b px-5 py-3 flex flex-wrap justify-between items-center gap-3">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wide" id="tree-count">—</span>
+                    <div class="flex items-center gap-3 flex-1 justify-end">
+                        <input type="text" id="tree-search" placeholder="Search products..." oninput="renderTreeBody()"
+                            class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" style="max-width:220px">
+                        <button onclick="loadFamilyTree(currentFamily.id)" class="text-blue-600 text-xs font-bold hover:underline">↻ Refresh</button>
+                    </div>
+                </div>
+                <div id="tree-body"></div>
+                <div id="tree-loading" class="py-16 text-center text-gray-400 text-sm">Loading...</div>
+                <div id="tree-empty" class="hidden py-16 text-center text-gray-400 text-sm">No products in this family.</div>
             </div>
         </div>
-        <!-- Category filter pills — hidden when only 1 category -->
-        <div id="tree-cat-filter" class="hidden px-5 py-2.5 border-b bg-white flex flex-wrap gap-1.5"></div>
-        <div id="tree-body"></div>
-        <div id="tree-loading" class="py-16 text-center text-gray-400 text-sm">Loading...</div>
-        <div id="tree-empty" class="hidden py-16 text-center text-gray-400 text-sm">No products in this family.</div>
+
     </div>
 </div>
 
@@ -894,8 +928,8 @@ async function loadFamilyTree(familyId) {
         loading.classList.add('hidden');
         document.getElementById('tree-count').textContent =
             `${allProducts.length} product${allProducts.length !== 1 ? 's' : ''}`;
+        renderCategorySidebar();
         if (!allProducts.length) { empty.classList.remove('hidden'); return; }
-        renderCategoryPills();
         renderTreeBody();
     } catch(e) {
         loading.classList.add('hidden');
@@ -914,32 +948,98 @@ async function loadFamilyCategories(familyId) {
     } catch(e) { /* non-fatal */ }
 }
 
-function renderCategoryPills() {
-    const bar = document.getElementById('tree-cat-filter');
-    const cats = [...new Set(allProducts.map(p => p.category_name).filter(Boolean))].sort();
-    bar.classList.remove('hidden');
-    const pills = ['All', ...cats].map(cat => {
-        const val    = cat === 'All' ? '' : cat;
-        const active = activeCategory === val;
-        const count  = val ? allProducts.filter(p => p.category_name === val).length : allProducts.length;
-        const catObj = val ? categories.find(c => c.name === val) : null;
-        const editBtn = catObj
-            ? `<span onclick="event.stopPropagation(); openEditCategoryModal(${catObj.id}, '${esc(catObj.name)}', ${catObj.tier ?? 'null'})" title="Edit" style="margin-left:3px;opacity:0.6;cursor:pointer;font-size:10px">✎</span>`
+function renderCategorySidebar() {
+    const sidebar = document.getElementById('tree-cat-sidebar');
+    // Per-family categories sorted: tiered first (by tier asc), then non-tiered alphabetically
+    const sorted = [...categories].sort((a, b) => {
+        if (a.tier != null && b.tier != null) return a.tier - b.tier;
+        if (a.tier != null) return -1;
+        if (b.tier != null) return 1;
+        return a.name.localeCompare(b.name);
+    });
+
+    const tierColors = [
+        'text-amber-600 bg-amber-50 border border-amber-200',
+        'text-blue-600 bg-blue-50 border border-blue-200',
+        'text-emerald-600 bg-emerald-50 border border-emerald-200',
+    ];
+
+    // "All" row
+    const allActive = activeCategory === '';
+    let html = `<button onclick="setCategoryFilter('')"
+        class="w-full px-3 py-2 text-left flex justify-between items-center transition-colors
+               ${allActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'}">
+        <span class="text-xs">All</span>
+        <span class="text-[11px] rounded-full px-1.5 py-0.5
+                     ${allActive ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}">${allProducts.length}</span>
+    </button>`;
+
+    sorted.forEach(cat => {
+        const active = activeCategory === cat.name;
+        const count  = allProducts.filter(p => p.category_name === cat.name).length;
+        const tierIdx = cat.tier != null ? (cat.tier - 1) % tierColors.length : -1;
+        const tierBadge = cat.tier != null
+            ? `<span class="text-[9px] font-black px-1 py-0.5 rounded leading-none flex-shrink-0 ${tierColors[tierIdx]}">T${cat.tier}</span>`
             : '';
-        return `<button onclick="setCategoryFilter('${val}')"
-            class="px-3 py-1 rounded-full text-xs font-bold border transition-colors
-                   ${active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-500'}">
-            ${cat}${editBtn} <span class="${active ? 'opacity-70' : 'text-gray-400'}">${count}</span>
+        html += `<button onclick="setCategoryFilter('${esc(cat.name)}')"
+            class="w-full px-3 py-2 text-left flex justify-between items-center transition-colors group
+                   ${active ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'}">
+            <span class="flex items-center gap-1 min-w-0 flex-1">
+                ${tierBadge}
+                <span class="text-xs truncate">${esc(cat.name)}</span>
+            </span>
+            <div class="flex items-center gap-1 flex-shrink-0 ml-1">
+                <span class="text-[11px] rounded-full px-1.5 py-0.5
+                             ${active ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}">${count}</span>
+                <span onclick="event.stopPropagation(); openEditCategoryModal(${cat.id}, '${esc(cat.name)}', ${cat.tier ?? 'null'})"
+                      class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-700 text-[11px] transition-opacity cursor-pointer" title="Edit">✎</span>
+            </div>
         </button>`;
+    });
+
+    html += `<div class="px-3 py-2 border-t border-gray-100">
+        <button onclick="openAddCategoryModal()"
+            class="w-full text-center text-[11px] text-gray-400 hover:text-gray-600 border border-dashed border-gray-200 hover:border-gray-400 rounded-lg py-1.5 transition-colors">
+            + Add category
+        </button>
+    </div>`;
+
+    sidebar.innerHTML = html;
+    renderTierMap();
+}
+
+function renderTierMap() {
+    const panel  = document.getElementById('tier-map-panel');
+    const body   = document.getElementById('tier-map-body');
+    const tiered = [...categories].filter(c => c.tier != null).sort((a, b) => a.tier - b.tier);
+    if (!tiered.length) { panel.classList.add('hidden'); return; }
+    panel.classList.remove('hidden');
+
+    const tierColors = [
+        'text-amber-700 bg-amber-50 border border-amber-200',
+        'text-blue-700 bg-blue-50 border border-blue-200',
+        'text-emerald-700 bg-emerald-50 border border-emerald-200',
+    ];
+
+    body.innerHTML = tiered.map((c, i) => {
+        const colorClass = tierColors[(c.tier - 1) % tierColors.length];
+        const connector = i > 0
+            ? `<div class="flex items-center gap-1.5 my-1 pl-1">
+                   <div class="w-3 border-l-2 border-dashed border-gray-200 h-3"></div>
+                   <span class="text-[10px] text-gray-300">breaks into</span>
+               </div>`
+            : '';
+        return `${connector}
+        <div class="flex items-center gap-2">
+            <span class="text-[9px] font-black px-1.5 py-0.5 rounded leading-none flex-shrink-0 ${colorClass}">T${c.tier}</span>
+            <span class="text-xs font-medium text-gray-700 truncate">${esc(c.name)}</span>
+        </div>`;
     }).join('');
-    const addBtn = `<button onclick="openAddCategoryModal()" title="Add category"
-        class="px-2 py-1 rounded-full text-xs font-bold border border-dashed border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-600 transition-colors">+ Cat</button>`;
-    bar.innerHTML = pills + addBtn;
 }
 
 function setCategoryFilter(val) {
     activeCategory = val;
-    renderCategoryPills();
+    renderCategorySidebar();
     renderTreeBody();
 }
 
@@ -2309,7 +2409,7 @@ async function saveCategory() {
         closeCategoryModal();
         if (currentFamily) {
             await loadFamilyCategories(currentFamily.id);
-            renderCategoryPills();
+            renderCategorySidebar();
         } else {
             await loadCategories();
         }
