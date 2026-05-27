@@ -243,12 +243,33 @@
                         <div class="md:col-span-2"><label class="text-xs font-bold text-gray-600">Wave Name</label><input type="text" id="pe-w-name" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
                         <div class="md:col-span-2"><label class="text-xs font-bold text-gray-600">Arrival Date</label><input type="date" id="pe-w-date" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
                         <div><label class="text-xs font-bold text-gray-600">Cost ($)</label><input type="number" id="pe-w-cost" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white" step="0.01"></div>
-                        <div><label class="text-xs font-bold text-gray-600">Initial Qty</label><input type="number" id="pe-w-qty" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-600">Initial Qty</label>
+                            <input type="number" id="pe-w-qty" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white">
+                            <span id="pe-w-qty-caption" class="hidden text-[10px] text-blue-500 mt-0.5 block">computed from conversion · <button type="button" onclick="clearPeWaveConv()" class="underline">edit manually</button></span>
+                        </div>
                         <div class="md:col-span-2"><label class="text-xs font-bold text-gray-600">Invoice #</label><input type="text" id="pe-w-invoice" class="w-full text-sm p-1.5 border border-gray-300 rounded bg-white"></div>
+                    </div>
+                    <!-- Conversion toggle — rendered by showPeAddWave when chain exists -->
+                    <div id="pe-w-conv-section" class="hidden mt-3">
+                        <button type="button" onclick="togglePeWaveConv()" class="text-xs text-blue-600 hover:underline font-semibold flex items-center gap-1">
+                            <span id="pe-w-conv-arrow">▶</span> Enter quantity in a different unit
+                        </button>
+                        <div id="pe-w-conv-panel" class="hidden mt-2 bg-white border border-blue-200 rounded p-3 space-y-2">
+                            <div>
+                                <label class="text-xs font-bold text-gray-500 uppercase">Unit / Branch</label>
+                                <select id="pe-w-conv-branch" onchange="updatePeWaveConvPreview()" class="w-full text-sm p-1.5 border border-gray-300 rounded mt-0.5"></select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-gray-500 uppercase">Qty in that unit</label>
+                                <input type="number" id="pe-w-conv-qty" oninput="updatePeWaveConvPreview()" class="w-full text-sm p-1.5 border border-gray-300 rounded mt-0.5" placeholder="e.g. 288" min="1">
+                            </div>
+                            <div id="pe-w-conv-preview" class="text-xs"></div>
+                        </div>
                     </div>
                     <div class="flex justify-end gap-2 mt-3">
                         <button onclick="hidePeAddWave()" class="text-sm px-3 py-1.5 text-gray-600 hover:bg-yellow-100 rounded font-medium">Cancel</button>
-                        <button onclick="savePeNewWave()" class="text-sm px-4 py-1.5 bg-yellow-500 text-white rounded hover:bg-yellow-600 font-bold shadow-sm">Save Wave</button>
+                        <button id="pe-w-save-btn" onclick="savePeNewWave()" class="text-sm px-4 py-1.5 bg-yellow-500 text-white rounded hover:bg-yellow-600 font-bold shadow-sm">Save Wave</button>
                     </div>
                 </div>
 
@@ -374,12 +395,33 @@
                     </div>
                     <div class="grid grid-cols-3 gap-2 mb-2">
                         <div><label class="text-[10px] font-bold text-gray-500 uppercase">Cost ($)</label><input type="number" id="w-cost" class="w-full text-xs p-1.5 border border-gray-300 rounded" step="0.01"></div>
-                        <div><label class="text-[10px] font-bold text-gray-500 uppercase">Initial Qty</label><input type="number" id="w-qty" class="w-full text-xs p-1.5 border border-gray-300 rounded"></div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-500 uppercase">Initial Qty</label>
+                            <input type="number" id="w-qty" class="w-full text-xs p-1.5 border border-gray-300 rounded">
+                            <span id="w-qty-caption" class="hidden text-[9px] text-blue-500 mt-0.5 block">computed from conversion · <button type="button" onclick="clearWaveConv()" class="underline">edit manually</button></span>
+                        </div>
                         <div><label class="text-[10px] font-bold text-gray-500 uppercase">Invoice #</label><input type="text" id="w-invoice" class="w-full text-xs p-1.5 border border-gray-300 rounded" placeholder="Optional"></div>
+                    </div>
+                    <!-- Conversion toggle — rendered by showAddWaveForm when chain exists -->
+                    <div id="w-conv-section" class="hidden mb-2">
+                        <button type="button" onclick="toggleWaveConv()" class="text-[10px] text-blue-600 hover:underline font-semibold flex items-center gap-1">
+                            <span id="w-conv-arrow">▶</span> Enter quantity in a different unit
+                        </button>
+                        <div id="w-conv-panel" class="hidden mt-1.5 bg-white border border-blue-200 rounded p-2 space-y-1.5">
+                            <div>
+                                <label class="text-[9px] font-bold text-gray-400 uppercase">Unit / Branch</label>
+                                <select id="w-conv-branch" onchange="updateWaveConvPreview()" class="w-full text-xs p-1 border border-gray-300 rounded mt-0.5"></select>
+                            </div>
+                            <div>
+                                <label class="text-[9px] font-bold text-gray-400 uppercase">Qty in that unit</label>
+                                <input type="number" id="w-conv-qty" oninput="updateWaveConvPreview()" class="w-full text-xs p-1 border border-gray-300 rounded mt-0.5" placeholder="e.g. 288" min="1">
+                            </div>
+                            <div id="w-conv-preview" class="text-[10px]"></div>
+                        </div>
                     </div>
                     <div class="flex justify-end gap-2 mt-2">
                         <button onclick="hideAddWaveForm()" class="text-xs px-3 py-1.5 text-gray-600 hover:bg-gray-200 rounded font-medium">Cancel</button>
-                        <button onclick="saveNewWave()" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold shadow-sm">Save Wave</button>
+                        <button id="w-save-btn" onclick="saveNewWave()" class="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold shadow-sm">Save Wave</button>
                     </div>
                 </div>
             </div>
@@ -505,6 +547,11 @@
                 <label class="field-label">Tier <span class="normal-case font-normal text-gray-400">(1=Case, 2=Box, 3=Pack…)</span></label>
                 <input type="number" id="cat-modal-tier" placeholder="Leave empty if N/A" min="1" step="1">
             </div>
+            <div>
+                <label class="field-label">Typical units per parent <span class="normal-case font-normal text-gray-400">(optional)</span></label>
+                <input type="number" id="cat-modal-default-qty" placeholder="e.g. 24" min="1" step="1">
+                <p class="text-[10px] text-gray-400 mt-1">Default qty used when this category is linked as a child during breakdown setup. Variants like 18-CT and 36-CT boxes can override per-product. Leave blank if uncertain.</p>
+            </div>
         </div>
         <div class="modal-footer">
             <button onclick="closeCategoryModal()" class="btn-ghost">Cancel</button>
@@ -573,7 +620,7 @@
         <div class="space-y-3">
             <div>
                 <label class="field-label">Child Product *</label>
-                <select id="bundle-child-id"><option value="">Select a product...</option></select>
+                <select id="bundle-child-id" onchange="onBundleChildChange()"><option value="">Select a product...</option></select>
             </div>
             <div>
                 <label class="field-label">Quantity per Parent *</label>
@@ -990,7 +1037,7 @@ function renderCategorySidebar() {
             <div class="flex items-center gap-1 flex-shrink-0 ml-1">
                 <span class="text-[11px] rounded-full px-1.5 py-0.5
                              ${active ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}">${count}</span>
-                <span onclick="event.stopPropagation(); openEditCategoryModal(${cat.id}, '${esc(cat.name)}', ${cat.tier ?? 'null'})"
+                <span onclick="event.stopPropagation(); openEditCategoryModal(${cat.id}, '${esc(cat.name)}', ${cat.tier ?? 'null'}, ${cat.default_qty_per_parent ?? 'null'})"
                       class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-700 text-[11px] transition-opacity cursor-pointer" title="Edit">✎</span>
             </div>
         </button>`;
@@ -1232,6 +1279,7 @@ function renderProductRow(p, allProds) {
 let peCurrentWaves = [];
 let peCurrentPage = 1;
 const PE_WAVES_PER_PAGE = 10;
+let peConvChain = null;
 
 function populateFullEditView(p) {
     document.getElementById('pe-id').value = p.id;
@@ -1398,6 +1446,7 @@ function renderPeWaves() {
             <td class="p-3">
                 <div class="font-semibold text-gray-800">${esc(w.wave_name)}</div>
                 <div class="text-[10px] text-gray-400">FIFO #${w.id}</div>
+                ${w.entry_unit_category_id ? (() => { const cat = (categories || []).find(c => c.id === w.entry_unit_category_id); return `<div class="text-[10px] text-blue-500 mt-0.5">Entered as ${w.entry_unit_qty} ${cat ? esc(cat.name) : 'units'}</div>`; })() : ''}
                 ${parentHint}
             </td>
             <td class="p-3 text-gray-600">${w.arrival_date ? w.arrival_date.split('T')[0] : '—'}</td>
@@ -1469,15 +1518,41 @@ function renderPeWaves() {
 function pePrevPage() { if (peCurrentPage > 1) { peCurrentPage--; renderPeWaves(); } }
 function peNextPage() { const max = Math.ceil(peCurrentWaves.length / PE_WAVES_PER_PAGE); if (peCurrentPage < max) { peCurrentPage++; renderPeWaves(); } }
 
-function showPeAddWave() {
+async function showPeAddWave() {
     document.getElementById('pe-add-wave-form').classList.remove('hidden');
     document.getElementById('pe-w-name').value = `Wave ${peCurrentWaves.length + 1}`;
     document.getElementById('pe-w-date').value = new Date().toISOString().split('T')[0];
     const avgCost = parseFloat(document.getElementById('pe-cost').value) || 0;
     document.getElementById('pe-w-cost').value = avgCost > 0 ? avgCost : '';
     document.getElementById('pe-w-qty').value = '';
+    // Reset conversion UI
+    clearPeWaveConv();
+    document.getElementById('pe-w-conv-section').classList.add('hidden');
+    peConvChain = null;
+    // Fetch conversion chain
+    const id = document.getElementById('pe-id').value;
+    if (id) {
+        try {
+            const res = await fetch(`${API_URL}/inventory/${id}/conversion-chain`, { headers: authHeaders() });
+            if (res.ok) {
+                const chain = await res.json();
+                if (chain && chain.branches && chain.branches.length > 0) {
+                    peConvChain = chain;
+                    const sel = document.getElementById('pe-w-conv-branch');
+                    sel.innerHTML = chain.branches.map((b, i) =>
+                        `<option value="${i}">${esc(b.label)} (×${b.cumulative_qty})</option>`
+                    ).join('');
+                    document.getElementById('pe-w-conv-section').classList.remove('hidden');
+                }
+            }
+        } catch(e) { /* no chain = no toggle shown */ }
+    }
 }
-function hidePeAddWave() { document.getElementById('pe-add-wave-form').classList.add('hidden'); }
+function hidePeAddWave() {
+    document.getElementById('pe-add-wave-form').classList.add('hidden');
+    clearPeWaveConv();
+    peConvChain = null;
+}
 
 async function savePeNewWave() {
     const id = document.getElementById('pe-id').value;
@@ -1493,13 +1568,27 @@ async function savePeNewWave() {
         initial_qty: parseInt(document.getElementById('pe-w-qty').value) || 0,
         invoice_number: document.getElementById('pe-w-invoice').value
     };
+    // Attach conversion data if a valid conversion is active
+    const convPanel = document.getElementById('pe-w-conv-panel');
+    if (peConvChain && convPanel && !convPanel.classList.contains('hidden')) {
+        const idx = parseInt(document.getElementById('pe-w-conv-branch').value);
+        const branch = peConvChain.branches[idx];
+        const foreignQty = parseInt(document.getElementById('pe-w-conv-qty').value);
+        if (branch && foreignQty > 0 && Number.isInteger(foreignQty / branch.cumulative_qty)) {
+            data.entry_unit_category_id = branch.terminal_category_id;
+            data.entry_unit_qty = foreignQty;
+        }
+    }
     try {
         const res = await fetch(`${API_URL}/inventory/${id}/waves`, {
             method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
-        showToast('Wave added', 'success');
+        const convMsg = json.conversion_applied
+            ? ` (entered as ${data.entry_unit_qty} ${esc(peConvChain?.branches[parseInt(document.getElementById('pe-w-conv-branch').value)]?.terminal_category_name || 'units')})`
+            : '';
+        showToast(`Wave added${convMsg}`, 'success');
         document.getElementById('pe-stock').textContent = json.total_stock;
         hidePeAddWave();
         await loadPeWaves(id);
@@ -1641,6 +1730,7 @@ function closeDrawer() {
 }
 
 let currentWaves = [];
+let drawerConvChain = null;
 
 async function loadWaves(productId) {
     const list = document.getElementById('waves-list');
@@ -1666,6 +1756,7 @@ function renderWaves() {
             <div class="flex justify-between items-start">
                 <div class="flex flex-col">
                     <span class="font-bold text-gray-800">${esc(w.wave_name)} (FIFO #${w.id})</span>
+                    ${w.entry_unit_category_id ? (() => { const cat = (categories || []).find(c => c.id === w.entry_unit_category_id); return `<span class="text-[9px] text-blue-500 mt-0.5">Entered as ${w.entry_unit_qty} ${cat ? esc(cat.name) : 'units'}</span>`; })() : ''}
                     ${w.invoice_number ? `<span class="text-[10px] text-gray-500">Inv: ${esc(w.invoice_number)}</span>` : ''}
                 </div>
                 <span class="text-gray-500">${w.arrival_date ? w.arrival_date.split('T')[0] : ''}</span>
@@ -1697,15 +1788,163 @@ function renderWaves() {
     `).join('');
 }
 
-function showAddWaveForm() {
+// ── Wave conversion helpers (drawer) ────────────────────────────────────────
+function toggleWaveConv() {
+    const panel = document.getElementById('w-conv-panel');
+    const arrow = document.getElementById('w-conv-arrow');
+    const open = !panel.classList.contains('hidden');
+    if (open) {
+        panel.classList.add('hidden');
+        arrow.textContent = '▶';
+        clearWaveConv();
+    } else {
+        panel.classList.remove('hidden');
+        arrow.textContent = '▼';
+        document.getElementById('w-conv-qty').value = '';
+        document.getElementById('w-conv-preview').innerHTML = '';
+    }
+}
+function updateWaveConvPreview() {
+    if (!drawerConvChain) return;
+    const idx = parseInt(document.getElementById('w-conv-branch').value);
+    const branch = drawerConvChain.branches[idx];
+    const foreignQty = parseInt(document.getElementById('w-conv-qty').value);
+    const preview = document.getElementById('w-conv-preview');
+    const saveBtn = document.getElementById('w-save-btn');
+    if (!branch || !foreignQty || foreignQty < 1) {
+        preview.innerHTML = '';
+        document.getElementById('w-qty').disabled = false;
+        document.getElementById('w-qty-caption').classList.add('hidden');
+        if (saveBtn) saveBtn.disabled = false;
+        return;
+    }
+    const nativeQty = foreignQty / branch.cumulative_qty;
+    if (!Number.isInteger(nativeQty)) {
+        preview.innerHTML = `<span class="text-red-500">⚠ ${foreignQty} ${esc(branch.terminal_category_name)} ÷ ${branch.cumulative_qty} = ${nativeQty.toFixed(3)} — not a whole number</span>`;
+        document.getElementById('w-qty').disabled = true;
+        document.getElementById('w-qty-caption').classList.add('hidden');
+        if (saveBtn) saveBtn.disabled = true;
+    } else {
+        preview.innerHTML = `<span class="text-green-600 font-semibold">✓ ${nativeQty} ${esc(drawerConvChain.product_name)} unit${nativeQty !== 1 ? 's' : ''}</span>`;
+        document.getElementById('w-qty').value = nativeQty;
+        document.getElementById('w-qty').disabled = true;
+        document.getElementById('w-qty-caption').classList.remove('hidden');
+        if (saveBtn) saveBtn.disabled = false;
+    }
+}
+function clearWaveConv() {
+    const panel = document.getElementById('w-conv-panel');
+    const arrow = document.getElementById('w-conv-arrow');
+    if (panel) panel.classList.add('hidden');
+    if (arrow) arrow.textContent = '▶';
+    const qty = document.getElementById('w-qty');
+    if (qty) { qty.disabled = false; qty.value = ''; }
+    const caption = document.getElementById('w-qty-caption');
+    if (caption) caption.classList.add('hidden');
+    const preview = document.getElementById('w-conv-preview');
+    if (preview) preview.innerHTML = '';
+    const convQty = document.getElementById('w-conv-qty');
+    if (convQty) convQty.value = '';
+    const saveBtn = document.getElementById('w-save-btn');
+    if (saveBtn) saveBtn.disabled = false;
+}
+
+// ── Wave conversion helpers (PE / advanced edit) ─────────────────────────────
+function togglePeWaveConv() {
+    const panel = document.getElementById('pe-w-conv-panel');
+    const arrow = document.getElementById('pe-w-conv-arrow');
+    const open = !panel.classList.contains('hidden');
+    if (open) {
+        panel.classList.add('hidden');
+        arrow.textContent = '▶';
+        clearPeWaveConv();
+    } else {
+        panel.classList.remove('hidden');
+        arrow.textContent = '▼';
+        document.getElementById('pe-w-conv-qty').value = '';
+        document.getElementById('pe-w-conv-preview').innerHTML = '';
+    }
+}
+function updatePeWaveConvPreview() {
+    if (!peConvChain) return;
+    const idx = parseInt(document.getElementById('pe-w-conv-branch').value);
+    const branch = peConvChain.branches[idx];
+    const foreignQty = parseInt(document.getElementById('pe-w-conv-qty').value);
+    const preview = document.getElementById('pe-w-conv-preview');
+    const saveBtn = document.getElementById('pe-w-save-btn');
+    if (!branch || !foreignQty || foreignQty < 1) {
+        preview.innerHTML = '';
+        document.getElementById('pe-w-qty').disabled = false;
+        document.getElementById('pe-w-qty-caption').classList.add('hidden');
+        if (saveBtn) saveBtn.disabled = false;
+        return;
+    }
+    const nativeQty = foreignQty / branch.cumulative_qty;
+    if (!Number.isInteger(nativeQty)) {
+        preview.innerHTML = `<span class="text-red-500">⚠ ${foreignQty} ${esc(branch.terminal_category_name)} ÷ ${branch.cumulative_qty} = ${nativeQty.toFixed(3)} — not a whole number</span>`;
+        document.getElementById('pe-w-qty').disabled = true;
+        document.getElementById('pe-w-qty-caption').classList.add('hidden');
+        if (saveBtn) saveBtn.disabled = true;
+    } else {
+        preview.innerHTML = `<span class="text-green-600 font-semibold">✓ ${nativeQty} ${esc(peConvChain.product_name)} unit${nativeQty !== 1 ? 's' : ''}</span>`;
+        document.getElementById('pe-w-qty').value = nativeQty;
+        document.getElementById('pe-w-qty').disabled = true;
+        document.getElementById('pe-w-qty-caption').classList.remove('hidden');
+        if (saveBtn) saveBtn.disabled = false;
+    }
+}
+function clearPeWaveConv() {
+    const panel = document.getElementById('pe-w-conv-panel');
+    const arrow = document.getElementById('pe-w-conv-arrow');
+    if (panel) panel.classList.add('hidden');
+    if (arrow) arrow.textContent = '▶';
+    const qty = document.getElementById('pe-w-qty');
+    if (qty) { qty.disabled = false; qty.value = ''; }
+    const caption = document.getElementById('pe-w-qty-caption');
+    if (caption) caption.classList.add('hidden');
+    const preview = document.getElementById('pe-w-conv-preview');
+    if (preview) preview.innerHTML = '';
+    const convQty = document.getElementById('pe-w-conv-qty');
+    if (convQty) convQty.value = '';
+    const saveBtn = document.getElementById('pe-w-save-btn');
+    if (saveBtn) saveBtn.disabled = false;
+}
+
+async function showAddWaveForm() {
     document.getElementById('add-wave-form').classList.remove('hidden');
     document.getElementById('w-name').value = `Wave ${currentWaves.length + 1}`;
     document.getElementById('w-date').value = new Date().toISOString().split('T')[0];
     const avgCost = parseFloat(document.getElementById('d-cost').value) || 0;
     document.getElementById('w-cost').value = avgCost > 0 ? avgCost : '';
     document.getElementById('w-qty').value = '';
+    // Reset conversion UI
+    clearWaveConv();
+    document.getElementById('w-conv-section').classList.add('hidden');
+    drawerConvChain = null;
+    // Fetch conversion chain
+    const id = document.getElementById('drawer-id').value;
+    if (id) {
+        try {
+            const res = await fetch(`${API_URL}/inventory/${id}/conversion-chain`, { headers: authHeaders() });
+            if (res.ok) {
+                const chain = await res.json();
+                if (chain && chain.branches && chain.branches.length > 0) {
+                    drawerConvChain = chain;
+                    const sel = document.getElementById('w-conv-branch');
+                    sel.innerHTML = chain.branches.map((b, i) =>
+                        `<option value="${i}">${esc(b.label)} (×${b.cumulative_qty})</option>`
+                    ).join('');
+                    document.getElementById('w-conv-section').classList.remove('hidden');
+                }
+            }
+        } catch(e) { /* no chain = no toggle shown */ }
+    }
 }
-function hideAddWaveForm() { document.getElementById('add-wave-form').classList.add('hidden'); }
+function hideAddWaveForm() {
+    document.getElementById('add-wave-form').classList.add('hidden');
+    clearWaveConv();
+    drawerConvChain = null;
+}
 
 async function saveNewWave() {
     const id = document.getElementById('drawer-id').value;
@@ -1721,14 +1960,29 @@ async function saveNewWave() {
         initial_qty: parseInt(document.getElementById('w-qty').value) || 0,
         invoice_number: document.getElementById('w-invoice').value
     };
+    // Attach conversion data if a valid conversion is active
+    const convPanel = document.getElementById('w-conv-panel');
+    if (drawerConvChain && convPanel && !convPanel.classList.contains('hidden')) {
+        const idx = parseInt(document.getElementById('w-conv-branch').value);
+        const branch = drawerConvChain.branches[idx];
+        const foreignQty = parseInt(document.getElementById('w-conv-qty').value);
+        if (branch && foreignQty > 0 && Number.isInteger(foreignQty / branch.cumulative_qty)) {
+            data.entry_unit_category_id = branch.terminal_category_id;
+            data.entry_unit_qty = foreignQty;
+        }
+    }
     try {
         const res = await fetch(`${API_URL}/inventory/${id}/waves`, {
             method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
-        showToast('Wave added', 'success');
+        const convMsg = json.conversion_applied
+            ? ` (entered as ${data.entry_unit_qty} ${esc(drawerConvChain?.branches[parseInt(document.getElementById('w-conv-branch').value)]?.terminal_category_name || 'units')})`
+            : '';
+        showToast(`Wave added${convMsg}`, 'success');
         document.getElementById('d-stock').value = json.total_stock;
+        hideAddWaveForm();
         await loadWaves(id);
         await loadFamilyTree(currentFamily.id);
     } catch(e) { showToast(e.message, 'error'); }
@@ -1997,7 +2251,7 @@ async function deleteProduct(id) {
 function openBundleModal(parentId, parentName) {
     document.getElementById('bundle-parent-id').value = parentId;
     document.getElementById('bundle-parent-name').textContent = parentName;
-    document.getElementById('bundle-qty').value   = 1;
+    document.getElementById('bundle-qty').value   = '';
     document.getElementById('bundle-notes').value = '';
     const parent = allProducts.find(p => p.id === parentId);
     const parentTier = parent?.category_tier ?? null;
@@ -2010,10 +2264,24 @@ function openBundleModal(parentId, parentName) {
     const opts = '<option value="">Select a product...</option>' +
         candidates.map(p => {
             const tierLabel = p.category_tier != null ? ` [Tier ${p.category_tier}]` : '';
-            return `<option value="${p.id}">${p.card_name}${tierLabel} (stock: ${p.stock_quantity})</option>`;
+            return `<option value="${p.id}" data-category-id="${p.category_id || ''}">${p.card_name}${tierLabel} (stock: ${p.stock_quantity})</option>`;
         }).join('');
     document.getElementById('bundle-child-id').innerHTML = opts;
     document.getElementById('bundle-modal').classList.add('open');
+}
+// §4.2 — pre-fill qty from child's category default_qty_per_parent
+function onBundleChildChange() {
+    const sel = document.getElementById('bundle-child-id');
+    const opt = sel.options[sel.selectedIndex];
+    const catId = parseInt(opt?.dataset?.categoryId);
+    if (catId) {
+        const cat = categories.find(c => c.id === catId);
+        if (cat?.default_qty_per_parent) {
+            document.getElementById('bundle-qty').value = cat.default_qty_per_parent;
+            return;
+        }
+    }
+    document.getElementById('bundle-qty').value = '';
 }
 function closeBundleModal() { document.getElementById('bundle-modal').classList.remove('open'); }
 async function saveBundleChild() {
@@ -2373,14 +2641,16 @@ function openAddCategoryModal() {
     document.getElementById('cat-modal-id').value          = '';
     document.getElementById('cat-modal-name').value        = '';
     document.getElementById('cat-modal-tier').value        = '';
+    document.getElementById('cat-modal-default-qty').value = '';
     document.getElementById('cat-modal-title').textContent = 'Add Category';
     document.getElementById('category-modal').classList.add('open');
     setTimeout(() => document.getElementById('cat-modal-name').focus(), 50);
 }
-function openEditCategoryModal(id, name, tier) {
+function openEditCategoryModal(id, name, tier, defaultQty) {
     document.getElementById('cat-modal-id').value          = id;
     document.getElementById('cat-modal-name').value        = name;
     document.getElementById('cat-modal-tier').value        = tier != null ? tier : '';
+    document.getElementById('cat-modal-default-qty').value = defaultQty != null ? defaultQty : '';
     document.getElementById('cat-modal-title').textContent = 'Edit Category';
     document.getElementById('category-modal').classList.add('open');
     setTimeout(() => document.getElementById('cat-modal-name').focus(), 50);
@@ -2388,16 +2658,18 @@ function openEditCategoryModal(id, name, tier) {
 function closeCategoryModal() { document.getElementById('category-modal').classList.remove('open'); }
 
 async function saveCategory() {
-    const id      = document.getElementById('cat-modal-id').value;
-    const name    = document.getElementById('cat-modal-name').value.trim();
-    const tierVal = document.getElementById('cat-modal-tier').value;
-    const tier    = tierVal !== '' ? parseInt(tierVal) : null;
+    const id         = document.getElementById('cat-modal-id').value;
+    const name       = document.getElementById('cat-modal-name').value.trim();
+    const tierVal    = document.getElementById('cat-modal-tier').value;
+    const tier       = tierVal !== '' ? parseInt(tierVal) : null;
+    const dqpVal     = document.getElementById('cat-modal-default-qty').value;
+    const defaultQty = dqpVal !== '' ? parseInt(dqpVal) : null;
     if (!name) return showToast('Category name is required', 'error');
     try {
         const url  = id ? `${API_URL}/categories/${id}` : `${API_URL}/categories`;
         const body = id
-            ? { name, tier }
-            : { name, tier, family_id: currentFamily?.id || null };
+            ? { name, tier, default_qty_per_parent: defaultQty }
+            : { name, tier, default_qty_per_parent: defaultQty, family_id: currentFamily?.id || null };
         const res = await fetch(url, {
             method: id ? 'PATCH' : 'POST', headers: authHeaders(),
             body: JSON.stringify(body)

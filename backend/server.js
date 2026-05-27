@@ -191,16 +191,22 @@ app.get('/api/categories', async (req, res) => {
 });
 
 app.post('/api/categories', async (req, res) => {
-  const { name, family_id, tier } = req.body;
+  const { name, family_id, tier, default_qty_per_parent } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
   if (tier !== undefined && tier !== null) {
     const t = parseInt(tier);
     if (!Number.isInteger(t) || t < 1) return res.status(400).json({ error: 'tier must be a positive integer' });
   }
+  if (default_qty_per_parent !== undefined && default_qty_per_parent !== null) {
+    const d = parseInt(default_qty_per_parent);
+    if (!Number.isInteger(d) || d < 1) return res.status(400).json({ error: 'default_qty_per_parent must be a positive integer' });
+  }
   try {
     const [result] = await db.execute(
-      'INSERT INTO categories (family_id, name, tier) VALUES (?, ?, ?)',
-      [family_id || null, name.trim(), (tier !== undefined && tier !== null) ? parseInt(tier) : null]
+      'INSERT INTO categories (family_id, name, tier, default_qty_per_parent) VALUES (?, ?, ?, ?)',
+      [family_id || null, name.trim(),
+       (tier !== undefined && tier !== null) ? parseInt(tier) : null,
+       (default_qty_per_parent !== undefined && default_qty_per_parent !== null) ? parseInt(default_qty_per_parent) : null]
     );
     res.status(201).json({ id: result.insertId, message: 'Category added' });
   } catch (error) {
@@ -217,10 +223,14 @@ app.delete('/api/categories/:id', async (req, res) => {
 });
 
 app.patch('/api/categories/:id', async (req, res) => {
-  const { name, tier } = req.body;
+  const { name, tier, default_qty_per_parent } = req.body;
   if (tier !== undefined && tier !== null) {
     const t = parseInt(tier);
     if (!Number.isInteger(t) || t < 1) return res.status(400).json({ error: 'tier must be a positive integer' });
+  }
+  if (default_qty_per_parent !== undefined && default_qty_per_parent !== null) {
+    const d = parseInt(default_qty_per_parent);
+    if (!Number.isInteger(d) || d < 1) return res.status(400).json({ error: 'default_qty_per_parent must be a positive integer' });
   }
   const updates = [];
   const params = [];
@@ -229,6 +239,10 @@ app.patch('/api/categories/:id', async (req, res) => {
     updates.push('name = ?'); params.push(name.trim());
   }
   if (tier !== undefined) { updates.push('tier = ?'); params.push(tier === null ? null : parseInt(tier)); }
+  if (default_qty_per_parent !== undefined) {
+    updates.push('default_qty_per_parent = ?');
+    params.push(default_qty_per_parent === null || default_qty_per_parent === '' ? null : parseInt(default_qty_per_parent));
+  }
   if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
   params.push(req.params.id);
   try {
@@ -924,6 +938,102 @@ app.patch('/api/inventory/families/:id', authenticate, async (req, res) => {
 // 4.5 FIFO WAVES
 // ==========================================
 
+// ==========================================
+// 3.6 UNIT CONVERSION CHAIN
+// ==========================================
+
+// Recursive walk of product_bundles from rootProductId.
+// Returns { product_id, product_name, category_id, category_name, tier, branches }
+// Each branch = { label, path, terminal_category_id, terminal_category_name, cumulative_qty }
+// Hard cap at depth 6. Returns null if product not found.
+async function buildConversionChain(conn, rootProductId) {
+  const [[root]] = await conn.execute(
+    `SELECT i.id, i.card_name, i.category_id, c.name AS category_name, c.tier
+     FROM inventory i LEFT JOIN categories c ON c.id = i.category_id
+     WHERE i.id = ?`,
+    [rootProductId]
+  );
+  if (!root) return null;
+
+  // Returns an array of paths (each path = array of steps from root's first child down to a leaf)
+  async function walk(productId, path, depth) {
+    if (depth > 6) {
+      console.warn(`[conversion-chain] depth cap hit at product ${productId}`);
+      return [path];
+    }
+    const [children] = await conn.execute(
+      `SELECT pb.child_product_id, pb.quantity_per_parent,
+              i.card_name, i.category_id, c.name AS category_name, c.tier
+       FROM product_bundles pb
+       JOIN inventory i ON i.id = pb.child_product_id
+       LEFT JOIN categories c ON c.id = i.category_id
+       WHERE pb.parent_product_id = ?`,
+      [productId]
+    );
+    if (!children.length) return [path]; // leaf — this path is a complete branch
+    const branches = [];
+    for (const child of children) {
+      const prevCumulative = path.length ? path[path.length - 1].cumulative_qty : 1;
+      const step = {
+        product_id:    child.child_product_id,
+        product_name:  child.card_name,
+        category_id:   child.category_id,
+        category_name: child.category_name,
+        tier:          child.tier,
+        qty_per_parent:  child.quantity_per_parent,
+        cumulative_qty:  prevCumulative * child.quantity_per_parent
+      };
+      const sub = await walk(child.child_product_id, [...path, step], depth + 1);
+      branches.push(...sub);
+    }
+    return branches;
+  }
+
+  const rawPaths = await walk(rootProductId, [], 1);
+
+  // Deduplicate: same terminal category AND same cumulative factor → keep first only
+  const seen = new Map();
+  for (const path of rawPaths) {
+    if (!path.length) continue;
+    const t = path[path.length - 1];
+    const key = `${t.category_id}_${t.cumulative_qty}`;
+    if (!seen.has(key)) seen.set(key, path);
+  }
+  const uniquePaths = [...seen.values()];
+
+  // Count how many unique paths share the same terminal category (for label disambiguation)
+  const terminalCatCount = {};
+  for (const path of uniquePaths) {
+    const catId = path[path.length - 1].category_id;
+    terminalCatCount[catId] = (terminalCatCount[catId] || 0) + 1;
+  }
+
+  const branches = uniquePaths.map(path => {
+    const terminal = path[path.length - 1];
+    const multiLabel = terminalCatCount[terminal.category_id] > 1 && path.length >= 2;
+    const label = multiLabel
+      ? `${terminal.product_name} via ${path[path.length - 2].product_name}`
+      : terminal.product_name;
+    return { label, path, terminal_category_id: terminal.category_id, terminal_category_name: terminal.category_name, cumulative_qty: terminal.cumulative_qty };
+  });
+
+  return { product_id: root.id, product_name: root.card_name, category_id: root.category_id, category_name: root.category_name, tier: root.tier, branches };
+}
+
+// GET /api/inventory/:id/conversion-chain
+// Returns breakdown chain from this product so the frontend can build the "Enter as" dropdown.
+// branches: [] means the product has no children — hide the conversion toggle.
+app.get('/api/inventory/:id/conversion-chain', authenticate, async (req, res) => {
+  const conn = await db.getConnection();
+  try {
+    const chain = await buildConversionChain(conn, parseInt(req.params.id));
+    if (!chain) return res.status(404).json({ error: 'Product not found' });
+    res.json(chain);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to build conversion chain' });
+  } finally { conn.release(); }
+});
+
 app.get('/api/inventory/:id/waves', async (req, res) => {
   try {
     const [rows] = await db.execute(
@@ -964,25 +1074,81 @@ async function syncInventoryStock(inventory_id, conn, username = 'system', sourc
 }
 
 app.post('/api/inventory/:id/waves', authenticate, async (req, res) => {
-  const { wave_name, cost_price, initial_qty, arrival_date, invoice_number } = req.body;
-  const inventory_id = req.params.id;
+  const { wave_name, cost_price, initial_qty, arrival_date, invoice_number,
+          entry_unit_category_id, entry_unit_qty } = req.body;
+  const inventory_id = parseInt(req.params.id);
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+
+    const wName = wave_name || 'Standard';
+    let nativeQty = parseInt(initial_qty) || 0;
+    let auditCatId   = null;
+    let auditCatQty  = null;
+    let auditCatName = null;
+
+    // §3.3 — server-side conversion validation (never trust client's converted qty)
+    if (entry_unit_category_id != null && entry_unit_qty != null) {
+      const chain = await buildConversionChain(conn, inventory_id);
+      if (!chain) { await conn.rollback(); return res.status(404).json({ error: 'Product not found' }); }
+
+      const catId     = parseInt(entry_unit_category_id);
+      const foreignQty = parseInt(entry_unit_qty);
+      if (isNaN(catId) || isNaN(foreignQty) || foreignQty < 1) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'entry_unit_category_id and entry_unit_qty must be positive integers' });
+      }
+
+      const matching = chain.branches.filter(b => b.terminal_category_id === catId);
+      if (!matching.length) {
+        await conn.rollback();
+        return res.status(400).json({ error: `Category ${catId} is not a descendant of this product's breakdown chain` });
+      }
+      if (matching.length > 1) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Ambiguous: multiple paths lead to this category with different factors. Disambiguation via branch selection is not yet implemented.' });
+      }
+
+      const branch  = matching[0];
+      const divisor = branch.cumulative_qty;
+      if (foreignQty % divisor !== 0) {
+        await conn.rollback();
+        return res.status(400).json({ error: `${foreignQty} ${branch.terminal_category_name} is not a multiple of ${divisor} (the conversion factor for this chain). Adjust the input or create separate waves for the remainder.` });
+      }
+
+      nativeQty    = foreignQty / divisor;
+      auditCatId   = catId;
+      auditCatQty  = foreignQty;
+      auditCatName = branch.terminal_category_name;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
     const [result] = await conn.execute(
-      `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number)
-       VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)`,
-      [inventory_id, wave_name || 'Standard', cost_price || 0, initial_qty || 0, initial_qty || 0, arrival_date || new Date().toISOString().slice(0,10), invoice_number || null]
+      `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number, entry_unit_category_id, entry_unit_qty)
+       VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?, ?)`,
+      [inventory_id, wName, cost_price || 0, nativeQty, nativeQty,
+       arrival_date || today, invoice_number || null, auditCatId, auditCatQty]
     );
-    const newTotal = await syncInventoryStock(inventory_id, conn, req.user.username, `${wave_name || 'Standard'} Created`);
+
+    const newTotal = await syncInventoryStock(inventory_id, conn, req.user.username, `${wName} Created`);
+
+    // §3.5 — append conversion annotation to the change log when entry unit was used
+    if (auditCatId != null) {
+      await logChange(conn, inventory_id, req.user.username,
+        'entry_unit', null,
+        `${nativeQty} (entered as ${auditCatQty} ${auditCatName})`,
+        `${wName} Created`);
+    }
+
     await conn.commit();
-    res.status(201).json({ id: result.insertId, message: 'Wave added', total_stock: newTotal });
+    res.status(201).json({
+      id: result.insertId, message: 'Wave added', total_stock: newTotal,
+      native_qty: nativeQty, wave_name: wName, conversion_applied: auditCatId != null
+    });
   } catch (error) {
     await conn.rollback();
     res.status(500).json({ error: error.message });
-  } finally {
-    conn.release();
-  }
+  } finally { conn.release(); }
 });
 
 app.put('/api/inventory/waves/:wave_id', authenticate, async (req, res) => {
@@ -1166,11 +1332,26 @@ app.post('/api/bundles', authenticate, async (req, res) => {
     const check = await canBreakdown(conn, parseInt(parent_product_id), parseInt(child_product_id));
     if (!check.ok) return res.status(400).json({ error: check.reason });
 
+    // §3.4 — resolve quantity_per_parent: explicit body value > child category default > 400
+    // Pre-fill from categories.default_qty_per_parent when client omits the field.
+    let resolvedQty = quantity_per_parent != null ? parseInt(quantity_per_parent) : null;
+    if (resolvedQty == null || isNaN(resolvedQty)) {
+      const [[childRow]] = await conn.execute(
+        `SELECT c.default_qty_per_parent
+         FROM inventory i LEFT JOIN categories c ON c.id = i.category_id
+         WHERE i.id = ?`, [child_product_id]
+      );
+      resolvedQty = childRow?.default_qty_per_parent ?? null;
+    }
+    if (resolvedQty == null || resolvedQty < 1) {
+      return res.status(400).json({ error: 'quantity_per_parent is required (or set a default on the child\'s category)' });
+    }
+
     await conn.beginTransaction();
     const [result] = await conn.execute(
       `INSERT INTO product_bundles (parent_product_id, child_product_id, quantity_per_parent, notes)
        VALUES (?, ?, ?, ?)`,
-      [parent_product_id, child_product_id, quantity_per_parent || 1, notes || null]
+      [parent_product_id, child_product_id, resolvedQty, notes || null]
     );
     await conn.execute('UPDATE inventory SET is_bundle = 1 WHERE id = ?', [parent_product_id]);
     await conn.execute(
