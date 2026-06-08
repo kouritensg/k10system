@@ -89,98 +89,84 @@ def fetch_page(url: str, max_retries: int = 5) -> BeautifulSoup:
 
 def find_card_blocks(soup: BeautifulSoup):
     """
-    Find repeating card blocks using a structure-based approach.
+    Locate card blocks on a Yuyu-tei sell page.
 
-    Yuyu-tei sell pages list cards in <li> or <div> elements that each contain:
-      - an image (<img>)
-      - a name/title element
-      - a price element
-
-    Strategy: find the element type+class that appears most often AND contains
-    both an img and a price-like string, then treat those as card blocks.
+    As of 2026-06, each card is a <div class="card-product ..."> element.
+    Falls back to structural detection if that class is ever renamed.
     """
-    candidates = []
+    # Primary selector — confirmed on BT25 sell page
+    blocks = soup.select("div.card-product")
+    if len(blocks) > 0:
+        return blocks
 
-    # Try common container selectors used on Yuyu-tei sell pages
-    for selector in [
-        "ul.card-list > li",
-        "ul.sell-list > li",
-        ".card_list > li",
-        ".product-list > li",
-        ".item-list > li",
-        "li.card-item",
-        "li[class*='card']",
-        "div[class*='card-item']",
-        "div[class*='product-item']",
-    ]:
-        blocks = soup.select(selector)
-        if len(blocks) > 5:
-            candidates.append((len(blocks), blocks))
-
-    if candidates:
-        candidates.sort(key=lambda x: -x[0])
-        return candidates[0][1]
-
-    # Fallback: find all <li> that contain both an <img> and a price pattern
-    price_re = re.compile(r'¥[\d,]+|\d{2,}円')
-    li_blocks = [
-        li for li in soup.find_all("li")
-        if li.find("img") and price_re.search(li.get_text())
-    ]
-    if len(li_blocks) > 3:
-        return li_blocks
-
-    # Last resort: any div containing img + price text
-    div_blocks = [
+    # Fallback: any div that contains both a card-image and a yen price
+    price_re = re.compile(r'\d[\d,]* 円')
+    blocks = [
         d for d in soup.find_all("div")
-        if d.find("img") and price_re.search(d.get_text()) and len(d.get_text()) < 500
+        if d.find("img") and price_re.search(d.get_text()) and len(d.get_text()) < 800
     ]
-    return div_blocks
+    return blocks
 
 
 def parse_card_block(block, base_url: str) -> dict | None:
-    text = block.get_text(separator=" ", strip=True)
+    """
+    Parse one card-product div into a card dict.
 
-    # --- card_id ---
-    card_id = extract_card_id(text)
+    Page structure (confirmed 2026-06):
+      <div class="card-product ...">
+        <a href="/sell/digi/card/bt25/10128">
+          <img src="https://card.yuyu-tei.jp/digi/100_140/bt25/10128.jpg"
+               alt="BT25-103 P-SEC グレイスノヴァモン(パラレル)" class="card img-fluid"/>
+        </a>
+        <span class="d-block border border-dark ...">BT25-103</span>
+        <a href="..."><h4 class="text-primary fw-bold">グレイスノヴァモン(パラレル)</h4></a>
+        <strong class="d-block text-end">2,980 円</strong>
+        ...
+      </div>
 
-    # --- name ---
-    # Prefer an explicit name element; fall back to longest non-price, non-id text span
-    name_el = (
-        block.find(class_=re.compile(r'name|title|card.?name', re.I))
-        or block.find("h3") or block.find("h4") or block.find("p")
-    )
-    name = name_el.get_text(strip=True) if name_el else ""
-    if not name:
-        # Derive from full text, remove price tokens
-        name = re.sub(r'¥[\d,]+|[\d,]+円|\bNM\b|\bLP\b|\bMP\b', '', text).strip()[:80]
-    name = name.strip()
+    Rarity is NOT a separate element — it lives in the <img alt> as the second
+    space-separated token after the card ID, e.g. "BT25-103 P-SEC グレイスノヴァモン".
+    """
+
+    # --- image + alt-text (card_id, rarity, name all derivable from here) ---
+    img = block.find("img", class_="card")
+    if not img:
+        img = block.find("img")
+
+    alt = img.get("alt", "") if img else ""
+    image_url = make_absolute(img.get("src", ""), base_url) if img else None
+
+    # --- card_id: explicit <span class="... border-dark ..."> first, then alt ---
+    card_id = None
+    id_span = block.find("span", class_=lambda c: c and "border-dark" in c)
+    if id_span:
+        card_id = id_span.get_text(strip=True) or None
+    if not card_id:
+        card_id = extract_card_id(alt)
+
+    # --- name: <h4> inside the block ---
+    h4 = block.find("h4")
+    name = h4.get_text(strip=True) if h4 else None
+    if not name and alt:
+        # Strip card_id and rarity token from alt to get name
+        parts = alt.strip().split(" ", 2)
+        name = parts[2] if len(parts) >= 3 else alt
     if not name:
         return None
 
-    # --- rarity ---
-    rarity_el = block.find(class_=re.compile(r'rarity|rare', re.I))
-    rarity_raw = rarity_el.get_text(strip=True) if rarity_el else None
-    if not rarity_raw:
-        # Try badge/small text
-        for tag in block.find_all(["span", "small", "em"]):
-            t = tag.get_text(strip=True)
-            if t and len(t) <= 10:
-                rarity_raw = t
-                break
-    rarity = normalise_rarity(rarity_raw)
+    # --- rarity: second space-separated token in alt after card_id ---
+    rarity = None
+    if alt and card_id:
+        # alt format: "{card_id} {rarity} {name}" — rarity is the token between id and name
+        after_id = alt.replace(card_id, "", 1).strip()
+        rarity_token = after_id.split(" ")[0] if after_id else ""
+        # Only treat it as rarity if it looks like one (short, uppercase, no Japanese chars)
+        if rarity_token and len(rarity_token) <= 8 and re.match(r'^[A-Za-z0-9\-]+$', rarity_token):
+            rarity = rarity_token.upper()
 
-    # --- price ---
-    price_el = block.find(class_=re.compile(r'price|cost|yen', re.I))
-    price_text = price_el.get_text(strip=True) if price_el else text
-    reference_price = extract_price(price_text)
-
-    # --- image ---
-    img = block.find("img")
-    image_url = ""
-    if img:
-        src = img.get("data-src") or img.get("src") or ""
-        image_url = make_absolute(src, base_url)
+    # --- price: <strong class="d-block text-end"> ---
+    strong = block.find("strong")
+    reference_price = extract_price(strong.get_text() if strong else "")
 
     return {
         "card_id": card_id,
