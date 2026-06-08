@@ -914,7 +914,7 @@ app.get('/api/inventory/singles', async (req, res) => {
     res.json({ rows, total_cards: parseInt(total_cards), limit, offset });
   } catch (error) {
     console.error('[singles GET] error:', error);
-    res.status(500).json({ error: 'Failed to fetch singles' });
+    res.status(500).json({ error: 'Failed to fetch singles', detail: error.message });
   }
 });
 
