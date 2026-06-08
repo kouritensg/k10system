@@ -843,12 +843,18 @@ app.get('/api/inventory/singles', async (req, res) => {
               sr.source AS ref_source, sr.source_url AS ref_source_url,
               sr.reference_price, sr.currency AS ref_currency, sr.scraped_at AS ref_scraped_at
        FROM inventory i
-       LEFT JOIN singles_reference sr
-         ON sr.family_id = i.family_id AND sr.card_id = i.card_id
-         AND sr.scraped_at = (
-           SELECT MAX(scraped_at) FROM singles_reference
-           WHERE family_id = i.family_id AND card_id = i.card_id
-         )
+       LEFT JOIN (
+         SELECT sr1.family_id, sr1.card_id, sr1.source, sr1.source_url,
+                sr1.reference_price, sr1.currency, sr1.scraped_at
+         FROM singles_reference sr1
+         INNER JOIN (
+           SELECT family_id, card_id, MAX(scraped_at) AS max_scraped_at
+           FROM singles_reference
+           GROUP BY family_id, card_id
+         ) latest ON sr1.family_id = latest.family_id
+                 AND sr1.card_id   = latest.card_id
+                 AND sr1.scraped_at = latest.max_scraped_at
+       ) sr ON sr.family_id = i.family_id AND sr.card_id = i.card_id
        WHERE i.family_id = ? AND i.product_type = 'single' ${variantWhere}
        ORDER BY i.card_id, i.card_name, i.card_condition, i.card_finish`,
       variantParams
@@ -892,7 +898,10 @@ app.get('/api/inventory/singles', async (req, res) => {
     });
 
     res.json({ rows, total_cards: parseInt(total_cards), limit, offset });
-  } catch (error) { res.status(500).json({ error: 'Failed to fetch singles' }); }
+  } catch (error) {
+    console.error('[singles GET] error:', error);
+    res.status(500).json({ error: 'Failed to fetch singles' });
+  }
 });
 
 // Import singles reference data (and optionally scaffold inventory rows)
