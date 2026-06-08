@@ -211,8 +211,15 @@ def scrape(url: str, source: str, game_hint: str | None) -> list[dict]:
         parsed = parse_card_block(block, url)
         if not parsed:
             continue
-        # Deduplicate by card_id if present
-        key = parsed["card_id"] or parsed["name"]
+        
+        # --- FIXED DEDUPLICATION LOGIC ---
+        # Instead of grouping purely by card_id, combine it with the rarity string
+        # so that "BT25-103_SEC" and "BT25-103_P-SEC" can coexist uniquely.
+        if parsed["card_id"] and parsed["rarity"]:
+            key = f"{parsed['card_id']}_{parsed['rarity']}"
+        else:
+            key = parsed["card_id"] or parsed["name"]
+            
         if key in seen_ids:
             continue
         seen_ids.add(key)

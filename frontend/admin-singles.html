@@ -383,6 +383,7 @@ function renderSinglesRows(rows) {
             btn.textContent = '+ Add variant';
             btn.dataset.cardId = card.card_id || '';
             btn.dataset.cardName = card.card_name;
+            btn.dataset.rarity = card.rarity || '';
             btn.onclick = () => addVariantRow(btn);
             const td = document.createElement('td');
             td.colSpan = 10;
@@ -396,7 +397,8 @@ function renderSinglesRows(rows) {
 }
 
 function groupKey(card) {
-    return card.card_id ? `id:${card.card_id}` : `nm:${card.card_name}`;
+    const r = card.rarity || '';
+    return card.card_id ? `id:${card.card_id}:${r}` : `nm:${card.card_name}:${r}`;
 }
 
 function buildSingleVariantRow(card, v) {
@@ -626,6 +628,7 @@ async function saveNewCard() {
 function addVariantRow(btn) {
     const cardId = btn.dataset.cardId;
     const cardName = btn.dataset.cardName;
+    const rarity = btn.dataset.rarity || '';
     // Remove any existing new-variant-inline row
     document.querySelectorAll('.new-variant-inline').forEach(r => r.remove());
 
@@ -652,6 +655,7 @@ function addVariantRow(btn) {
     const saveBtn = tr.querySelector('.save-variant-btn');
     saveBtn.dataset.cardId = cardId;
     saveBtn.dataset.cardName = cardName;
+    saveBtn.dataset.rarity = rarity;
     saveBtn.onclick = () => saveNewVariant(saveBtn);
     refRow.parentNode.insertBefore(tr, refRow);
     tr.querySelector('#var-price').focus();
@@ -660,12 +664,14 @@ function addVariantRow(btn) {
 async function saveNewVariant(btn) {
     const cardId = btn.dataset.cardId;
     const cardName = btn.dataset.cardName;
+    const rarity = btn.dataset.rarity || null;
     const row = btn.closest('tr');
     const data = {
         family_id: currentFamilyId,
         product_type: 'single',
         card_id: cardId || null,
         card_name: cardName,
+        rarity: rarity || null,
         card_condition: row.querySelector('#new-condition').value || 'LP',
         card_finish: row.querySelector('#new-finish').value || null,
         price: parseFloat(row.querySelector('#var-price').value) || 0,
