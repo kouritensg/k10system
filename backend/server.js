@@ -840,11 +840,11 @@ app.get('/api/inventory/singles', async (req, res) => {
     const variantWhereParts = [];
     const variantParams = [family_id];
     if (nonNullCardIds.length) {
-      variantWhereParts.push(`card_id IN (${nonNullCardIds.map(() => '?').join(',')})`);
+      variantWhereParts.push(`i.card_id IN (${nonNullCardIds.map(() => '?').join(',')})`);
       variantParams.push(...nonNullCardIds);
     }
     if (nullNameCards.length) {
-      variantWhereParts.push(`(card_id IS NULL AND card_name IN (${nullNameCards.map(() => '?').join(',')}))`);
+      variantWhereParts.push(`(i.card_id IS NULL AND i.card_name IN (${nullNameCards.map(() => '?').join(',')}))`);
       variantParams.push(...nullNameCards);
     }
     const variantWhere = variantWhereParts.length
