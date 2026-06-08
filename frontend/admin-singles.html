@@ -7,28 +7,58 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; color: #1f2937; margin: 0; padding: 0; }
-        .grid-table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #e5e7eb; }
-        .grid-table th { background: #f9fafb; font-weight: 600; text-align: left; padding: 8px 12px; font-size: 13px; color: #4b5563; border-bottom: 2px solid #e5e7eb; border-right: 1px solid #e5e7eb; }
-        .grid-table td { padding: 4px 8px; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; font-size: 13px; }
-        .grid-table input, .grid-table select { width: 100%; padding: 4px 6px; border: 1px solid transparent; border-radius: 4px; font-size: 13px; transition: all 0.2s; background: transparent; }
-        .grid-table input:focus, .grid-table select:focus { border-color: #3b82f6; background: #eff6ff; outline: none; }
-        .grid-table input:hover, .grid-table select:hover { border-color: #d1d5db; }
-        .btn-primary { background-color: #2563eb; color: white; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s; }
-        .btn-primary:hover { background-color: #1d4ed8; }
-        .sidebar { background: white; border-right: 1px solid #e5e7eb; height: calc(100vh - 64px); overflow-y: auto; padding: 16px; }
-        .ip-header { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 16px; margin-bottom: 4px; padding: 0 4px; }
+        .sidebar { background: white; border-right: 1px solid #e5e7eb; height: calc(100vh - 64px); overflow-y: auto; padding: 12px; }
+        .ip-header { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 14px; margin-bottom: 3px; padding: 0 4px; }
         .ip-header:first-child { margin-top: 0; }
-        .family-item { padding: 7px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
+        .family-item { padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.15s; margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
         .family-item:hover { background: #f3f4f6; }
         .family-item.active { background: #eff6ff; color: #1d4ed8; font-weight: 700; }
         .family-item.no-singles { color: #9ca3af; }
-        .family-item.no-singles:hover { background: #f9fafb; color: #6b7280; }
-        .family-item .count-badge { font-size: 10px; font-weight: 600; background: #e5e7eb; color: #6b7280; border-radius: 9999px; padding: 1px 6px; }
+        .family-item .count-badge { font-size: 10px; font-weight: 600; background: #e5e7eb; color: #6b7280; border-radius: 9999px; padding: 1px 6px; flex-shrink: 0; }
         .family-item.active .count-badge { background: #dbeafe; color: #2563eb; }
-        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; color: white; opacity: 0; transform: translateY(20px); transition: all 0.3s; z-index: 9999; }
+        .toast { position: fixed; top: 76px; right: 20px; padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; color: white; opacity: 0; transform: translateY(-10px); transition: all 0.25s; z-index: 9999; }
         .toast.success { background-color: #10b981; }
         .toast.error { background-color: #ef4444; }
         .toast.show { opacity: 1; transform: translateY(0); }
+
+        /* Grouped table */
+        .singles-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .singles-table th { background: #f9fafb; font-weight: 600; text-align: left; padding: 7px 10px; color: #4b5563; border-bottom: 2px solid #e5e7eb; white-space: nowrap; }
+        .singles-table td { padding: 5px 10px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+        .card-row td { background: white; }
+        .card-row:hover td { background: #fafafa; }
+        .card-row.expanded td { background: #f8faff; border-bottom: none; }
+        .variant-subrow td { background: #f0f7ff; font-size: 12px; border-bottom: 1px solid #dbeafe; }
+        .variant-subrow:last-of-type td { border-bottom: 2px solid #e5e7eb; }
+        .new-row td { background: #eff6ff; }
+        .new-variant-row td { background: #ecfdf5; font-size: 12px; }
+
+        /* Inline edit cells */
+        .editable { cursor: pointer; min-width: 40px; }
+        .editable:hover { background: #f0f9ff; border-radius: 3px; }
+        .cell-display { padding: 3px 5px; border-radius: 3px; }
+        .cell-input { width: 100%; padding: 3px 6px; border: 1.5px solid #3b82f6; border-radius: 4px; font-size: 13px; background: #eff6ff; outline: none; }
+        .cell-input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }
+        .cell-select { width: 100%; padding: 3px 4px; border: 1.5px solid #3b82f6; border-radius: 4px; font-size: 13px; background: #eff6ff; outline: none; }
+        .ref-hint { font-size: 10px; color: #9ca3af; margin-top: 2px; line-height: 1.3; }
+        .ref-hint a { color: #6b7280; text-decoration: underline; }
+
+        /* Rarity badge */
+        .rarity-badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: #e5e7eb; color: #374151; }
+
+        /* Thumbnail */
+        .card-thumb { width: 28px; height: 28px; object-fit: contain; border-radius: 3px; cursor: zoom-in; }
+        .thumb-wrap { position: relative; display: inline-block; }
+        .thumb-preview { display: none; position: fixed; z-index: 1000; width: 200px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.25); pointer-events: none; }
+        .thumb-wrap:hover .thumb-preview { display: block; }
+
+        /* Chevron */
+        .chevron { display: inline-block; transition: transform 0.2s; font-size: 11px; }
+        .chevron.open { transform: rotate(90deg); }
+
+        /* Modal */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: flex; align-items: center; justify-content: center; }
+        .modal-box { background: white; border-radius: 12px; padding: 24px; width: 640px; max-width: 96vw; max-height: 90vh; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -36,49 +66,137 @@
 <script src="admin-navbar.js"></script>
 
 <div class="flex">
-    <!-- Sidebar: IP → Family tree -->
-    <div class="w-64 sidebar hidden md:block flex-shrink-0" id="sets-sidebar">
-        <div class="mb-3">
-            <h2 class="text-xs font-bold text-gray-800 uppercase tracking-wider">Releases</h2>
-            <p class="text-[10px] text-gray-400 mt-0.5">Select a family to manage singles</p>
+    <!-- Sidebar -->
+    <div class="w-56 sidebar hidden md:flex flex-col flex-shrink-0" id="sets-sidebar">
+        <div class="mb-2">
+            <h2 class="text-[10px] font-bold text-gray-700 uppercase tracking-wider">Releases</h2>
         </div>
-        <div id="sets-list">
+        <input type="text" id="sidebar-search" placeholder="Filter families…"
+               class="w-full mb-2 px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
+               oninput="filterSidebar(this.value)">
+        <div id="sets-list" class="flex-1 overflow-y-auto">
             <div class="text-xs text-gray-400 text-center py-4">Loading...</div>
         </div>
     </div>
 
     <!-- Main Content -->
-    <div class="flex-1 p-6 h-[calc(100vh-64px)] overflow-y-auto">
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                <div class="text-xs text-gray-400 font-medium mb-0.5" id="breadcrumb">Singles Management</div>
-                <h1 class="text-2xl font-bold text-gray-900" id="current-set-title">Select a Release</h1>
+    <div class="flex-1 flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+        <!-- Top bar -->
+        <div class="bg-white border-b border-gray-200 px-5 py-3 flex flex-wrap gap-2 items-center">
+            <div class="flex-1 min-w-0">
+                <div class="text-[10px] text-gray-400 font-medium" id="breadcrumb">Singles Management</div>
+                <h1 class="text-base font-bold text-gray-900 truncate" id="current-set-title">Select a Release</h1>
             </div>
-            <div class="flex gap-2 items-center">
-                <a id="view-sealed-link" href="#" class="hidden text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-all">
-                    View Sealed ↗
-                </a>
-                <button onclick="addRow()" id="add-card-btn" class="btn-primary hidden">+ Add Card</button>
+            <!-- Search -->
+            <input type="text" id="search-input" placeholder="Search cards…"
+                   class="w-44 px-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
+                   oninput="scheduleSearch()">
+            <!-- Rarity filter -->
+            <select id="rarity-filter" class="text-xs border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400" onchange="loadSingles(true)">
+                <option value="">All rarities</option>
+            </select>
+            <!-- In stock only -->
+            <label class="flex items-center gap-1 text-xs text-gray-600 cursor-pointer select-none">
+                <input type="checkbox" id="instock-toggle" class="rounded" onchange="loadSingles(true)">
+                In stock only
+            </label>
+            <!-- Sort -->
+            <select id="sort-select" class="text-xs border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400" onchange="loadSingles(true)">
+                <option value="card_id_asc">Card ID ↑</option>
+                <option value="card_name_asc">Name ↑</option>
+                <option value="price_desc">Price ↓</option>
+                <option value="stock_desc">Stock ↓</option>
+                <option value="updated_desc">Updated ↓</option>
+            </select>
+            <!-- Actions -->
+            <a id="view-sealed-link" href="#" class="hidden text-xs font-semibold text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-md transition-all">View Sealed ↗</a>
+            <button onclick="addCardRow()" id="add-card-btn" class="hidden text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700">+ Add Card</button>
+            <button onclick="openImportModal()" id="import-btn" class="hidden text-xs font-semibold bg-gray-700 text-white px-3 py-1.5 rounded-md hover:bg-gray-800">Import JSON</button>
+        </div>
+
+        <!-- Pagination bar -->
+        <div class="bg-white border-b border-gray-100 px-5 py-1.5 flex items-center gap-3 text-xs text-gray-500" id="pagination-bar" style="display:none!important">
+            <span id="page-info">—</span>
+            <button onclick="changePage(-1)" id="btn-prev" class="px-2 py-0.5 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-40">‹ Prev</button>
+            <button onclick="changePage(1)"  id="btn-next" class="px-2 py-0.5 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-40">Next ›</button>
+        </div>
+
+        <!-- Table area -->
+        <div class="flex-1 overflow-y-auto px-5 py-4">
+            <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                <table class="singles-table" id="singles-table">
+                    <thead>
+                        <tr>
+                            <th style="width:30px"></th>
+                            <th style="width:90px">Card ID</th>
+                            <th style="width:220px">Card Name</th>
+                            <th style="width:55px">Rarity</th>
+                            <th style="width:90px">Condition</th>
+                            <th style="width:100px">Finish</th>
+                            <th style="width:110px">Price ($)</th>
+                            <th style="width:80px">Stock</th>
+                            <th style="width:90px">Updated</th>
+                            <th style="width:42px; text-align:center">⋯</th>
+                        </tr>
+                    </thead>
+                    <tbody id="singles-body">
+                        <tr><td colspan="10" class="text-center py-12 text-gray-400 text-sm">Select a release from the sidebar to manage its singles.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination (bottom) -->
+            <div class="mt-3 flex items-center gap-3 text-xs text-gray-500" id="pagination-bottom" style="display:none">
+                <span id="page-info-bottom">—</span>
+                <button onclick="changePage(-1)" id="btn-prev-b" class="px-2 py-0.5 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-40">‹ Prev</button>
+                <button onclick="changePage(1)"  id="btn-next-b" class="px-2 py-0.5 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-40">Next ›</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import modal -->
+<div id="import-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeImportModal()">
+    <div class="modal-box">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-base font-bold text-gray-900">Import JSON</h2>
+            <button onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">Upload or paste a JSON file produced by the scraper. Reference prices are updated; your <strong>price</strong> and <strong>stock</strong> fields are never overwritten.</p>
+        <div class="mb-3">
+            <label class="text-xs font-semibold text-gray-700 mb-1 block">File (.json)</label>
+            <input type="file" id="import-file" accept=".json" class="text-xs" onchange="handleImportFile(this)">
+        </div>
+        <div class="mb-3">
+            <label class="text-xs font-semibold text-gray-700 mb-1 block">Or paste JSON</label>
+            <textarea id="import-paste" rows="5" class="w-full text-xs border border-gray-200 rounded-md px-3 py-2 font-mono focus:outline-none focus:border-blue-400" placeholder='{"source":"yuyu-tei","cards":[...]}'></textarea>
+        </div>
+        <div id="import-error" class="hidden text-xs text-red-500 mb-3"></div>
+
+        <!-- Preview -->
+        <div id="import-preview" class="hidden mb-3">
+            <div class="text-xs font-semibold text-gray-700 mb-1">Preview <span id="preview-count" class="font-normal text-gray-500"></span></div>
+            <div class="overflow-x-auto border border-gray-200 rounded">
+                <table class="w-full text-xs">
+                    <thead><tr class="bg-gray-50">
+                        <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Card ID</th>
+                        <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Name</th>
+                        <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Rarity</th>
+                        <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Ref Price</th>
+                    </tr></thead>
+                    <tbody id="preview-tbody"></tbody>
+                </table>
             </div>
         </div>
 
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-            <table class="grid-table" id="singles-table">
-                <thead>
-                    <tr>
-                        <th style="width: 80px;">Card ID</th>
-                        <th style="width: 250px;">Card Name</th>
-                        <th style="width: 100px;">Condition</th>
-                        <th style="width: 120px;">Finish</th>
-                        <th style="width: 90px;">Price ($)</th>
-                        <th style="width: 90px;">Stock</th>
-                        <th style="width: 60px; text-align: center;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="singles-body">
-                    <tr><td colspan="7" class="text-center py-10 text-gray-400 text-sm">Select a release from the sidebar to manage its singles.</td></tr>
-                </tbody>
-            </table>
+        <label class="flex items-center gap-2 text-xs text-gray-700 mb-4 cursor-pointer">
+            <input type="checkbox" id="create-missing" checked class="rounded">
+            Create missing cards in inventory (default ON)
+        </label>
+
+        <div class="flex gap-2 justify-end">
+            <button onclick="closeImportModal()" class="text-xs px-4 py-1.5 border border-gray-200 rounded-md hover:bg-gray-50">Cancel</button>
+            <button id="do-import-btn" onclick="doImport()" disabled class="text-xs font-semibold bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">Import</button>
         </div>
     </div>
 </div>
@@ -91,233 +209,480 @@ function authHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
 }
 
-let currentSet = '';
+// State
+let currentFamilyId = null;
+let currentFamilyName = '';
 let currentGameTitle = '';
-let currentSingles = [];
+let currentRarities = [];
+let currentPage = { offset: 0, limit: 50, total: 0 };
+let allFamilies = [];
+let importParsed = null;
+let searchTimer = null;
+let expandedCards = new Set();
 
+// ===================== INIT =====================
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
     await loadFamilies();
+    // Restore family_id from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramFid = parseInt(urlParams.get('family_id'));
+    if (paramFid) {
+        const match = allFamilies.find(f => f.family_id === paramFid);
+        if (match) { selectFamily(match); return; }
+    }
+    // Legacy: resolve set= param via set_code
+    const paramSet = urlParams.get('family') || urlParams.get('set');
+    if (paramSet) {
+        const match = allFamilies.find(f => f.set_code === paramSet || f.set_name === paramSet);
+        if (match) { selectFamily(match); return; }
+    }
+    const firstWithSingles = allFamilies.find(f => f.singles_count > 0);
+    if (firstWithSingles) selectFamily(firstWithSingles);
 });
 
+// ===================== FAMILIES SIDEBAR =====================
 async function loadFamilies() {
     try {
         const res = await fetch(`${API_URL}/inventory/all-families`);
-        const families = await res.json();
-        const list = document.getElementById('sets-list');
-
-        if (!families.length) {
-            list.innerHTML = '<div class="text-xs text-gray-500 py-4">No inventory found.</div>';
-            return;
-        }
-
-        let lastIP = '';
-        let html = '';
-        families.forEach(f => {
-            const ip = f.game_title || 'Other';
-            if (ip !== lastIP) {
-                html += `<div class="ip-header">${ip}</div>`;
-                lastIP = ip;
-            }
-            const count = parseInt(f.singles_count) || 0;
-            const noSinglesClass = count === 0 ? ' no-singles' : '';
-            const badge = count > 0
-                ? `<span class="count-badge">${count}</span>`
-                : `<span class="count-badge text-gray-300">0</span>`;
-            html += `<div class="family-item${noSinglesClass}"
-                          onclick="selectFamily('${esc(f.set_name)}', '${esc(ip)}')"
-                          id="family-link-${esc(f.set_name)}">
-                        <span>${f.set_name}</span>${badge}
-                     </div>`;
-        });
-        list.innerHTML = html;
-
-        // Auto-select from URL param or first family with singles
-        const urlParams = new URLSearchParams(window.location.search);
-        const paramFamily = urlParams.get('family');
-        if (paramFamily) {
-            const match = families.find(f => f.set_name === paramFamily);
-            if (match) { selectFamily(match.set_name, match.game_title || 'Other'); return; }
-        }
-        const firstWithSingles = families.find(f => parseInt(f.singles_count) > 0);
-        if (firstWithSingles) selectFamily(firstWithSingles.set_name, firstWithSingles.game_title || 'Other');
-
+        allFamilies = await res.json();
+        renderSidebar(allFamilies);
     } catch (e) {
         document.getElementById('sets-list').innerHTML = '<div class="text-red-400 text-xs py-4">Failed to load releases.</div>';
     }
 }
 
-async function selectFamily(setName, gameTitle) {
-    currentSet = setName;
-    currentGameTitle = gameTitle;
+function renderSidebar(families) {
+    const list = document.getElementById('sets-list');
+    if (!families.length) { list.innerHTML = '<div class="text-xs text-gray-500 py-4">No families found.</div>'; return; }
+    let lastGame = '', html = '';
+    families.forEach(f => {
+        const game = f.game_title || 'Other';
+        if (game !== lastGame) { html += `<div class="ip-header">${esc(game)}</div>`; lastGame = game; }
+        const noSingles = f.singles_count === 0 ? ' no-singles' : '';
+        const active = f.family_id === currentFamilyId ? ' active' : '';
+        html += `<div class="family-item${noSingles}${active}" id="fam-${f.family_id}"
+                      data-fid="${f.family_id}" onclick="selectFamilyById(this.dataset.fid)">
+                    <span class="truncate">${esc(f.set_name)}</span>
+                    <span class="count-badge ml-1">${f.singles_count}</span>
+                 </div>`;
+    });
+    list.innerHTML = html;
+}
 
+function selectFamilyById(fidStr) {
+    const fid = parseInt(fidStr);
+    const f = allFamilies.find(x => x.family_id === fid);
+    if (f) selectFamily(f);
+}
+
+function filterSidebar(q) {
+    const lower = q.toLowerCase();
+    const filtered = allFamilies.filter(f =>
+        !q || f.set_name.toLowerCase().includes(lower) || (f.set_code || '').toLowerCase().includes(lower)
+    );
+    renderSidebar(filtered);
+}
+
+function selectFamily(f) {
+    currentFamilyId = f.family_id;
+    currentFamilyName = f.set_name;
+    currentGameTitle = f.game_title || '';
+    currentRarities = f.distinct_rarities || [];
+    currentPage.offset = 0;
+    expandedCards.clear();
+
+    // Update URL
+    const url = new URL(window.location);
+    url.searchParams.set('family_id', f.family_id);
+    window.history.replaceState(null, '', url);
+
+    // Update sidebar active state
     document.querySelectorAll('.family-item').forEach(el => el.classList.remove('active'));
-    const link = document.getElementById(`family-link-${setName}`);
-    if (link) link.classList.add('active');
+    const el = document.getElementById(`fam-${f.family_id}`);
+    if (el) el.classList.add('active');
 
-    document.getElementById('breadcrumb').textContent = `${gameTitle} › Singles`;
-    document.getElementById('current-set-title').textContent = setName;
+    // Update header
+    document.getElementById('breadcrumb').textContent = `${currentGameTitle} › Singles`;
+    document.getElementById('current-set-title').textContent = f.set_name;
     document.getElementById('add-card-btn').classList.remove('hidden');
+    document.getElementById('import-btn').classList.remove('hidden');
+    const sl = document.getElementById('view-sealed-link');
+    sl.href = `admin-inventory.html?family_id=${f.family_id}`;
+    sl.classList.remove('hidden');
 
-    const sealedLink = document.getElementById('view-sealed-link');
-    sealedLink.href = `admin-inventory.html?family=${encodeURIComponent(setName)}`;
-    sealedLink.classList.remove('hidden');
+    // Populate rarity dropdown
+    const rarSel = document.getElementById('rarity-filter');
+    rarSel.innerHTML = '<option value="">All rarities</option>' +
+        currentRarities.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
+
+    loadSingles(true);
+}
+
+// ===================== LOAD SINGLES =====================
+async function loadSingles(resetPage = false) {
+    if (!currentFamilyId) return;
+    if (resetPage) currentPage.offset = 0;
+
+    const search = document.getElementById('search-input').value.trim();
+    const rarity = document.getElementById('rarity-filter').value;
+    const inStockOnly = document.getElementById('instock-toggle').checked;
+    const sort = document.getElementById('sort-select').value;
+
+    const params = new URLSearchParams({
+        family_id: currentFamilyId,
+        limit: currentPage.limit,
+        offset: currentPage.offset,
+        sort
+    });
+    if (search) params.set('search', search);
+    if (rarity) params.set('rarity', rarity);
+    if (inStockOnly) params.set('in_stock_only', 'true');
 
     const body = document.getElementById('singles-body');
-    body.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">Loading singles...</td></tr>';
+    body.innerHTML = `<tr><td colspan="10" class="text-center py-10 text-gray-400">Loading…</td></tr>`;
 
     try {
-        const res = await fetch(`${API_URL}/inventory/singles?set=${encodeURIComponent(setName)}`);
-        currentSingles = await res.json();
-        renderSingles();
+        const res = await fetch(`${API_URL}/inventory/singles?${params}`);
+        if (!res.ok) { const j = await res.json(); throw new Error(j.error || res.statusText); }
+        const data = await res.json();
+        currentPage.total = data.total_cards;
+        renderSinglesRows(data.rows);
+        updatePagination();
     } catch (e) {
-        body.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-red-400">Failed to load singles.</td></tr>';
+        body.innerHTML = `<tr><td colspan="10" class="text-center py-10 text-red-400">Failed to load singles: ${esc(e.message)}</td></tr>`;
     }
 }
 
-function renderSingles() {
+function scheduleSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => loadSingles(true), 250);
+}
+
+// ===================== RENDER ROWS =====================
+function renderSinglesRows(rows) {
     const body = document.getElementById('singles-body');
-    if (!currentSingles.length) {
-        body.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-gray-400 text-sm">No singles in this release yet. Click <strong>+ Add Card</strong> to get started.</td></tr>';
+    if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="10" class="text-center py-10 text-gray-400 text-sm">No singles found. Click <strong>+ Add Card</strong> or <strong>Import JSON</strong> to get started.</td></tr>`;
         return;
     }
-
-    body.innerHTML = currentSingles.map(c => `
-        <tr data-id="${c.id}">
-            <td><input type="text" value="${esc(c.card_id)}" onchange="updateSingle(${c.id}, 'card_id', this.value)" placeholder="ID"></td>
-            <td><input type="text" value="${esc(c.card_name)}" onchange="updateSingle(${c.id}, 'card_name', this.value)" placeholder="Name"></td>
-            <td>
-                <select onchange="updateSingle(${c.id}, 'card_condition', this.value)">
-                    <option value="" ${!c.card_condition ? 'selected' : ''}>-</option>
-                    <option value="NM" ${c.card_condition === 'NM' ? 'selected' : ''}>NM</option>
-                    <option value="LP" ${c.card_condition === 'LP' ? 'selected' : ''}>LP</option>
-                    <option value="MP" ${c.card_condition === 'MP' ? 'selected' : ''}>MP</option>
-                    <option value="HP" ${c.card_condition === 'HP' ? 'selected' : ''}>HP</option>
-                    <option value="DMG" ${c.card_condition === 'DMG' ? 'selected' : ''}>DMG</option>
-                </select>
-            </td>
-            <td>
-                <select onchange="updateSingle(${c.id}, 'card_finish', this.value)">
-                    <option value="" ${!c.card_finish ? 'selected' : ''}>Normal</option>
-                    <option value="Foil" ${c.card_finish === 'Foil' ? 'selected' : ''}>Foil</option>
-                    <option value="Reverse" ${c.card_finish === 'Reverse' ? 'selected' : ''}>Reverse</option>
-                    <option value="Alt Art" ${c.card_finish === 'Alt Art' ? 'selected' : ''}>Alt Art</option>
-                </select>
-            </td>
-            <td><input type="number" step="0.01" value="${parseFloat(c.price || 0).toFixed(2)}" onchange="updateSingle(${c.id}, 'price', this.value)"></td>
-            <td><input type="number" value="${c.stock_quantity || 0}" onchange="updateSingle(${c.id}, 'stock_quantity', this.value)"></td>
-            <td style="text-align:center;">
-                <button onclick="deleteSingle(${c.id})" class="text-red-400 hover:text-red-600 font-bold px-2 py-1">✕</button>
-            </td>
-        </tr>
-    `).join('');
+    body.innerHTML = '';
+    for (const card of rows) {
+        if (card.variant_count === 1) {
+            body.appendChild(buildSingleVariantRow(card, card.variants[0]));
+        } else {
+            body.appendChild(buildGroupHeaderRow(card));
+            for (const v of card.variants) {
+                body.appendChild(buildVariantSubRow(card, v));
+            }
+            // Add variant button row — use data attrs to avoid escaping issues in selector
+            const addVarRow = document.createElement('tr');
+            addVarRow.className = 'new-variant-row';
+            const btn = document.createElement('button');
+            btn.className = 'text-xs text-blue-600 hover:underline';
+            btn.textContent = '+ Add variant';
+            btn.dataset.cardId = card.card_id || '';
+            btn.dataset.cardName = card.card_name;
+            btn.onclick = () => addVariantRow(btn);
+            const td = document.createElement('td');
+            td.colSpan = 10;
+            td.className = 'py-1 pl-12';
+            td.appendChild(btn);
+            addVarRow.appendChild(td);
+            body.appendChild(addVarRow);
+        }
+    }
+    hideCollapsedVariants();
 }
 
-function addRow() {
-    if (!currentSet) { showToast('Select a release first', 'error'); return; }
-    const body = document.getElementById('singles-body');
-    // Remove empty-state row if present
-    if (!currentSingles.length) body.innerHTML = '';
+function groupKey(card) {
+    return card.card_id ? `id:${card.card_id}` : `nm:${card.card_name}`;
+}
 
+function buildSingleVariantRow(card, v) {
     const tr = document.createElement('tr');
-    tr.className = 'bg-blue-50';
+    tr.className = 'card-row';
+    tr.dataset.id = v.id;
     tr.innerHTML = `
-        <td><input type="text" id="new-card-id" placeholder="ID"></td>
-        <td><input type="text" id="new-card-name" placeholder="Card Name" required></td>
-        <td>
-            <select id="new-card-condition">
-                <option value="NM" selected>NM</option>
-                <option value="LP">LP</option>
-                <option value="MP">MP</option>
-                <option value="HP">HP</option>
-                <option value="DMG">DMG</option>
-            </select>
+        <td>${thumbHtml(v.image_url)}</td>
+        <td class="editable" onclick="enterEdit(this,'text','card_id','${esc(v.id)}')">${dispCell(card.card_id)}</td>
+        <td class="editable" onclick="enterEdit(this,'text','card_name','${esc(v.id)}')">${dispCell(card.card_name)}</td>
+        <td class="editable" onclick="enterEdit(this,'text','rarity','${esc(v.id)}')">${rarityBadge(card.rarity)}</td>
+        <td>${condSelect(v.id, v.card_condition)}</td>
+        <td>${finishSelect(v.id, v.card_finish)}</td>
+        <td class="editable" onclick="enterEdit(this,'price','price','${esc(v.id)}')">${priceCell(v.price, v.reference)}</td>
+        <td class="editable" onclick="enterEdit(this,'number','stock_quantity','${esc(v.id)}')">${dispCell(v.stock_quantity)}</td>
+        <td class="text-gray-400 text-[11px]">${relativeTime(v.updated_at)}</td>
+        <td class="text-center"><button onclick="deleteSingle(${v.id})" class="text-red-400 hover:text-red-600 font-bold px-1">✕</button></td>
+    `;
+    return tr;
+}
+
+function buildGroupHeaderRow(card) {
+    const key = groupKey(card);
+    const isOpen = expandedCards.has(key);
+    const priceRange = card.price_min === card.price_max
+        ? `$${fmt(card.price_max)}`
+        : `$${fmt(card.price_min)} – $${fmt(card.price_max)}`;
+    const tr = document.createElement('tr');
+    tr.className = `card-row${isOpen ? ' expanded' : ''}`;
+    tr.id = `grp-${CSS.escape(key)}`;
+    tr.innerHTML = `
+        <td><span class="chevron${isOpen ? ' open' : ''}" id="chev-${CSS.escape(key)}">▶</span></td>
+        <td class="font-mono text-gray-700">${esc(card.card_id || '—')}</td>
+        <td class="font-medium text-gray-900">${esc(card.card_name)}</td>
+        <td>${rarityBadge(card.rarity)}</td>
+        <td colspan="2" class="text-gray-500 text-xs">${card.variant_count} variants</td>
+        <td class="text-gray-600">${priceRange}</td>
+        <td class="text-gray-700 font-medium">${card.total_stock}</td>
+        <td></td>
+        <td class="text-center">
+            <button onclick="toggleGroup('${esc(key)}')" class="text-gray-400 hover:text-gray-600 text-xs px-1">expand</button>
         </td>
-        <td>
-            <select id="new-card-finish">
-                <option value="" selected>Normal</option>
-                <option value="Foil">Foil</option>
-                <option value="Reverse">Reverse</option>
-                <option value="Alt Art">Alt Art</option>
-            </select>
-        </td>
-        <td><input type="number" step="0.01" id="new-price" value="0.00"></td>
-        <td><input type="number" id="new-stock" value="0"></td>
-        <td style="text-align:center;">
-            <button onclick="saveNewRow(this)" class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-blue-700">Save</button>
+    `;
+    tr.querySelector('.chevron').parentElement.style.cursor = 'pointer';
+    tr.querySelector('td:first-child').onclick = () => toggleGroup(key);
+    tr.querySelector('td:nth-child(2)').onclick = () => toggleGroup(key);
+    return tr;
+}
+
+function buildVariantSubRow(card, v) {
+    const tr = document.createElement('tr');
+    tr.className = 'variant-subrow';
+    tr.dataset.id = v.id;
+    tr.innerHTML = `
+        <td class="pl-8">${thumbHtml(v.image_url)}</td>
+        <td></td>
+        <td class="text-gray-500 text-xs">${esc(card.card_name)}</td>
+        <td></td>
+        <td>${condSelect(v.id, v.card_condition)}</td>
+        <td>${finishSelect(v.id, v.card_finish)}</td>
+        <td class="editable" onclick="enterEdit(this,'price','price','${esc(v.id)}')">${priceCell(v.price, v.reference)}</td>
+        <td class="editable" onclick="enterEdit(this,'number','stock_quantity','${esc(v.id)}')">${dispCell(v.stock_quantity)}</td>
+        <td class="text-gray-400 text-[11px]">${relativeTime(v.updated_at)}</td>
+        <td class="text-center"><button onclick="deleteSingle(${v.id})" class="text-red-400 hover:text-red-600 font-bold px-1">✕</button></td>
+    `;
+    return tr;
+}
+
+function toggleGroup(key) {
+    const chev = document.getElementById(`chev-${CSS.escape(key)}`);
+    const grpRow = document.getElementById(`grp-${CSS.escape(key)}`);
+    const isOpen = expandedCards.has(key);
+    // Find variant rows: all variant-subrow trs after this group row until the next card-row
+    const allRows = Array.from(document.querySelectorAll('#singles-body tr'));
+    const grpIdx = allRows.indexOf(grpRow);
+    let i = grpIdx + 1;
+    while (i < allRows.length && !allRows[i].classList.contains('card-row')) {
+        allRows[i].style.display = isOpen ? 'none' : '';
+        i++;
+    }
+    if (isOpen) {
+        expandedCards.delete(key);
+        chev && chev.classList.remove('open');
+        grpRow && grpRow.classList.remove('expanded');
+    } else {
+        expandedCards.add(key);
+        chev && chev.classList.add('open');
+        grpRow && grpRow.classList.add('expanded');
+    }
+}
+
+// Initially hide variant rows for non-expanded groups
+function hideCollapsedVariants() {
+    const allRows = Array.from(document.querySelectorAll('#singles-body tr'));
+    let inGroup = false, key = null;
+    for (const tr of allRows) {
+        if (tr.classList.contains('card-row')) {
+            const chev = tr.querySelector('.chevron');
+            inGroup = !!chev;
+            key = tr.id ? tr.id.replace('grp-', '') : null;
+        } else if (tr.classList.contains('variant-subrow') || tr.classList.contains('new-variant-row')) {
+            if (inGroup && key && !expandedCards.has(key)) {
+                tr.style.display = 'none';
+            }
+        }
+    }
+}
+
+// ===================== INLINE EDIT =====================
+function enterEdit(td, type, field, rawId) {
+    const id = rawId;
+    if (td.querySelector('input, select')) return;
+    const current = td.querySelector('.cell-display')?.textContent ?? td.textContent.trim();
+    const value = field === 'price' ? parseFloat(current.replace('$','')) || 0 :
+                  field === 'stock_quantity' ? parseInt(current) || 0 : current === '—' ? '' : current;
+
+    const input = document.createElement('input');
+    input.type = type === 'price' ? 'number' : type === 'number' ? 'number' : 'text';
+    if (type === 'price') { input.step = '0.01'; input.min = '0'; }
+    if (type === 'number') { input.min = '0'; }
+    input.value = value;
+    input.className = 'cell-input';
+
+    const orig = td.innerHTML;
+    td.innerHTML = '';
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    const save = async () => {
+        const newVal = type === 'price' ? parseFloat(input.value) || 0
+                      : type === 'number' ? parseInt(input.value) || 0
+                      : input.value.trim();
+        td.innerHTML = orig;
+        await patchSingle(parseInt(id), field, newVal, td);
+    };
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); input.removeEventListener('blur', save); save(); }
+        if (e.key === 'Escape') { input.removeEventListener('blur', save); td.innerHTML = orig; }
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            input.removeEventListener('blur', save);
+            save();
+            // Move to next editable cell in same row
+            const row = td.closest('tr');
+            const editables = Array.from(row.querySelectorAll('.editable'));
+            const idx = editables.indexOf(td);
+            if (idx >= 0 && idx < editables.length - 1) editables[idx + 1].click();
+        }
+    });
+}
+
+async function patchSingle(id, field, value, td) {
+    try {
+        const res = await fetch(`${API_URL}/inventory/${id}`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify({ [field]: value })
+        });
+        if (!res.ok) { const j = await res.json(); throw new Error(j.error || res.statusText); }
+        // Reload to show updated value; flash handled by re-render timing
+        reloadFamilyMeta();
+        loadSingles();
+    } catch (e) {
+        showToast('Save failed: ' + e.message, 'error');
+        loadSingles();
+    }
+}
+
+async function condSelectChange(id, value) { await patchSingle(id, 'card_condition', value, null); }
+async function finishSelectChange(id, value) { await patchSingle(id, 'card_finish', value, null); }
+
+// ===================== ADD CARD =====================
+function addCardRow() {
+    if (!currentFamilyId) { showToast('Select a release first', 'error'); return; }
+    // Remove existing new row if any
+    document.querySelectorAll('.new-card-row').forEach(r => r.remove());
+    const body = document.getElementById('singles-body');
+    const tr = document.createElement('tr');
+    tr.className = 'card-row new-card-row';
+    tr.innerHTML = `
+        <td></td>
+        <td><input type="text" id="new-card-id" placeholder="BT25-001" class="cell-input" autofocus></td>
+        <td><input type="text" id="new-card-name" placeholder="Card Name *" class="cell-input"></td>
+        <td><input type="text" id="new-rarity" placeholder="C" class="cell-input" style="width:52px"></td>
+        <td>${condSelectNew()}</td>
+        <td>${finishSelectNew()}</td>
+        <td><input type="number" id="new-price" value="0" step="0.01" class="cell-input" style="width:80px"></td>
+        <td><input type="number" id="new-stock" value="0" class="cell-input" style="width:60px"></td>
+        <td></td>
+        <td class="text-center">
+            <button onclick="saveNewCard()" class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 font-semibold">Save</button>
+            <button onclick="this.closest('tr').remove()" class="text-xs text-gray-400 hover:text-gray-600 px-1 ml-1">✕</button>
         </td>
     `;
     body.insertBefore(tr, body.firstChild);
     document.getElementById('new-card-id').focus();
 }
 
-async function saveNewRow(btn) {
-    const tr = btn.closest('tr');
-    const cardName = tr.querySelector('#new-card-name').value.trim();
-    if (!cardName) { showToast('Card Name is required', 'error'); return; }
-
+async function saveNewCard() {
+    const name = document.getElementById('new-card-name').value.trim();
+    if (!name) { showToast('Card name is required', 'error'); return; }
     const data = {
+        family_id: currentFamilyId,
         product_type: 'single',
-        set_name: currentSet,
-        game_title: currentGameTitle,
-        card_id: tr.querySelector('#new-card-id').value.trim(),
-        card_name: cardName,
-        card_condition: tr.querySelector('#new-card-condition').value,
-        card_finish: tr.querySelector('#new-card-finish').value,
-        price: parseFloat(tr.querySelector('#new-price').value) || 0,
-        stock_quantity: parseInt(tr.querySelector('#new-stock').value) || 0
+        card_id: document.getElementById('new-card-id').value.trim() || null,
+        card_name: name,
+        rarity: document.getElementById('new-rarity').value.trim() || null,
+        card_condition: document.getElementById('new-condition').value || 'NM',
+        card_finish: document.getElementById('new-finish').value || null,
+        price: parseFloat(document.getElementById('new-price').value) || 0,
+        stock_quantity: parseInt(document.getElementById('new-stock').value) || 0
     };
-
     try {
-        const res = await fetch(`${API_URL}/inventory/add`, {
-            method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
-        });
+        const res = await fetch(`${API_URL}/inventory/add`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         showToast('Card added!', 'success');
+        document.querySelectorAll('.new-card-row').forEach(r => r.remove());
         await loadFamilies();
-        selectFamily(currentSet, currentGameTitle);
+        loadSingles();
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-async function updateSingle(id, field, value) {
-    const card = currentSingles.find(c => c.id === id);
-    if (!card) return;
+// ===================== ADD VARIANT =====================
+function addVariantRow(btn) {
+    const cardId = btn.dataset.cardId;
+    const cardName = btn.dataset.cardName;
+    // Remove any existing new-variant-inline row
+    document.querySelectorAll('.new-variant-inline').forEach(r => r.remove());
 
-    const payload = {
-        product_type: 'single',
-        set_name: card.set_name,
-        game_title: card.game_title || currentGameTitle,
-        card_id: field === 'card_id' ? value : card.card_id,
-        card_name: field === 'card_name' ? value : card.card_name,
-        card_condition: field === 'card_condition' ? value : card.card_condition,
-        card_finish: field === 'card_finish' ? value : card.card_finish,
-        price: field === 'price' ? parseFloat(value) : card.price,
-        stock_quantity: field === 'stock_quantity' ? parseInt(value) : card.stock_quantity
-    };
+    const refRow = btn.closest('tr');
+    if (!refRow) return;
 
-    try {
-        const res = await fetch(`${API_URL}/inventory/${id}`, {
-            method: 'PUT', headers: authHeaders(), body: JSON.stringify(payload)
-        });
-        if (!res.ok) {
-            const json = await res.json();
-            throw new Error(json.error);
-        }
-        card[field] = payload[field];
-
-        const row = document.querySelector(`tr[data-id="${id}"]`);
-        if (row) {
-            row.style.transition = 'background-color 0.3s';
-            row.style.backgroundColor = '#d1fae5';
-            setTimeout(() => { row.style.backgroundColor = ''; }, 500);
-        }
-    } catch (e) {
-        showToast('Failed to save: ' + e.message, 'error');
-        selectFamily(currentSet, currentGameTitle);
-    }
+    const tr = document.createElement('tr');
+    tr.className = 'new-variant-row new-variant-inline';
+    tr.innerHTML = `
+        <td class="pl-8"></td>
+        <td></td>
+        <td class="text-xs text-gray-400">${esc(cardName)}</td>
+        <td></td>
+        <td>${condSelectNew('LP')}</td>
+        <td>${finishSelectNew()}</td>
+        <td><input type="number" id="var-price" value="0" step="0.01" class="cell-input" style="width:80px"></td>
+        <td><input type="number" id="var-stock" value="0" class="cell-input" style="width:60px"></td>
+        <td></td>
+        <td class="text-center">
+            <button class="save-variant-btn text-xs bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 font-semibold">Save</button>
+            <button onclick="this.closest('tr').remove()" class="text-xs text-gray-400 hover:text-gray-600 px-1 ml-1">✕</button>
+        </td>
+    `;
+    const saveBtn = tr.querySelector('.save-variant-btn');
+    saveBtn.dataset.cardId = cardId;
+    saveBtn.dataset.cardName = cardName;
+    saveBtn.onclick = () => saveNewVariant(saveBtn);
+    refRow.parentNode.insertBefore(tr, refRow);
+    tr.querySelector('#var-price').focus();
 }
 
+async function saveNewVariant(btn) {
+    const cardId = btn.dataset.cardId;
+    const cardName = btn.dataset.cardName;
+    const row = btn.closest('tr');
+    const data = {
+        family_id: currentFamilyId,
+        product_type: 'single',
+        card_id: cardId || null,
+        card_name: cardName,
+        card_condition: row.querySelector('#new-condition').value || 'LP',
+        card_finish: row.querySelector('#new-finish').value || null,
+        price: parseFloat(row.querySelector('#var-price').value) || 0,
+        stock_quantity: parseInt(row.querySelector('#var-stock').value) || 0
+    };
+    try {
+        const res = await fetch(`${API_URL}/inventory/add`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Variant added!', 'success');
+        document.querySelectorAll('.new-variant-inline').forEach(r => r.remove());
+        await loadFamilies();
+        loadSingles();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ===================== DELETE =====================
 async function deleteSingle(id) {
     if (!confirm('Delete this card? This cannot be undone.')) return;
     try {
@@ -326,11 +691,235 @@ async function deleteSingle(id) {
         if (!res.ok) throw new Error(json.error);
         showToast('Card deleted', 'success');
         await loadFamilies();
-        selectFamily(currentSet, currentGameTitle);
+        loadSingles();
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-function esc(str) { return (str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+// ===================== PAGINATION =====================
+function updatePagination() {
+    const { offset, limit, total } = currentPage;
+    const from = total === 0 ? 0 : offset + 1;
+    const to = Math.min(offset + limit, total);
+    const pageNum = Math.floor(offset / limit) + 1;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const text = `Showing ${from}–${to} of ${total} cards`;
+
+    const show = total > limit;
+    ['pagination-bar','pagination-bottom'].forEach(id => {
+        document.getElementById(id).style.display = show ? '' : 'none';
+    });
+    ['page-info','page-info-bottom'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    });
+    ['btn-prev','btn-prev-b'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.disabled = offset === 0;
+    });
+    ['btn-next','btn-next-b'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.disabled = pageNum >= totalPages;
+    });
+}
+
+function changePage(dir) {
+    const { offset, limit, total } = currentPage;
+    const newOffset = Math.max(0, Math.min(offset + dir * limit, total - 1));
+    if (newOffset === offset) return;
+    currentPage.offset = newOffset;
+    expandedCards.clear();
+    loadSingles(false);
+}
+
+// ===================== IMPORT MODAL =====================
+function openImportModal() {
+    if (!currentFamilyId) { showToast('Select a release first', 'error'); return; }
+    importParsed = null;
+    document.getElementById('import-file').value = '';
+    document.getElementById('import-paste').value = '';
+    document.getElementById('import-preview').classList.add('hidden');
+    document.getElementById('import-error').classList.add('hidden');
+    document.getElementById('do-import-btn').disabled = true;
+    document.getElementById('import-modal').classList.remove('hidden');
+}
+
+function closeImportModal() {
+    document.getElementById('import-modal').classList.add('hidden');
+}
+
+function handleImportFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => { parseImportJson(e.target.result); };
+    reader.readAsText(file);
+}
+
+document.getElementById('import-paste').addEventListener('input', function() {
+    if (this.value.trim()) parseImportJson(this.value);
+});
+
+function parseImportJson(text) {
+    const errEl = document.getElementById('import-error');
+    try {
+        const data = JSON.parse(text);
+        if (!Array.isArray(data.cards)) throw new Error('Missing "cards" array in JSON');
+        importParsed = data;
+        errEl.classList.add('hidden');
+        showImportPreview(data.cards);
+        document.getElementById('do-import-btn').disabled = false;
+    } catch (e) {
+        errEl.textContent = 'Invalid JSON: ' + e.message;
+        errEl.classList.remove('hidden');
+        document.getElementById('import-preview').classList.add('hidden');
+        document.getElementById('do-import-btn').disabled = true;
+        importParsed = null;
+    }
+}
+
+function showImportPreview(cards) {
+    const preview = document.getElementById('import-preview');
+    document.getElementById('preview-count').textContent = `(${cards.length} cards total, first 20 shown)`;
+    const tbody = document.getElementById('preview-tbody');
+    tbody.innerHTML = cards.slice(0, 20).map(c => `
+        <tr class="border-t border-gray-100">
+            <td class="px-3 py-1 font-mono text-gray-600">${esc(c.card_id || '—')}</td>
+            <td class="px-3 py-1">${esc(c.name || c.card_name || '—')}</td>
+            <td class="px-3 py-1">${c.rarity ? rarityBadge(c.rarity) : '—'}</td>
+            <td class="px-3 py-1">${c.currency || 'JPY'} ${c.reference_price ?? '—'}</td>
+        </tr>`).join('');
+    preview.classList.remove('hidden');
+}
+
+async function doImport() {
+    if (!importParsed || !currentFamilyId) return;
+    const btn = document.getElementById('do-import-btn');
+    btn.disabled = true;
+    btn.textContent = 'Importing…';
+    try {
+        const body = {
+            family_id: currentFamilyId,
+            source: importParsed.source || 'yuyu-tei',
+            source_url: importParsed.source_url || null,
+            scraped_at: importParsed.scraped_at || new Date().toISOString(),
+            cards: importParsed.cards,
+            create_missing: document.getElementById('create-missing').checked
+        };
+        const res = await fetch(`${API_URL}/inventory/singles/import`, {
+            method: 'POST', headers: authHeaders(), body: JSON.stringify(body)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        const s = json.summary;
+        showToast(`${s.received} cards: ${s.inventory_created} created, ${s.inventory_skipped_existing} already existed`, 'success');
+        closeImportModal();
+        await loadFamilies();
+        loadSingles(true);
+    } catch (e) {
+        showToast('Import failed: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Import';
+    }
+}
+
+// ===================== HELPERS =====================
+async function reloadFamilyMeta() {
+    try {
+        const res = await fetch(`${API_URL}/inventory/all-families`);
+        const fams = await res.json();
+        allFamilies = fams;
+        const cur = fams.find(f => f.family_id === currentFamilyId);
+        if (cur) {
+            currentRarities = cur.distinct_rarities || [];
+            const rarSel = document.getElementById('rarity-filter');
+            const selected = rarSel.value;
+            rarSel.innerHTML = '<option value="">All rarities</option>' +
+                currentRarities.map(r => `<option value="${esc(r)}" ${r === selected ? 'selected' : ''}>${esc(r)}</option>`).join('');
+            // Update sidebar badges
+            renderSidebar(fams);
+            const el = document.getElementById(`fam-${currentFamilyId}`);
+            if (el) el.classList.add('active');
+        }
+    } catch (_) {}
+}
+
+function dispCell(val) {
+    return `<span class="cell-display">${esc(String(val ?? '—'))}</span>`;
+}
+
+function priceCell(price, ref) {
+    const display = `<span class="cell-display">$${fmt(price)}</span>`;
+    if (!ref) return display;
+    const ago = relativeTime(ref.scraped_at);
+    const link = ref.source_url
+        ? `<a href="${esc(ref.source_url)}" target="_blank" rel="noopener" title="Open ${esc(ref.source)} page">↗</a>`
+        : '';
+    return `${display}<div class="ref-hint" title="Reference price from external source. Not your cost or sale price.">ref: ¥${ref.reference_price} · ${esc(ref.source)} · ${ago} ${link}</div>`;
+}
+
+function rarityBadge(r) {
+    if (!r) return '<span class="text-gray-300">—</span>';
+    return `<span class="rarity-badge">${esc(r)}</span>`;
+}
+
+function thumbHtml(url) {
+    if (!url) return '';
+    return `<div class="thumb-wrap">
+        <img src="${esc(url)}" class="card-thumb" onerror="this.style.display='none'">
+        <img src="${esc(url)}" class="thumb-preview" style="top:0;left:36px" onerror="this.style.display='none'">
+    </div>`;
+}
+
+function condSelect(id, val) {
+    const opts = ['NM','LP','MP','HP','DMG'];
+    return `<select class="cell-select" onchange="condSelectChange(${id}, this.value)">
+        ${opts.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
+    </select>`;
+}
+
+function finishSelect(id, val) {
+    const opts = [['','Normal'],['Foil','Foil'],['Reverse','Reverse'],['Alt Art','Alt Art']];
+    return `<select class="cell-select" onchange="finishSelectChange(${id}, this.value)">
+        ${opts.map(([v,l]) => `<option value="${v}" ${(val||'')===(v)?'selected':''}>${l}</option>`).join('')}
+    </select>`;
+}
+
+function condSelectNew(def='NM') {
+    const opts = ['NM','LP','MP','HP','DMG'];
+    return `<select id="new-condition" class="cell-select">
+        ${opts.map(o => `<option value="${o}" ${o===def?'selected':''}>${o}</option>`).join('')}
+    </select>`;
+}
+
+function finishSelectNew() {
+    return `<select id="new-finish" class="cell-select">
+        <option value="">Normal</option>
+        <option value="Foil">Foil</option>
+        <option value="Reverse">Reverse</option>
+        <option value="Alt Art">Alt Art</option>
+    </select>`;
+}
+
+function fmt(n) { return parseFloat(n || 0).toFixed(2); }
+
+function relativeTime(ts) {
+    if (!ts) return '—';
+    const diff = Date.now() - new Date(ts).getTime();
+    const sec = Math.floor(diff / 1000);
+    if (sec < 60) return 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const d = Math.floor(hr / 24);
+    if (d < 30) return `${d}d ago`;
+    return `${Math.floor(d/30)}mo ago`;
+}
+
+function esc(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 function showToast(msg, type = 'success') {
     const container = document.getElementById('toast-container');
@@ -339,7 +928,7 @@ function showToast(msg, type = 'success') {
     toast.textContent = type === 'success' ? `✓ ${msg}` : `✕ ${msg}`;
     container.appendChild(toast);
     requestAnimationFrame(() => toast.classList.add('show'));
-    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4000);
 }
 </script>
 </body>

@@ -698,24 +698,39 @@ app.get('/api/inventory/family-by-id/:id', async (req, res) => {
 // 4.1 SINGLES MANAGEMENT
 // ==========================================
 
-// Get all families (IP + set_name) across both sealed and singles inventory
+// Get all families — used by both sealed and singles sidebars
+// Extended with family_id and distinct_rarities for singles revamp
 app.get('/api/inventory/all-families', async (req, res) => {
   try {
     const [rows] = await db.execute(`
       SELECT
-        game_title,
-        set_name,
-        SUM(CASE WHEN product_type = 'single' THEN 1 ELSE 0 END) AS singles_count
-      FROM inventory
-      WHERE set_name IS NOT NULL AND set_name != ''
-      GROUP BY game_title, set_name
-      ORDER BY game_title, set_name
+        f.id AS family_id,
+        f.set_code,
+        f.set_name,
+        g.name AS game_title,
+        f.release_date,
+        COUNT(CASE WHEN i.product_type = 'single' THEN 1 END) AS singles_count,
+        (SELECT GROUP_CONCAT(DISTINCT rarity ORDER BY rarity SEPARATOR ',')
+         FROM inventory
+         WHERE family_id = f.id AND product_type = 'single' AND rarity IS NOT NULL AND rarity != '') AS rarities_csv
+      FROM inventory_families f
+      JOIN games g ON g.id = f.game_id
+      LEFT JOIN inventory i ON i.family_id = f.id
+      GROUP BY f.id, f.set_code, f.set_name, g.name, g.sort_order, f.sort_order, f.release_date
+      ORDER BY g.sort_order, g.name, f.release_date DESC, f.set_name
     `);
-    res.json(rows);
+    const result = rows.map(r => ({
+      ...r,
+      singles_count: parseInt(r.singles_count) || 0,
+      distinct_rarities: r.rarities_csv ? r.rarities_csv.split(',') : []
+    }));
+    // Remove the raw csv field
+    result.forEach(r => delete r.rarities_csv);
+    res.json(result);
   } catch (error) { res.status(500).json({ error: 'Failed to fetch families' }); }
 });
 
-// Get list of sets that have singles
+// Get list of sets that have singles (legacy — kept for backward compat)
 app.get('/api/inventory/singles/sets', async (req, res) => {
   try {
     const [rows] = await db.execute(`
@@ -728,25 +743,241 @@ app.get('/api/inventory/singles/sets', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to fetch singles sets' }); }
 });
 
-// Get all singles for a specific set
+// Paginated, searchable, sortable singles list grouped by card
 app.get('/api/inventory/singles', async (req, res) => {
-  const { set } = req.query;
+  let { family_id, set, search, rarity, in_stock_only, sort, limit, offset } = req.query;
+
+  // Resolve family_id — accept either family_id (int) or set= (set_code alias)
+  if (!family_id && set) {
+    try {
+      const [[fam]] = await db.execute(
+        'SELECT id FROM inventory_families WHERE set_code = ?', [set]
+      );
+      if (!fam) return res.status(400).json({ error: `No family found with set_code '${set}'` });
+      family_id = fam.id;
+    } catch (e) { return res.status(500).json({ error: 'Family lookup failed' }); }
+  }
+  if (!family_id) return res.status(400).json({ error: 'family_id or set is required' });
+
+  const VALID_SORTS = ['card_id_asc', 'card_name_asc', 'price_desc', 'stock_desc', 'updated_desc'];
+  sort = sort || 'card_id_asc';
+  if (!VALID_SORTS.includes(sort)) return res.status(400).json({ error: `sort must be one of: ${VALID_SORTS.join(', ')}` });
+
+  limit = Math.min(parseInt(limit) || 50, 200);
+  offset = parseInt(offset) || 0;
+
+  const sortMap = {
+    card_id_asc:   'COALESCE(card_id, \'~~~~~\') ASC, card_name ASC',
+    card_name_asc: 'card_name ASC',
+    price_desc:    'MAX(price) DESC',
+    stock_desc:    'SUM(stock_quantity) DESC',
+    updated_desc:  'MAX(updated_at) DESC'
+  };
+
   try {
-    let query = `
-      SELECT id, card_id, card_name, game_title, set_name, 
-             card_condition, card_finish, price, stock_quantity
-      FROM inventory
-      WHERE product_type = 'single'
-    `;
-    const params = [];
-    if (set) {
-      query += ' AND set_name = ?';
-      params.push(set);
+    // Build WHERE clause (used in both the count and data queries)
+    const baseWhere = ['family_id = ?', "product_type = 'single'"];
+    const baseParams = [family_id];
+
+    if (rarity) { baseWhere.push('rarity = ?'); baseParams.push(rarity); }
+    if (in_stock_only === 'true') { baseWhere.push('stock_quantity > 0'); }
+
+    // Search: AND-of-tokens across card_id, card_name, rarity
+    const tokens = search ? search.trim().split(/\s+/).filter(Boolean) : [];
+    for (const t of tokens) {
+      baseWhere.push("LOWER(CONCAT_WS(' ', COALESCE(card_id,''), card_name, COALESCE(rarity,''))) LIKE ?");
+      baseParams.push(`%${t.toLowerCase()}%`);
     }
-    query += ' ORDER BY card_id, card_name';
-    const [rows] = await db.execute(query, params);
-    res.json(rows);
+
+    const whereClause = 'WHERE ' + baseWhere.join(' AND ');
+
+    // Count distinct card groups
+    const [[{ total_cards }]] = await db.execute(
+      `SELECT COUNT(*) AS total_cards FROM (
+         SELECT card_id, card_name FROM inventory ${whereClause} GROUP BY card_id, card_name
+       ) AS grp`,
+      baseParams
+    );
+
+    // Get paginated card groups with aggregates
+    const [groupRows] = await db.execute(
+      `SELECT card_id, card_name,
+              MAX(rarity) AS rarity,
+              SUM(stock_quantity) AS total_stock,
+              MIN(price) AS price_min, MAX(price) AS price_max,
+              COUNT(*) AS variant_count
+       FROM inventory
+       ${whereClause}
+       GROUP BY card_id, card_name
+       ORDER BY ${sortMap[sort]}
+       LIMIT ${limit} OFFSET ${offset}`,
+      baseParams
+    );
+
+    if (!groupRows.length) {
+      return res.json({ rows: [], total_cards: parseInt(total_cards), limit, offset });
+    }
+
+    // Collect card_ids and null-card_names for variant fetch
+    const nonNullCardIds = groupRows.filter(r => r.card_id != null).map(r => r.card_id);
+    const nullNameCards  = groupRows.filter(r => r.card_id == null).map(r => r.card_name);
+
+    // Build dynamic IN clause for variant fetch
+    const variantWhereParts = [];
+    const variantParams = [family_id];
+    if (nonNullCardIds.length) {
+      variantWhereParts.push(`card_id IN (${nonNullCardIds.map(() => '?').join(',')})`);
+      variantParams.push(...nonNullCardIds);
+    }
+    if (nullNameCards.length) {
+      variantWhereParts.push(`(card_id IS NULL AND card_name IN (${nullNameCards.map(() => '?').join(',')}))`);
+      variantParams.push(...nullNameCards);
+    }
+    const variantWhere = variantWhereParts.length
+      ? `AND (${variantWhereParts.join(' OR ')})`
+      : 'AND 1=0';
+
+    const [variantRows] = await db.execute(
+      `SELECT i.id, i.card_id, i.card_name, i.card_condition, i.card_finish,
+              i.price, i.stock_quantity, i.updated_at, i.image_url,
+              sr.source AS ref_source, sr.source_url AS ref_source_url,
+              sr.reference_price, sr.currency AS ref_currency, sr.scraped_at AS ref_scraped_at
+       FROM inventory i
+       LEFT JOIN singles_reference sr
+         ON sr.family_id = i.family_id AND sr.card_id = i.card_id
+         AND sr.scraped_at = (
+           SELECT MAX(scraped_at) FROM singles_reference
+           WHERE family_id = i.family_id AND card_id = i.card_id
+         )
+       WHERE i.family_id = ? AND i.product_type = 'single' ${variantWhere}
+       ORDER BY i.card_id, i.card_name, i.card_condition, i.card_finish`,
+      variantParams
+    );
+
+    // Index variants by (card_id|'__null__'+card_name)
+    const variantMap = {};
+    for (const v of variantRows) {
+      const key = v.card_id != null ? v.card_id : '__null__' + v.card_name;
+      if (!variantMap[key]) variantMap[key] = [];
+      variantMap[key].push({
+        id: v.id,
+        card_condition: v.card_condition,
+        card_finish: v.card_finish,
+        price: v.price,
+        stock_quantity: v.stock_quantity,
+        updated_at: v.updated_at,
+        image_url: v.image_url,
+        reference: v.ref_source ? {
+          source: v.ref_source,
+          source_url: v.ref_source_url,
+          reference_price: v.reference_price,
+          currency: v.ref_currency,
+          scraped_at: v.ref_scraped_at
+        } : null
+      });
+    }
+
+    const rows = groupRows.map(g => {
+      const key = g.card_id != null ? g.card_id : '__null__' + g.card_name;
+      return {
+        card_id: g.card_id,
+        card_name: g.card_name,
+        rarity: g.rarity,
+        variants: variantMap[key] || [],
+        total_stock: parseInt(g.total_stock) || 0,
+        price_min: parseFloat(g.price_min) || 0,
+        price_max: parseFloat(g.price_max) || 0,
+        variant_count: parseInt(g.variant_count) || 0
+      };
+    });
+
+    res.json({ rows, total_cards: parseInt(total_cards), limit, offset });
   } catch (error) { res.status(500).json({ error: 'Failed to fetch singles' }); }
+});
+
+// Import singles reference data (and optionally scaffold inventory rows)
+app.post('/api/inventory/singles/import', authenticate, async (req, res) => {
+  const { family_id, source, source_url, scraped_at, cards, create_missing } = req.body;
+  if (!family_id) return res.status(400).json({ error: 'family_id is required' });
+  if (!Array.isArray(cards) || !cards.length) return res.status(400).json({ error: 'cards array is required' });
+
+  const conn = await db.getConnection();
+  try {
+    const [[fam]] = await conn.execute('SELECT id FROM inventory_families WHERE id = ?', [family_id]);
+    if (!fam) return res.status(400).json({ error: 'family_id does not exist' });
+
+    await conn.beginTransaction();
+
+    const summary = { received: cards.length, reference_upserted: 0, inventory_created: 0, inventory_skipped_existing: 0, errors: 0 };
+    const errors = [];
+
+    for (const card of cards) {
+      try {
+        const cardId = card.card_id || null;
+
+        // Upsert singles_reference (skip if card_id is null — can't key reference without it)
+        if (cardId) {
+          await conn.execute(
+            `INSERT INTO singles_reference (family_id, card_id, source, source_url, reference_price, currency, reference_image_url, scraped_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               reference_price = VALUES(reference_price),
+               source_url = VALUES(source_url),
+               scraped_at = VALUES(scraped_at),
+               reference_image_url = VALUES(reference_image_url)`,
+            [family_id, cardId, source || 'unknown', source_url || null,
+             card.reference_price || 0, card.currency || 'JPY',
+             card.image_url || null, scraped_at || new Date().toISOString()]
+          );
+          summary.reference_upserted++;
+        }
+
+        // Optionally create missing inventory row
+        if (create_missing !== false) {
+          const [[existing]] = await conn.execute(
+            `SELECT id, rarity FROM inventory WHERE family_id = ? AND card_id = ? AND product_type = 'single' LIMIT 1`,
+            [family_id, cardId]
+          );
+
+          if (existing) {
+            summary.inventory_skipped_existing++;
+            // Refresh rarity if it was previously NULL
+            if (!existing.rarity && card.rarity) {
+              await conn.execute('UPDATE inventory SET rarity = ? WHERE id = ?', [card.rarity, existing.id]);
+            }
+          } else {
+            const [[famMeta]] = await conn.execute(
+              `SELECT f.set_code, g.name AS game_title FROM inventory_families f JOIN games g ON g.id = f.game_id WHERE f.id = ?`,
+              [family_id]
+            );
+            const [[maxSort]] = await conn.execute(
+              'SELECT COALESCE(MAX(sort_order), 0) AS mx FROM inventory WHERE family_id = ?', [family_id]
+            );
+            const [insResult] = await conn.execute(
+              `INSERT INTO inventory (family_id, game_title, set_name, card_id, card_name, rarity,
+                price, cost_price, stock_quantity, product_type, card_condition, image_url, sort_order)
+               VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 'single', 'NM', ?, ?)`,
+              [family_id, famMeta.game_title, famMeta.set_code,
+               cardId, card.name || card.card_name || '', card.rarity || null,
+               card.image_url || null, maxSort.mx + 1]
+            );
+            await logChange(conn, insResult.insertId, req.user?.username || 'system',
+              'stock_quantity', null, 0, `Import: ${source || 'unknown'}`);
+            summary.inventory_created++;
+          }
+        }
+      } catch (err) {
+        summary.errors++;
+        errors.push({ card_id: card.card_id, name: card.name, error: err.message });
+      }
+    }
+
+    await conn.commit();
+    res.json({ summary, errors });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ error: error.message });
+  } finally { conn.release(); }
 });
 
 // Add new product — family_id is required (orphan inventory rows are not allowed)
@@ -793,9 +1024,12 @@ app.post('/api/inventory/add', async (req, res) => {
   finally { conn.release(); }
 });
 
-// Update product — updated, added set_name + is_bundle + quick_description + long_description + card_id + card_name + product_type
+// Update product — updated, added set_name + is_bundle + quick_description + long_description + card_id + card_name + product_type + rarity
 app.put('/api/inventory/:id', authenticate, async (req, res) => {
-  const { card_name, card_id, price, stock_quantity, cost_price, category_id, set_name, is_bundle, quick_description, long_description, product_type, card_condition, card_finish } = req.body;
+  const { card_name, card_id, price, stock_quantity, cost_price, category_id, set_name, is_bundle, quick_description, long_description, product_type, card_condition, card_finish, rarity } = req.body;
+  if (rarity !== undefined && typeof rarity === 'string' && rarity.length > 20) {
+    return res.status(400).json({ error: 'rarity must be 20 characters or fewer' });
+  }
   const conn = await db.getConnection();
   try {
     const [[old]] = await conn.execute('SELECT price FROM inventory WHERE id = ?', [req.params.id]);
@@ -803,12 +1037,13 @@ app.put('/api/inventory/:id', authenticate, async (req, res) => {
       `UPDATE inventory
        SET card_name = ?, card_id = ?, price = ?, stock_quantity = ?, cost_price = ?,
            category_id = ?, set_name = ?, is_bundle = ?, quick_description = ?, long_description = ?,
-           product_type = ?, card_condition = ?, card_finish = ?
+           product_type = ?, card_condition = ?, card_finish = ?, rarity = COALESCE(?, rarity)
        WHERE id = ?`,
       [card_name || null, card_id || null, price, stock_quantity, cost_price || 0,
        category_id || null, set_name || '', is_bundle || 0,
-       quick_description || null, long_description || null, 
-       product_type || 'sealed', card_condition || null, card_finish || null, req.params.id]
+       quick_description || null, long_description || null,
+       product_type || 'sealed', card_condition || null, card_finish || null,
+       rarity !== undefined ? (rarity || null) : null, req.params.id]
     );
     await logChange(conn, req.params.id, req.user.username, 'price', old.price, price, 'Manual Edit');
     res.json({ message: 'Updated' });
