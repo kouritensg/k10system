@@ -808,7 +808,7 @@ app.get('/api/inventory/singles', async (req, res) => {
     // Count distinct card groups
     const [[{ total_cards }]] = await db.execute(
       `SELECT COUNT(*) AS total_cards FROM (
-         SELECT card_id, card_name FROM inventory ${whereClause} GROUP BY card_id, card_name
+         SELECT card_id, card_name, rarity FROM inventory ${whereClause} GROUP BY card_id, card_name, rarity
        ) AS grp`,
       baseParams
     );
@@ -816,13 +816,13 @@ app.get('/api/inventory/singles', async (req, res) => {
     // Get paginated card groups with aggregates
     const [groupRows] = await db.execute(
       `SELECT card_id, card_name,
-              MAX(rarity) AS rarity,
+              rarity,
               SUM(stock_quantity) AS total_stock,
               MIN(price) AS price_min, MAX(price) AS price_max,
               COUNT(*) AS variant_count
        FROM inventory
        ${whereClause}
-       GROUP BY card_id, card_name
+       GROUP BY card_id, card_name, rarity
        ORDER BY ${sortMap[sort]}
        LIMIT ${limit} OFFSET ${offset}`,
       baseParams
@@ -832,52 +832,61 @@ app.get('/api/inventory/singles', async (req, res) => {
       return res.json({ rows: [], total_cards: parseInt(total_cards), limit, offset });
     }
 
-    // Collect card_ids and null-card_names for variant fetch
-    const nonNullCardIds = groupRows.filter(r => r.card_id != null).map(r => r.card_id);
-    const nullNameCards  = groupRows.filter(r => r.card_id == null).map(r => r.card_name);
+    // Build rarity-aware WHERE for variant fetch using (card_id, rarity) tuple matching.
+    // null card_id groups use (card_name, rarity) instead.
+    const nonNullGroups = groupRows.filter(r => r.card_id != null);
+    const nullGroups    = groupRows.filter(r => r.card_id == null);
 
-    // Build dynamic IN clause for variant fetch
     const variantWhereParts = [];
     const variantParams = [family_id];
-    if (nonNullCardIds.length) {
-      variantWhereParts.push(`i.card_id IN (${nonNullCardIds.map(() => '?').join(',')})`);
-      variantParams.push(...nonNullCardIds);
+    if (nonNullGroups.length) {
+      variantWhereParts.push(
+        `(i.card_id, COALESCE(i.rarity, '__NULL__')) IN (${nonNullGroups.map(() => '(?, ?)').join(', ')})`
+      );
+      for (const g of nonNullGroups) variantParams.push(g.card_id, g.rarity == null ? '__NULL__' : g.rarity);
     }
-    if (nullNameCards.length) {
-      variantWhereParts.push(`(i.card_id IS NULL AND i.card_name IN (${nullNameCards.map(() => '?').join(',')}))`);
-      variantParams.push(...nullNameCards);
+    if (nullGroups.length) {
+      variantWhereParts.push(
+        `(i.card_id IS NULL AND (i.card_name, COALESCE(i.rarity, '__NULL__')) IN (${nullGroups.map(() => '(?, ?)').join(', ')}))`
+      );
+      for (const g of nullGroups) variantParams.push(g.card_name, g.rarity == null ? '__NULL__' : g.rarity);
     }
     const variantWhere = variantWhereParts.length
       ? `AND (${variantWhereParts.join(' OR ')})`
       : 'AND 1=0';
 
     const [variantRows] = await db.execute(
-      `SELECT i.id, i.card_id, i.card_name, i.card_condition, i.card_finish,
+      `SELECT i.id, i.card_id, i.card_name, i.rarity, i.card_condition, i.card_finish,
               i.price, i.stock_quantity, i.updated_at, i.image_url,
               sr.source AS ref_source, sr.source_url AS ref_source_url,
               sr.reference_price, sr.currency AS ref_currency, sr.scraped_at AS ref_scraped_at
        FROM inventory i
        LEFT JOIN (
-         SELECT sr1.family_id, sr1.card_id, sr1.source, sr1.source_url,
+         SELECT sr1.family_id, sr1.card_id, sr1.rarity, sr1.source, sr1.source_url,
                 sr1.reference_price, sr1.currency, sr1.scraped_at
          FROM singles_reference sr1
          INNER JOIN (
-           SELECT family_id, card_id, MAX(scraped_at) AS max_scraped_at
+           SELECT family_id, card_id, rarity, MAX(scraped_at) AS max_scraped_at
            FROM singles_reference
-           GROUP BY family_id, card_id
-         ) latest ON sr1.family_id = latest.family_id
-                 AND sr1.card_id   = latest.card_id
+           GROUP BY family_id, card_id, rarity
+         ) latest ON sr1.family_id  = latest.family_id
+                 AND sr1.card_id   <=> latest.card_id
+                 AND sr1.rarity    <=> latest.rarity
                  AND sr1.scraped_at = latest.max_scraped_at
-       ) sr ON sr.family_id = i.family_id AND sr.card_id = i.card_id
+       ) sr ON sr.family_id = i.family_id
+           AND sr.card_id  <=> i.card_id
+           AND sr.rarity   <=> i.rarity
        WHERE i.family_id = ? AND i.product_type = 'single' ${variantWhere}
        ORDER BY i.card_id, i.card_name, i.card_condition, i.card_finish`,
       variantParams
     );
 
-    // Index variants by (card_id|'__null__'+card_name)
+    // Index variants by (card_id::rarity) or (__null__card_name::rarity)
     const variantMap = {};
     for (const v of variantRows) {
-      const key = v.card_id != null ? v.card_id : '__null__' + v.card_name;
+      const key = v.card_id != null
+        ? `${v.card_id}::${v.rarity ?? ''}`
+        : `__null__${v.card_name}::${v.rarity ?? ''}`;
       if (!variantMap[key]) variantMap[key] = [];
       variantMap[key].push({
         id: v.id,
@@ -898,7 +907,9 @@ app.get('/api/inventory/singles', async (req, res) => {
     }
 
     const rows = groupRows.map(g => {
-      const key = g.card_id != null ? g.card_id : '__null__' + g.card_name;
+      const key = g.card_id != null
+        ? `${g.card_id}::${g.rarity ?? ''}`
+        : `__null__${g.card_name}::${g.rarity ?? ''}`;
       return {
         card_id: g.card_id,
         card_name: g.card_name,
@@ -941,14 +952,15 @@ app.post('/api/inventory/singles/import', authenticate, async (req, res) => {
         // Upsert singles_reference (skip if card_id is null — can't key reference without it)
         if (cardId) {
           await conn.execute(
-            `INSERT INTO singles_reference (family_id, card_id, source, source_url, reference_price, currency, reference_image_url, scraped_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `INSERT INTO singles_reference
+               (family_id, card_id, rarity, source, source_url, reference_price, currency, reference_image_url, scraped_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                reference_price = VALUES(reference_price),
                source_url = VALUES(source_url),
                scraped_at = VALUES(scraped_at),
                reference_image_url = VALUES(reference_image_url)`,
-            [family_id, cardId, source || 'unknown', source_url || null,
+            [family_id, cardId, card.rarity || null, source || 'unknown', source_url || null,
              card.reference_price || 0, card.currency || 'JPY',
              card.image_url || null, scraped_at || new Date().toISOString()]
           );
@@ -958,16 +970,12 @@ app.post('/api/inventory/singles/import', authenticate, async (req, res) => {
         // Optionally create missing inventory row
         if (create_missing !== false) {
           const [[existing]] = await conn.execute(
-            `SELECT id, rarity FROM inventory WHERE family_id = ? AND card_id = ? AND product_type = 'single' LIMIT 1`,
-            [family_id, cardId]
+            `SELECT id FROM inventory WHERE family_id = ? AND card_id = ? AND rarity <=> ? AND product_type = 'single' LIMIT 1`,
+            [family_id, cardId, card.rarity || null]
           );
 
           if (existing) {
             summary.inventory_skipped_existing++;
-            // Refresh rarity if it was previously NULL
-            if (!existing.rarity && card.rarity) {
-              await conn.execute('UPDATE inventory SET rarity = ? WHERE id = ?', [card.rarity, existing.id]);
-            }
           } else {
             const [[famMeta]] = await conn.execute(
               `SELECT f.set_code, g.name AS game_title FROM inventory_families f JOIN games g ON g.id = f.game_id WHERE f.id = ?`,
