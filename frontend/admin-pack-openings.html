@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Pack Openings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; color: #1f2937; margin: 0; padding: 0; }
+        .queue-item { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; cursor: pointer; transition: all 0.15s; }
+        .queue-item:hover { background: #f9fafb; }
+        .queue-item.active { background: #eff6ff; border-left: 4px solid #3b82f6; }
+        
+        /* Modal for search */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: flex; align-items: flex-start; justify-content: center; padding-top: 10vh; }
+        .modal-box { background: white; border-radius: 12px; padding: 24px; width: 640px; max-width: 96vw; max-height: 80vh; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+<script src="admin-navbar.js"></script>
+
+<div class="max-w-[95%] mx-auto px-4 mt-8 pb-12">
+    <!-- Header -->
+    <div class="mb-6 flex justify-between items-end">
+        <div>
+            <h1 class="text-2xl font-black text-gray-800">📦 Pack Openings</h1>
+            <p class="text-sm text-gray-500 mt-0.5">Extract singles from sealed outstock and distribute cost.</p>
+        </div>
+        <div>
+            <a href="admin-singles.html" class="text-sm font-semibold text-blue-600 bg-blue-50 px-3 py-2 rounded-md hover:bg-blue-100">Go to Singles ↗</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- LEFT: Queue -->
+        <div class="bg-white rounded-lg shadow-sm border overflow-hidden flex flex-col h-[600px]">
+            <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <h2 class="text-sm font-bold text-gray-700 uppercase">Pending Queue</h2>
+            </div>
+            <div id="queue-list" class="flex-1 overflow-y-auto">
+                <div class="p-8 text-center text-gray-400 text-sm">Loading...</div>
+            </div>
+        </div>
+
+        <!-- RIGHT: Extraction Form -->
+        <div class="lg:col-span-2 space-y-4 hidden" id="extraction-panel">
+            
+            <div class="bg-white p-5 rounded-lg shadow-sm border border-blue-200">
+                <h2 class="text-xl font-black text-gray-800 mb-1" id="panel-title">Extracting...</h2>
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500" id="panel-subtitle">Outstock Txn #0</span>
+                    <span class="font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded">Qty Opened: <span id="panel-qty">0</span></span>
+                </div>
+            </div>
+
+            <!-- Cost Summary -->
+            <div class="grid grid-cols-3 gap-4">
+                <div class="bg-white p-4 rounded-lg shadow-sm border">
+                    <div class="text-xs font-bold text-gray-400 uppercase">Total Cost</div>
+                    <div class="text-2xl font-black text-gray-800" id="cost-total">$0.00</div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border">
+                    <div class="text-xs font-bold text-gray-400 uppercase">Assigned</div>
+                    <div class="text-2xl font-black text-blue-600" id="cost-assigned">$0.00</div>
+                </div>
+                <div class="bg-white p-4 rounded-lg shadow-sm border">
+                    <div class="text-xs font-bold text-gray-400 uppercase">Remaining</div>
+                    <div class="text-2xl font-black text-orange-500" id="cost-remaining">$0.00</div>
+                </div>
+            </div>
+
+            <!-- Singles List -->
+            <div class="bg-white rounded-lg shadow-sm border">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h3 class="text-base font-bold text-gray-700">Singles Pulled</h3>
+                    <div class="space-x-2">
+                        <button onclick="distributeRemainingCost()" class="text-xs font-semibold bg-orange-100 text-orange-700 hover:bg-orange-200 px-3 py-1.5 rounded transition">Dump Leftover Cost</button>
+                        <button onclick="openSearchModal()" class="text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded transition">+ Add Single</button>
+                    </div>
+                </div>
+                
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-xs font-bold text-gray-500 uppercase">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Card</th>
+                            <th class="px-3 py-3 text-center w-24">Qty Pulled</th>
+                            <th class="px-3 py-3 text-right w-32">Unit Cost ($)</th>
+                            <th class="px-3 py-3 text-right w-24">Total</th>
+                            <th class="px-3 py-3 text-center w-12"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="singles-body">
+                        <tr><td colspan="5" class="p-8 text-center text-gray-400 text-sm border-b">No singles added yet. Click + Add Single.</td></tr>
+                    </tbody>
+                </table>
+                <div class="p-4 bg-gray-50 flex justify-end gap-3 rounded-b-lg">
+                    <span id="commit-error" class="text-sm font-bold text-red-500 self-center hidden"></span>
+                    <button onclick="commitPackOpening()" id="btn-commit" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded shadow transition">Commit Singles to Inventory</button>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="extraction-empty" class="lg:col-span-2 flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-[600px] text-gray-400 font-medium">
+            Select a pending pack opening from the queue.
+        </div>
+    </div>
+</div>
+
+<!-- Search Modal -->
+<div id="search-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeSearchModal()">
+    <div class="modal-box shadow-2xl">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-bold text-gray-900">Search Singles</h2>
+            <button onclick="closeSearchModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <input type="text" id="search-input" placeholder="Search card ID or name..." oninput="doSearch(this.value)" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2">
+        <div class="text-xs text-gray-500 mb-4">Showing results from the same set family.</div>
+        
+        <div id="search-results" class="max-h-64 overflow-y-auto border rounded-md">
+            <!-- Results injected here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    const API = localStorage.getItem('k10_api_url') || 'http://localhost:3000';
+    let queue = [];
+    let currentPO = null;
+    let pulledSingles = []; // { inventory_id, card_name, card_id, rarity, qty, unit_cost }
+    let searchTimeout = null;
+
+    function headers() {
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + localStorage.getItem('k10_token')
+        };
+    }
+
+    async function init() {
+        await loadQueue();
+    }
+
+    async function loadQueue() {
+        try {
+            const r = await fetch(`${API}/api/pack-openings`, { headers: headers() });
+            if (!r.ok) throw new Error('Failed to load queue');
+            queue = await r.json();
+            renderQueue();
+        } catch (e) {
+            document.getElementById('queue-list').innerHTML = `<div class="p-4 text-red-500 text-sm">${e.message}</div>`;
+        }
+    }
+
+    function renderQueue() {
+        const list = document.getElementById('queue-list');
+        if (!queue.length) {
+            list.innerHTML = `<div class="p-8 text-center text-gray-400 text-sm">No pack openings found.</div>`;
+            return;
+        }
+
+        list.innerHTML = queue.map(po => `
+            <div class="queue-item ${currentPO && currentPO.id === po.id ? 'active' : ''}" onclick="selectPO(${po.id})">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="font-bold text-sm text-gray-800">#${po.id} ${po.status === 'Pending' ? '🟠' : '✅'}</span>
+                    <span class="text-xs font-mono text-gray-500">$${Number(po.total_cost).toFixed(2)}</span>
+                </div>
+                <div class="text-xs text-gray-600 truncate font-medium">${po.card_name}</div>
+                <div class="text-[10px] text-gray-400 mt-1">
+                    ${new Date(po.created_at).toLocaleString()} • Qty: ${po.qty_opened}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function selectPO(id) {
+        const po = queue.find(p => p.id === id);
+        if (!po) return;
+        
+        currentPO = po;
+        pulledSingles = []; // Reset on selection
+        renderQueue(); // Update active state
+
+        document.getElementById('extraction-empty').classList.add('hidden');
+        document.getElementById('extraction-panel').classList.remove('hidden');
+
+        document.getElementById('panel-title').textContent = `${po.game_title} - ${po.set_name}`;
+        document.getElementById('panel-subtitle').textContent = po.card_name;
+        document.getElementById('panel-qty').textContent = po.qty_opened;
+        document.getElementById('cost-total').textContent = `$${Number(po.total_cost).toFixed(2)}`;
+
+        // If completed, load the existing items
+        if (po.status === 'Completed') {
+            document.getElementById('btn-commit').disabled = true;
+            document.getElementById('btn-commit').textContent = 'Already Committed';
+            document.getElementById('btn-commit').classList.replace('bg-green-600', 'bg-gray-400');
+            document.getElementById('btn-commit').classList.remove('hover:bg-green-700');
+            
+            try {
+                const r = await fetch(`${API}/api/pack-openings/${po.id}`, { headers: headers() });
+                const detail = await r.json();
+                pulledSingles = detail.items.map(i => ({
+                    inventory_id: i.single_inventory_id,
+                    card_name: i.card_name,
+                    card_id: i.card_id,
+                    rarity: i.rarity,
+                    qty: i.qty_pulled,
+                    unit_cost: Number(i.unit_cost_assigned)
+                }));
+            } catch (e) {
+                console.error(e);
+            }
+        } else {
+            document.getElementById('btn-commit').disabled = false;
+            document.getElementById('btn-commit').textContent = 'Commit Singles to Inventory';
+            document.getElementById('btn-commit').classList.replace('bg-gray-400', 'bg-green-600');
+            document.getElementById('btn-commit').classList.add('hover:bg-green-700');
+        }
+
+        renderSingles();
+    }
+
+    function renderSingles() {
+        const tbody = document.getElementById('singles-body');
+        if (!pulledSingles.length) {
+            tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-400 text-sm border-b">No singles added yet. Click + Add Single.</td></tr>`;
+            updateCosts();
+            return;
+        }
+
+        const isCompleted = currentPO.status === 'Completed';
+
+        tbody.innerHTML = pulledSingles.map((s, i) => `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="px-4 py-3">
+                    <div class="font-bold text-xs text-gray-800">${s.card_name}</div>
+                    <div class="text-[10px] text-gray-500">${s.card_id} • ${s.rarity || '-'}</div>
+                </td>
+                <td class="px-3 py-3 text-center">
+                    <input type="number" value="${s.qty}" min="1" step="1"
+                        ${isCompleted ? 'disabled' : ''}
+                        onchange="updateSingle(${i}, 'qty', this.value)"
+                        class="w-16 p-1 border rounded text-center text-sm font-bold bg-white">
+                </td>
+                <td class="px-3 py-3 text-right">
+                    <input type="number" value="${Number(s.unit_cost).toFixed(2)}" min="0" step="0.01"
+                        ${isCompleted ? 'disabled' : ''}
+                        onchange="updateSingle(${i}, 'unit_cost', this.value)"
+                        class="w-24 p-1 border rounded text-right text-sm font-mono bg-white">
+                </td>
+                <td class="px-3 py-3 text-right font-mono text-sm text-gray-700">
+                    $${(s.qty * s.unit_cost).toFixed(2)}
+                </td>
+                <td class="px-3 py-3 text-center">
+                    ${!isCompleted ? `<button onclick="removeSingle(${i})" class="text-red-400 hover:text-red-600 font-bold text-sm">✕</button>` : ''}
+                </td>
+            </tr>
+        `).join('');
+
+        updateCosts();
+    }
+
+    function updateSingle(index, field, val) {
+        let v = Number(val);
+        if (field === 'qty' && v < 1) v = 1;
+        if (field === 'unit_cost' && v < 0) v = 0;
+        pulledSingles[index][field] = v;
+        renderSingles();
+    }
+
+    function removeSingle(index) {
+        pulledSingles.splice(index, 1);
+        renderSingles();
+    }
+
+    function updateCosts() {
+        let assigned = 0;
+        for (const s of pulledSingles) {
+            assigned += s.qty * s.unit_cost;
+        }
+        
+        const total = Number(currentPO.total_cost);
+        const rem = total - assigned;
+
+        document.getElementById('cost-assigned').textContent = `$${assigned.toFixed(2)}`;
+        
+        const remEl = document.getElementById('cost-remaining');
+        remEl.textContent = `$${rem.toFixed(2)}`;
+        
+        if (Math.abs(rem) < 0.05) {
+            remEl.className = 'text-2xl font-black text-green-500';
+        } else if (rem < 0) {
+            remEl.className = 'text-2xl font-black text-red-500';
+        } else {
+            remEl.className = 'text-2xl font-black text-orange-500';
+        }
+    }
+
+    function distributeRemainingCost() {
+        if (!pulledSingles.length) return;
+        
+        let assigned = 0;
+        let totalQty = 0;
+        for (const s of pulledSingles) {
+            assigned += s.qty * s.unit_cost;
+            totalQty += s.qty;
+        }
+        
+        const total = Number(currentPO.total_cost);
+        const rem = total - assigned;
+
+        if (rem <= 0) return;
+
+        const extraPerItem = rem / totalQty;
+        for (let s of pulledSingles) {
+            s.unit_cost += extraPerItem;
+        }
+
+        renderSingles();
+    }
+
+    // Modal Search
+    function openSearchModal() {
+        document.getElementById('search-modal').classList.remove('hidden');
+        document.getElementById('search-input').value = '';
+        document.getElementById('search-results').innerHTML = '';
+        document.getElementById('search-input').focus();
+        doSearch('');
+    }
+
+    function closeSearchModal() {
+        document.getElementById('search-modal').classList.add('hidden');
+    }
+
+    async function doSearch(query) {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(async () => {
+            if (!currentPO) return;
+
+            // We only want singles.
+            let url = `${API}/api/inventory?product_type=single&limit=20`;
+            if (query.trim()) {
+                url += `&search=${encodeURIComponent(query.trim())}`;
+            }
+
+            const box = document.getElementById('search-results');
+            box.innerHTML = `<div class="p-4 text-gray-400 text-sm text-center">Searching...</div>`;
+
+            try {
+                const r = await fetch(url, { headers: headers() });
+                const data = await r.json();
+                
+                if (!data.rows.length) {
+                    box.innerHTML = `<div class="p-4 text-gray-400 text-sm text-center">No results.</div>`;
+                    return;
+                }
+
+                box.innerHTML = data.rows.map(c => `
+                    <div onclick="addSingle(${c.id}, '${c.card_name.replace(/'/g, "\\'")}', '${c.card_id}', '${c.rarity}')"
+                        class="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-0 flex justify-between items-center">
+                        <div>
+                            <div class="font-bold text-sm text-gray-800">${c.card_name}</div>
+                            <div class="text-xs text-gray-500">${c.card_id} • ${c.rarity || '-'} • ${c.set_name}</div>
+                        </div>
+                        <span class="text-xs text-blue-600 font-bold bg-blue-100 px-2 py-1 rounded">Add</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                box.innerHTML = `<div class="p-4 text-red-500 text-sm text-center">Error searching.</div>`;
+            }
+        }, 300);
+    }
+
+    function addSingle(id, name, card_id, rarity) {
+        const existing = pulledSingles.find(s => s.inventory_id === id);
+        if (existing) {
+            existing.qty++;
+        } else {
+            pulledSingles.push({
+                inventory_id: id,
+                card_name: name,
+                card_id: card_id,
+                rarity: rarity,
+                qty: 1,
+                unit_cost: 0
+            });
+        }
+        closeSearchModal();
+        renderSingles();
+    }
+
+    async function commitPackOpening() {
+        const btn = document.getElementById('btn-commit');
+        const errEl = document.getElementById('commit-error');
+        errEl.classList.add('hidden');
+
+        if (!pulledSingles.length) {
+            errEl.textContent = 'Add at least one single.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        let assigned = 0;
+        for (const s of pulledSingles) {
+            assigned += s.qty * s.unit_cost;
+        }
+        
+        const total = Number(currentPO.total_cost);
+        if (Math.abs(total - assigned) > 0.05) {
+            errEl.textContent = 'Cost mismatch! Remaining must be $0.00.';
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Committing...';
+
+        try {
+            const r = await fetch(`${API}/api/pack-openings/${currentPO.id}/commit`, {
+                method: 'POST',
+                headers: headers(),
+                body: JSON.stringify({
+                    items: pulledSingles.map(s => ({
+                        single_inventory_id: s.inventory_id,
+                        qty: s.qty,
+                        unit_cost: s.unit_cost
+                    }))
+                })
+            });
+
+            if (!r.ok) {
+                const j = await r.json();
+                throw new Error(j.error || 'Commit failed');
+            }
+
+            alert('Singles committed successfully!');
+            await loadQueue();
+            
+            // Re-select to show as completed
+            selectPO(currentPO.id);
+
+        } catch (e) {
+            errEl.textContent = e.message;
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Commit Singles to Inventory';
+        }
+    }
+
+    init();
+</script>
+
+</body>
+</html>

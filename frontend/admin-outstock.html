@@ -55,6 +55,10 @@
                             class="flex-1 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition">
                             🔧 Adjustment
                         </button>
+                        <button id="btn-pack_opening" onclick="setType('pack_opening')"
+                            class="flex-1 py-2 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition">
+                            📦 Pack Opening
+                        </button>
                     </div>
                     <p id="type-desc" class="text-xs text-gray-400 italic mt-2">Sold to a customer. Deducts stock immediately.</p>
                 </div>
@@ -168,6 +172,7 @@
                                 <option value="">All Types</option>
                                 <option value="sale">Sale</option>
                                 <option value="adjustment">Adjustment</option>
+                                <option value="pack_opening">Pack Opening</option>
                             </select>
                             <input type="date" id="filter-from" onchange="loadHistory()" class="p-2 border rounded text-sm bg-gray-50">
                             <input type="date" id="filter-to"   onchange="loadHistory()" class="p-2 border rounded text-sm bg-gray-50">
@@ -282,20 +287,26 @@ document.addEventListener('DOMContentLoaded', () => {
 function setType(type) {
     currentType = type;
     const isSale = type === 'sale';
+    const isAdjustment = type === 'adjustment';
+    const isPackOpening = type === 'pack_opening';
 
     document.getElementById('btn-sale').className =
         'flex-1 py-2 rounded-md text-sm font-bold transition ' +
         (isSale ? 'shadow bg-white text-blue-600' : 'text-gray-500 hover:text-gray-700');
     document.getElementById('btn-adjustment').className =
         'flex-1 py-2 rounded-md text-sm font-bold transition ' +
-        (!isSale ? 'shadow bg-white text-orange-600' : 'text-gray-500 hover:text-gray-700');
+        (isAdjustment ? 'shadow bg-white text-orange-600' : 'text-gray-500 hover:text-gray-700');
+    document.getElementById('btn-pack_opening').className =
+        'flex-1 py-2 rounded-md text-sm font-bold transition ' +
+        (isPackOpening ? 'shadow bg-white text-purple-600' : 'text-gray-500 hover:text-gray-700');
 
     document.getElementById('type-desc').textContent = isSale
         ? 'Sold to a customer. Deducts stock immediately.'
-        : 'Stock removed for damage, loss, event, or other reasons.';
+        : (isPackOpening ? 'Extract singles from sealed product. Moves cost to Pack Openings queue.' 
+                         : 'Stock removed for damage, loss, event, or other reasons.');
 
     document.getElementById('customer-section').style.display = isSale ? '' : 'none';
-    document.getElementById('col-price-header').textContent = isSale ? 'Unit Price' : 'Reason';
+    document.getElementById('col-price-header').textContent = isSale ? 'Unit Price' : (isPackOpening ? '' : 'Reason');
     document.getElementById('cart-footer').classList.toggle('hidden', !isSale);
 
     renderCart();
@@ -394,16 +405,20 @@ function renderCart() {
     const body = document.getElementById('cart-body');
     body.innerHTML = cart.map((item, i) => {
         const p = item.product;
-        const priceOrReason = isSale
-            ? `<input type="number" value="${item.unit_price}" min="0" step="0.01"
+        
+        let priceOrReason = '';
+        if (currentType === 'sale') {
+            priceOrReason = `<input type="number" value="${item.unit_price}" min="0" step="0.01"
                    onchange="updateCartPrice(${i}, this.value)"
-                   class="w-full p-1 border rounded text-right text-sm font-bold">`
-            : `<select onchange="updateCartReason(${i}, this.value)"
+                   class="w-full p-1 border rounded text-right text-sm font-bold">`;
+        } else if (currentType === 'adjustment') {
+            priceOrReason = `<select onchange="updateCartReason(${i}, this.value)"
                    class="w-full p-1 border rounded text-xs">
                    ${Object.entries(REASON_LABELS).map(([v, l]) =>
                        `<option value="${v}" ${item.adjustment_reason === v ? 'selected' : ''}>${l}</option>`
                    ).join('')}
                </select>`;
+        }
 
         return `<tr class="border-b hover:bg-gray-50">
             <td class="px-4 py-3">
@@ -493,7 +508,7 @@ function submitTransaction() {
 
     let desc = currentType === 'sale'
         ? `Sell ${totalQty} unit(s) to ${custName}`
-        : `Adjust ${totalQty} unit(s) out of stock`;
+        : (currentType === 'pack_opening' ? `Extract singles from ${totalQty} sealed unit(s)` : `Adjust ${totalQty} unit(s) out of stock`);
     desc += ` (${cart.length} product${cart.length !== 1 ? 's' : ''}). Stock will be deducted immediately.`;
 
     document.getElementById('confirm-text').textContent = desc;

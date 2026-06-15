@@ -1057,7 +1057,7 @@ app.post('/api/inventory/add', async (req, res) => {
 
 // Update product — updated, added set_name + is_bundle + quick_description + long_description + card_id + card_name + product_type + rarity
 app.put('/api/inventory/:id', authenticate, async (req, res) => {
-  const { card_name, card_id, price, stock_quantity, cost_price, category_id, set_name, is_bundle, quick_description, long_description, product_type, card_condition, card_finish, rarity } = req.body;
+  const { card_name, card_id, price, category_id, set_name, is_bundle, quick_description, long_description, product_type, card_condition, card_finish, rarity } = req.body;
   if (rarity !== undefined && typeof rarity === 'string' && rarity.length > 20) {
     return res.status(400).json({ error: 'rarity must be 20 characters or fewer' });
   }
@@ -1066,11 +1066,11 @@ app.put('/api/inventory/:id', authenticate, async (req, res) => {
     const [[old]] = await conn.execute('SELECT price FROM inventory WHERE id = ?', [req.params.id]);
     await conn.execute(
       `UPDATE inventory
-       SET card_name = ?, card_id = ?, price = ?, stock_quantity = ?, cost_price = ?,
+       SET card_name = ?, card_id = ?, price = ?,
            category_id = ?, set_name = ?, is_bundle = ?, quick_description = ?, long_description = ?,
            product_type = ?, card_condition = ?, card_finish = ?, rarity = COALESCE(?, rarity)
        WHERE id = ?`,
-      [card_name || null, card_id || null, price, stock_quantity, cost_price || 0,
+      [card_name || null, card_id || null, price,
        category_id || null, set_name || '', is_bundle || 0,
        quick_description || null, long_description || null,
        product_type || 'sealed', card_condition || null, card_finish || null,
@@ -2064,7 +2064,7 @@ const VALID_ADJUSTMENT_REASONS = ['damage', 'loss', 'event', 'adjustment', 'retu
 
 async function deductFifoWaves(conn, inventory_id, qty) {
   const [waves] = await conn.execute(
-    `SELECT id, remaining_qty, wave_name
+    `SELECT id, remaining_qty, wave_name, cost_price
      FROM fifo
      WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0
      ORDER BY arrival_date ASC, id ASC`,
@@ -2078,7 +2078,7 @@ async function deductFifoWaves(conn, inventory_id, qty) {
     if (remaining <= 0) break;
     const take = Math.min(wave.remaining_qty, remaining);
     remaining -= take;
-    deductions.push({ wave_id: wave.id, wave_name: wave.wave_name, qty: take });
+    deductions.push({ wave_id: wave.id, wave_name: wave.wave_name, qty: take, cost_price: wave.cost_price });
   }
 
   if (remaining > 0) {
@@ -2102,8 +2102,8 @@ app.post('/api/outstock', authenticate, async (req, res) => {
 
   const { transaction_type, customer_id, transaction_date, notes, items } = req.body;
 
-  if (!['sale', 'adjustment'].includes(transaction_type)) {
-    return res.status(400).json({ error: 'transaction_type must be "sale" or "adjustment"' });
+  if (!['sale', 'adjustment', 'pack_opening'].includes(transaction_type)) {
+    return res.status(400).json({ error: 'transaction_type must be "sale", "adjustment", or "pack_opening"' });
   }
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'items must be a non-empty array' });
@@ -2136,12 +2136,6 @@ app.post('/api/outstock', authenticate, async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    for (const item of items) {
-      await deductFifoWaves(conn, item.inventory_id, item.qty);
-      const source = transaction_type === 'sale' ? 'Sale' : item.adjustment_reason;
-      await syncInventoryStock(item.inventory_id, conn, req.user.username, source);
-    }
-
     const [txnResult] = await conn.execute(
       `INSERT INTO outstock_transactions (transaction_type, customer_id, transaction_date, notes, changed_by)
        VALUES (?, ?, ?, ?, ?)`,
@@ -2150,7 +2144,7 @@ app.post('/api/outstock', authenticate, async (req, res) => {
     const txn_id = txnResult.insertId;
 
     for (const item of items) {
-      await conn.execute(
+      const [itemResult] = await conn.execute(
         `INSERT INTO outstock_items (transaction_id, inventory_id, qty, unit_price, adjustment_reason, notes)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [
@@ -2160,6 +2154,29 @@ app.post('/api/outstock', authenticate, async (req, res) => {
           item.notes || null
         ]
       );
+      const outstock_item_id = itemResult.insertId;
+
+      const deductions = await deductFifoWaves(conn, item.inventory_id, item.qty);
+      
+      let itemTotalCost = 0;
+      for (const d of deductions) {
+        await conn.execute(
+          `INSERT INTO outstock_wave_log (outstock_item_id, fifo_id, qty_deducted, unit_cost) VALUES (?, ?, ?, ?)`,
+          [outstock_item_id, d.wave_id, d.qty, d.cost_price]
+        );
+        itemTotalCost += Number(d.qty) * Number(d.cost_price);
+      }
+
+      if (transaction_type === 'pack_opening') {
+        await conn.execute(
+          `INSERT INTO pack_openings (outstock_id, sealed_inventory_id, qty_opened, total_cost, status, opened_by)
+           VALUES (?, ?, ?, ?, 'Pending', ?)`,
+          [txn_id, item.inventory_id, item.qty, itemTotalCost, req.user.id || null]
+        );
+      }
+
+      const source = transaction_type === 'sale' ? 'Sale' : (transaction_type === 'pack_opening' ? 'Pack Opening' : item.adjustment_reason);
+      await syncInventoryStock(item.inventory_id, conn, req.user.username, source);
     }
 
     await conn.commit();
@@ -2532,6 +2549,121 @@ app.delete('/api/customers/:id', async (req, res) => {
     await db.execute('DELETE FROM customers WHERE id = ?', [req.params.id]);
     res.json({ message: 'Customer deleted' });
   } catch (error) { res.status(500).json({ error: 'Cannot delete: Customer has existing orders.' }); }
+});
+
+// ==========================================
+// PACK OPENINGS
+// ==========================================
+
+app.get('/api/pack-openings', async (req, res) => {
+  try {
+    const [rows] = await db.execute(`
+      SELECT po.*, i.game_title, i.set_name, i.card_name, s.username as opener_name
+      FROM pack_openings po
+      JOIN inventory i ON po.sealed_inventory_id = i.id
+      LEFT JOIN staff s ON po.opened_by = s.id
+      ORDER BY po.status = 'Pending' DESC, po.created_at DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/pack-openings/:id', async (req, res) => {
+  try {
+    const [[po]] = await db.execute(`
+      SELECT po.*, i.game_title, i.set_name, i.card_name, s.username as opener_name
+      FROM pack_openings po
+      JOIN inventory i ON po.sealed_inventory_id = i.id
+      LEFT JOIN staff s ON po.opened_by = s.id
+      WHERE po.id = ?
+    `, [req.params.id]);
+
+    if (!po) return res.status(404).json({ error: 'Pack opening not found' });
+
+    const [items] = await db.execute(`
+      SELECT poi.*, i.game_title, i.set_name, i.card_id, i.card_name, i.rarity
+      FROM pack_opening_items poi
+      JOIN inventory i ON poi.single_inventory_id = i.id
+      WHERE poi.pack_opening_id = ?
+    `, [req.params.id]);
+
+    res.json({ ...po, items });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pack-openings/:id/commit', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { items } = req.body; // Array of { single_inventory_id, qty, unit_cost }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Items array is required' });
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Check status and get total cost
+    const [[po]] = await conn.execute('SELECT * FROM pack_openings WHERE id = ? FOR UPDATE', [id]);
+    if (!po) throw new Error('Pack opening not found');
+    if (po.status !== 'Pending') throw new Error('Pack opening is already ' + po.status);
+
+    let assignedTotal = 0;
+    for (const item of items) {
+      if (!item.single_inventory_id || !item.qty || item.qty < 1 || item.unit_cost === undefined || item.unit_cost === null || isNaN(item.unit_cost)) {
+        throw new Error('Invalid item data');
+      }
+      assignedTotal += Number(item.qty) * Number(item.unit_cost);
+    }
+
+    // Check if totals match (allow small floating point difference)
+    if (Math.abs(assignedTotal - Number(po.total_cost)) > 0.05) {
+      throw new Error(\`Cost mismatch. Assigned: $\${assignedTotal.toFixed(2)}, Required: $\${Number(po.total_cost).toFixed(2)}\`);
+    }
+
+    const [[sealed_inv]] = await conn.execute('SELECT game_title, set_name, card_name FROM inventory WHERE id = ?', [po.sealed_inventory_id]);
+    const waveNameBase = \`Pack Opening #\${id} (\${sealed_inv.card_name})\`;
+
+    for (const item of items) {
+      const unitCost = Number(item.unit_cost);
+      
+      // Create FIFO wave for the single
+      const [waveRes] = await conn.execute(\`
+        INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active)
+        VALUES (?, ?, ?, ?, ?, CURDATE(), TRUE)
+      \`, [item.single_inventory_id, waveNameBase, unitCost, item.qty, item.qty]);
+      const newWaveId = waveRes.insertId;
+
+      // Log the item in pack_opening_items
+      await conn.execute(\`
+        INSERT INTO pack_opening_items (pack_opening_id, single_inventory_id, qty_pulled, unit_cost_assigned, fifo_wave_id)
+        VALUES (?, ?, ?, ?, ?)
+      \`, [id, item.single_inventory_id, item.qty, unitCost, newWaveId]);
+
+      // Sync the single's stock
+      const source = \`Pack Opening #\${id}\`;
+      await syncInventoryStock(item.single_inventory_id, conn, req.user.username || 'system', source);
+    }
+
+    // Mark as completed
+    await conn.execute(\`
+      UPDATE pack_openings 
+      SET status = 'Completed', completed_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    \`, [id]);
+
+    await conn.commit();
+    res.json({ message: 'Pack opening committed successfully' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(400).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
 });
 
 // ==========================================
