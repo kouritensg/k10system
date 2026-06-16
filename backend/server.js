@@ -1940,6 +1940,149 @@ app.post('/api/inventory/breakdown', async (req, res) => {
   }
 });
 
+// Open a sealed product (case or box) into singles — outstock-to-singles with cost allocation.
+// Deducts the sealed item's FIFO oldest-first, allocates its cost across the pulled singles
+// (explicit unit_cost for valuable cards, remainder spread across is_junk cards), and creates
+// one child FIFO wave per single. Records pack_openings + pack_opening_items + outstock_wave_log.
+app.post('/api/inventory/open-sealed', authenticate, async (req, res) => {
+  if (!req.user || req.user.username === 'unknown') {
+    return res.status(401).json({ error: 'Session expired. Please log in again.' });
+  }
+
+  const { sealed_inventory_id, qty_opened, transaction_date, notes, items } = req.body;
+  const sealedId = parseInt(sealed_inventory_id);
+  const openQty  = parseInt(qty_opened);
+
+  if (!sealedId || !openQty || openQty < 1) {
+    return res.status(400).json({ error: 'sealed_inventory_id and qty_opened (>=1) are required' });
+  }
+  if (!transaction_date) {
+    return res.status(400).json({ error: 'transaction_date is required' });
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items must be a non-empty array' });
+  }
+  const seen = new Set();
+  for (const it of items) {
+    if (!it.single_inventory_id || !it.qty_pulled || it.qty_pulled < 1) {
+      return res.status(400).json({ error: 'Each item needs single_inventory_id and qty_pulled (>=1)' });
+    }
+    if (seen.has(it.single_inventory_id)) {
+      return res.status(400).json({ error: `Single ${it.single_inventory_id} appears more than once` });
+    }
+    seen.add(it.single_inventory_id);
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Source must be a sealed product (case or box — both are product_type 'sealed')
+    const [[sealed]] = await conn.execute(
+      'SELECT id, card_name, product_type FROM inventory WHERE id = ?', [sealedId]
+    );
+    if (!sealed) throw new Error('Sealed product not found');
+    if (sealed.product_type !== 'sealed') throw new Error('Source must be a sealed product (case or box)');
+
+    // Deduct the sealed item's FIFO oldest-first, capturing cost basis
+    const sourceDeductions = await deductFifoWaves(conn, sealedId, openQty);
+    const sourceCost = sourceDeductions.reduce((sum, d) => sum + Number(d.unit_cost) * d.qty, 0);
+    const primarySourceWaveId = sourceDeductions[0]?.wave_id || null;
+
+    // Cost allocation: explicit cost for rares + remainder spread across junk
+    let sumExplicit = 0;
+    let junkQtyTotal = 0;
+    for (const it of items) {
+      if (it.is_junk) junkQtyTotal += Number(it.qty_pulled);
+      else sumExplicit += (Number(it.unit_cost) || 0) * Number(it.qty_pulled);
+    }
+
+    const remainder = +(sourceCost - sumExplicit).toFixed(2);
+    if (remainder < -0.005) {
+      throw new Error(`Allocated rare cost (${sumExplicit.toFixed(2)}) exceeds source cost (${sourceCost.toFixed(2)})`);
+    }
+    if (junkQtyTotal === 0 && remainder > 0.005) {
+      throw new Error(`Unallocated cost of ${remainder.toFixed(2)} remains — mark at least one card as junk or assign more cost`);
+    }
+    const junkUnit = junkQtyTotal > 0 ? remainder / junkQtyTotal : 0;
+
+    // Book the outstock transaction (type pack_opening) + the sealed line
+    const [txnResult] = await conn.execute(
+      `INSERT INTO outstock_transactions (transaction_type, transaction_date, notes, changed_by)
+       VALUES ('pack_opening', ?, ?, ?)`,
+      [transaction_date, notes || `Opened ${openQty} × ${sealed.card_name}`, req.user.username]
+    );
+    const outstock_id = txnResult.insertId;
+
+    const [sealedItemResult] = await conn.execute(
+      `INSERT INTO outstock_items (transaction_id, inventory_id, qty, unit_price, adjustment_reason, notes)
+       VALUES (?, ?, ?, NULL, NULL, 'Sealed opening')`,
+      [outstock_id, sealedId, openQty]
+    );
+    const sealedOutstockItemId = sealedItemResult.insertId;
+
+    // Log which source waves were consumed → void-safe restore of the sealed stock
+    for (const d of sourceDeductions) {
+      await conn.execute(
+        `INSERT INTO outstock_wave_log (outstock_item_id, fifo_id, qty_deducted, unit_cost)
+         VALUES (?, ?, ?, ?)`,
+        [sealedOutstockItemId, d.wave_id, d.qty, d.unit_cost]
+      );
+    }
+
+    // pack_openings header
+    const [poResult] = await conn.execute(
+      `INSERT INTO pack_openings (outstock_id, sealed_inventory_id, qty_opened, total_cost, status, opened_by, completed_at)
+       VALUES (?, ?, ?, ?, 'Completed', ?, NOW())`,
+      [outstock_id, sealedId, openQty, sourceCost.toFixed(2), req.user.id || null]
+    );
+    const pack_opening_id = poResult.insertId;
+
+    // Lot identity shared across all child waves (one wave per single per opening)
+    const lotName = `Opening: ${sealed.card_name} ${transaction_date}`.slice(0, 50);
+    const lotInvoice = `PO-${pack_opening_id}`;
+
+    for (const it of items) {
+      const singleId  = parseInt(it.single_inventory_id);
+      const qtyPulled = Number(it.qty_pulled);
+      const unitCost  = it.is_junk ? junkUnit : (Number(it.unit_cost) || 0);
+
+      const [waveResult] = await conn.execute(
+        `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number, parent_fifo_id)
+         VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?)`,
+        [singleId, lotName, unitCost.toFixed(2), qtyPulled, qtyPulled, transaction_date, lotInvoice, primarySourceWaveId]
+      );
+      const fifoWaveId = waveResult.insertId;
+
+      await conn.execute(
+        `INSERT INTO pack_opening_items (pack_opening_id, single_inventory_id, qty_pulled, unit_cost_assigned, fifo_wave_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [pack_opening_id, singleId, qtyPulled, unitCost.toFixed(2), fifoWaveId]
+      );
+
+      await syncInventoryStock(singleId, conn, req.user.username, `Pack Opening #${pack_opening_id}`);
+    }
+
+    await syncInventoryStock(sealedId, conn, req.user.username, `Pack Opening #${pack_opening_id}`);
+
+    await conn.commit();
+    res.status(201).json({
+      pack_opening_id,
+      outstock_id,
+      source_cost: +sourceCost.toFixed(2),
+      allocated_explicit: +sumExplicit.toFixed(2),
+      junk_unit_cost: +junkUnit.toFixed(2),
+      singles: items.length,
+      message: `Opened ${openQty} × ${sealed.card_name} into ${items.length} single line(s)`
+    });
+  } catch (err) {
+    await conn.rollback();
+    res.status(400).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // ==========================================
 // 5b. RESERVATION MODULE
 // ==========================================
@@ -2064,7 +2207,7 @@ const VALID_ADJUSTMENT_REASONS = ['damage', 'loss', 'event', 'adjustment', 'retu
 
 async function deductFifoWaves(conn, inventory_id, qty) {
   const [waves] = await conn.execute(
-    `SELECT id, remaining_qty, wave_name
+    `SELECT id, remaining_qty, wave_name, cost_price
      FROM fifo
      WHERE inventory_id = ? AND is_active = TRUE AND remaining_qty > 0
      ORDER BY arrival_date ASC, id ASC`,
@@ -2078,7 +2221,7 @@ async function deductFifoWaves(conn, inventory_id, qty) {
     if (remaining <= 0) break;
     const take = Math.min(wave.remaining_qty, remaining);
     remaining -= take;
-    deductions.push({ wave_id: wave.id, wave_name: wave.wave_name, qty: take });
+    deductions.push({ wave_id: wave.id, wave_name: wave.wave_name, qty: take, unit_cost: wave.cost_price });
   }
 
   if (remaining > 0) {
@@ -2136,8 +2279,10 @@ app.post('/api/outstock', authenticate, async (req, res) => {
   try {
     await conn.beginTransaction();
 
+    const deductionsByItem = [];
     for (const item of items) {
-      await deductFifoWaves(conn, item.inventory_id, item.qty);
+      const deductions = await deductFifoWaves(conn, item.inventory_id, item.qty);
+      deductionsByItem.push(deductions);
       const source = transaction_type === 'sale' ? 'Sale' : item.adjustment_reason;
       await syncInventoryStock(item.inventory_id, conn, req.user.username, source);
     }
@@ -2149,8 +2294,9 @@ app.post('/api/outstock', authenticate, async (req, res) => {
     );
     const txn_id = txnResult.insertId;
 
-    for (const item of items) {
-      await conn.execute(
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      const [itemResult] = await conn.execute(
         `INSERT INTO outstock_items (transaction_id, inventory_id, qty, unit_price, adjustment_reason, notes)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [
@@ -2160,6 +2306,16 @@ app.post('/api/outstock', authenticate, async (req, res) => {
           item.notes || null
         ]
       );
+      const outstock_item_id = itemResult.insertId;
+
+      // Record exactly which FIFO waves were consumed → void-safe + per-sale COGS
+      for (const d of deductionsByItem[idx]) {
+        await conn.execute(
+          `INSERT INTO outstock_wave_log (outstock_item_id, fifo_id, qty_deducted, unit_cost)
+           VALUES (?, ?, ?, ?)`,
+          [outstock_item_id, d.wave_id, d.qty, d.unit_cost]
+        );
+      }
     }
 
     await conn.commit();
@@ -2251,25 +2407,74 @@ app.delete('/api/outstock/:id', authenticate, async (req, res) => {
   const conn = await db.getConnection();
   try {
     const [[txn]] = await conn.execute(
-      'SELECT id, voided_at FROM outstock_transactions WHERE id = ?', [req.params.id]
+      'SELECT id, voided_at, transaction_type FROM outstock_transactions WHERE id = ?', [req.params.id]
     );
     if (!txn) return res.status(404).json({ error: 'Transaction not found' });
     if (txn.voided_at) return res.status(400).json({ error: 'Transaction already voided' });
 
     const [items] = await conn.execute(
-      'SELECT inventory_id, qty FROM outstock_items WHERE transaction_id = ?', [req.params.id]
+      'SELECT id, inventory_id, qty FROM outstock_items WHERE transaction_id = ?', [req.params.id]
     );
 
     await conn.beginTransaction();
 
     const today = new Date().toISOString().slice(0, 10);
     for (const item of items) {
-      await conn.execute(
-        `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active)
-         VALUES (?, ?, 0, ?, ?, ?, TRUE)`,
-        [item.inventory_id, `Outstock Void #${req.params.id}`, item.qty, item.qty, today]
+      // Restore exactly the FIFO waves that were consumed, preserving cost layers.
+      const [waveLogs] = await conn.execute(
+        'SELECT fifo_id, qty_deducted FROM outstock_wave_log WHERE outstock_item_id = ?', [item.id]
       );
+
+      if (waveLogs.length > 0) {
+        for (const wl of waveLogs) {
+          await conn.execute(
+            'UPDATE fifo SET remaining_qty = remaining_qty + ?, is_active = TRUE WHERE id = ?',
+            [wl.qty_deducted, wl.fifo_id]
+          );
+        }
+      } else {
+        // Legacy transactions predate the wave log — fall back to a generic restoring wave.
+        await conn.execute(
+          `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active)
+           VALUES (?, ?, 0, ?, ?, ?, TRUE)`,
+          [item.inventory_id, `Outstock Void #${req.params.id}`, item.qty, item.qty, today]
+        );
+      }
       await syncInventoryStock(item.inventory_id, conn, req.user.username, `Outstock Void #${req.params.id}`);
+    }
+
+    // Pack openings: also reverse the child single waves created by the opening.
+    if (txn.transaction_type === 'pack_opening') {
+      const [[po]] = await conn.execute(
+        'SELECT id FROM pack_openings WHERE outstock_id = ?', [req.params.id]
+      );
+      if (po) {
+        const [poItems] = await conn.execute(
+          `SELECT poi.single_inventory_id, poi.qty_pulled, poi.fifo_wave_id, f.remaining_qty
+           FROM pack_opening_items poi
+           LEFT JOIN fifo f ON f.id = poi.fifo_wave_id
+           WHERE poi.pack_opening_id = ?`, [po.id]
+        );
+
+        // Guard: cannot void if any pulled single has already been sold/outstocked.
+        for (const pi of poItems) {
+          if (pi.fifo_wave_id != null && Number(pi.remaining_qty) < Number(pi.qty_pulled)) {
+            throw new Error('Cannot void this opening: one or more pulled singles have already been outstocked. Void those transactions first.');
+          }
+        }
+
+        for (const pi of poItems) {
+          if (pi.fifo_wave_id != null) {
+            await conn.execute(
+              'UPDATE fifo SET remaining_qty = remaining_qty - ?, is_active = FALSE WHERE id = ?',
+              [pi.qty_pulled, pi.fifo_wave_id]
+            );
+          }
+          await syncInventoryStock(pi.single_inventory_id, conn, req.user.username, `Void Pack Opening #${po.id}`);
+        }
+
+        await conn.execute("UPDATE pack_openings SET status = 'Voided' WHERE id = ?", [po.id]);
+      }
     }
 
     await conn.execute(
