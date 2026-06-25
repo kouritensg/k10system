@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Inventory by IP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="inventory-styles.css">
+</head>
+<body class="bg-gray-50 font-sans">
+
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-6xl mx-auto px-4 mt-8 pb-16">
+
+        <!-- ===== Stage 1: IP grid ===== -->
+        <div id="ip-view">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">Inventory</h2>
+                    <p class="text-sm text-gray-500 mt-0.5">Select an IP to view its line-ups</p>
+                </div>
+                <input type="text" id="ip-search" placeholder="Search IPs..." style="max-width:260px">
+            </div>
+            <div id="ip-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="col-span-full text-center py-16 text-gray-400 text-sm">Loading...</div>
+            </div>
+        </div>
+
+        <!-- ===== Stage 2: line-ups for the chosen IP ===== -->
+        <div id="lineup-view" class="hidden">
+            <button onclick="backToIPs()" class="btn-ghost mb-4">← All IPs</button>
+            <div class="flex items-center gap-3 mb-6">
+                <div class="text-3xl" id="lineup-ip-icon"></div>
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800" id="lineup-ip-name"></h2>
+                    <p class="text-sm text-gray-500 mt-0.5">Select a line-up to manage its inventory</p>
+                </div>
+            </div>
+            <div id="lineup-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
+    </div>
+
+    <div id="toast-container"></div>
+
+<script>
+const API_URL = 'https://k10system.onrender.com/api';
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
+}
+
+let summary = [];   // [{ game_id, game_name, display_label, line_ups:[...] }]
+
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!localStorage.getItem('k10_token')) { window.location.href = 'login.html'; return; }
+    document.getElementById('ip-search').addEventListener('input', renderIPs);
+    await loadSummary();
+});
+
+async function loadSummary() {
+    try {
+        const res = await fetch(`${API_URL}/inventory/ip-lineup-summary`, { headers: authHeaders() });
+        summary = await res.json();
+        renderIPs();
+    } catch (e) {
+        document.getElementById('ip-grid').innerHTML =
+            '<div class="col-span-full text-center py-16 text-red-400 text-sm">Failed to load. Is the server running?</div>';
+    }
+}
+
+function renderIPs() {
+    const tokens = document.getElementById('ip-search').value.toLowerCase().split(/\s+/).filter(Boolean);
+    const filtered = summary.filter(g => {
+        const label = (g.display_label || g.game_name || '').toLowerCase();
+        return !tokens.length || tokens.every(t => label.includes(t));
+    });
+    const grid = document.getElementById('ip-grid');
+    if (!filtered.length) {
+        grid.innerHTML = '<div class="col-span-full text-center py-16 text-gray-400 text-sm">No IPs with assigned line-ups yet. Assign line-ups to IPs in <a class="text-blue-600 underline" href="admin-lineups.html">Line-ups</a>.</div>';
+        return;
+    }
+    grid.innerHTML = filtered.map(g => {
+        const luCount = g.line_ups.length;
+        const totalStock = g.line_ups.reduce((s, lu) => s + (lu.total_stock || 0), 0);
+        const chips = g.line_ups.slice(0, 4).map(lu =>
+            `<span class="badge badge-gray">${lineUpIcon(lu)} ${esc(lu.display_label || lu.name)}</span>`
+        ).join(' ');
+        return `
+        <div class="family-card fade-in" onclick="openIP(${g.game_id})">
+            <div class="flex items-start justify-between mb-2">
+                <div class="text-3xl">${gameIcon(g.game_name)}</div>
+                <span class="badge badge-blue">${luCount} line-up${luCount != 1 ? 's' : ''}</span>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-1">${esc(g.display_label || g.game_name)}</h3>
+            <p class="text-xs text-gray-400 mb-2">${totalStock.toLocaleString()} in stock</p>
+            <div class="flex flex-wrap gap-1">${chips}</div>
+        </div>`;
+    }).join('');
+}
+
+function openIP(gameId) {
+    const g = summary.find(x => x.game_id === gameId);
+    if (!g) return;
+    document.getElementById('lineup-ip-icon').textContent = gameIcon(g.game_name);
+    document.getElementById('lineup-ip-name').textContent = g.display_label || g.game_name;
+    const grid = document.getElementById('lineup-grid');
+    if (!g.line_ups.length) {
+        grid.innerHTML = '<div class="col-span-full text-center py-16 text-gray-400 text-sm">No line-ups assigned to this IP yet.</div>';
+    } else {
+        grid.innerHTML = g.line_ups.map(lu => `
+            <div class="family-card fade-in" onclick="openLineUp(${g.game_id}, ${lu.line_up_id}, ${lu.uses_families ? 1 : 0})">
+                <div class="flex items-start justify-between">
+                    <div class="text-3xl mb-2">${lineUpIcon(lu)}</div>
+                    <span class="badge ${lu.uses_families ? 'badge-blue' : 'badge-gray'}">${lu.uses_families ? 'Families' : 'Flat'}</span>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-1">${esc(lu.display_label || lu.name)}</h3>
+                <p class="text-sm text-gray-500">${lu.uses_families ? `${lu.family_count} group${lu.family_count != 1 ? 's' : ''} · ` : ''}${(lu.total_stock || 0).toLocaleString()} in stock</p>
+            </div>`).join('');
+    }
+    document.getElementById('ip-view').classList.add('hidden');
+    document.getElementById('lineup-view').classList.remove('hidden');
+    window.scrollTo(0, 0);
+}
+
+function backToIPs() {
+    document.getElementById('lineup-view').classList.add('hidden');
+    document.getElementById('ip-view').classList.remove('hidden');
+}
+
+async function openLineUp(gameId, lineUpId, usesFamilies) {
+    if (usesFamilies) {
+        window.location.href = `admin-inventory.html?game=${gameId}&line_up=${lineUpId}`;
+        return;
+    }
+    // Flat line-up: resolve (find-or-create) its hidden container family, then open it directly.
+    try {
+        const res = await fetch(`${API_URL}/inventory/flat-family`, {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ game_id: gameId, line_up_id: lineUpId })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        window.location.href = `admin-inventory.html?flat_family=${json.family_id}&line_up=${lineUpId}`;
+    } catch (e) { showToast(e.message || 'Failed to open line-up', 'error'); }
+}
+
+function showToast(msg, type = 'success') {
+    const c = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.textContent = type === 'success' ? `✓ ${msg}` : `✕ ${msg}`;
+    c.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+function lineUpIcon(lu) {
+    if (lu.icon && lu.icon.trim()) return lu.icon.trim();
+    const map = {
+        'TCG': '🃏', 'Accessories': '🎒', 'Sleeves': '🛡️', 'Snacks': '🍪',
+        'Apparel': '👕', 'Supplies': '📦', 'Singles': '🎴'
+    };
+    return map[lu.name] || '🏷️';
+}
+
+function gameIcon(title) {
+    const icons = {
+        'One Piece':'🏴‍☠️','Pokemon':'⚡','Digimon':'👾','Hololive':'🎤','Union Arena':'⚔️',
+        'Dragon Ball':'🐉','Gundam':'🤖','Ultraman':'🦸','Vanguard':'🛡️','Riftbound':'🌀',
+        'Cookie Run':'🍪','Lorcana':'✨','Force of Will':'🌿','Grand Archive':'📜',
+        'Pudgy Penguins':'🐧','Final Fantasy':'💎','Magic':'🪄','Accessories':'🎒',
+    };
+    return icons[title] || '🃏';
+}
+
+function esc(str) { return (str || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+</script>
+</body>
+</html>

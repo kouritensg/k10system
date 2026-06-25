@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Admin - Line-ups</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="inventory-styles.css">
+</head>
+<body class="bg-gray-50 font-sans">
+    <script src="admin-navbar.js"></script>
+
+    <div class="max-w-4xl mx-auto px-4 mt-8 pb-16">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Line-ups</h1>
+                <p class="text-sm text-gray-500 mt-0.5">Departments within an IP (TCG, Accessories, Snacks…). Assign each to the IPs that carry it.</p>
+            </div>
+        </div>
+
+        <!-- Add line-up -->
+        <div class="bg-white border border-gray-200 rounded-xl p-4 mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                <div>
+                    <label class="field-label">Name *</label>
+                    <input type="text" id="lu-name" placeholder="Accessories">
+                </div>
+                <div>
+                    <label class="field-label">Display label</label>
+                    <input type="text" id="lu-label" placeholder="Accessories">
+                </div>
+                <div>
+                    <label class="field-label">Icon (emoji)</label>
+                    <input type="text" id="lu-icon" placeholder="🎒" maxlength="8">
+                </div>
+                <div>
+                    <button onclick="addLineUp()" class="btn-primary w-full justify-center">+ Add line-up</button>
+                </div>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-600 mt-3">
+                <input type="checkbox" id="lu-uses-families" checked style="width:auto">
+                Uses families <span class="text-xs text-gray-400">(drill into sets/groups — leave on for TCG; uncheck for a flat list like Snacks)</span>
+            </label>
+        </div>
+
+        <div id="lineup-list" class="space-y-3">
+            <div class="text-center py-16 text-gray-400 text-sm">Loading…</div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+<script>
+const API_URL = 'https://k10system.onrender.com/api';
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
+}
+
+let lineUps = [];
+let games   = [];
+let assignedMap = {};  // line_up_id -> [game_id,...]
+
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!localStorage.getItem('k10_token')) { window.location.href = 'login.html'; return; }
+    const role = (localStorage.getItem('k10_role') || '').toLowerCase();
+    if (role !== 'admin') { window.location.href = 'admin.html'; return; }
+    await loadAll();
+});
+
+async function loadAll() {
+    try {
+        const [luRes, gRes] = await Promise.all([
+            fetch(`${API_URL}/line-ups`),
+            fetch(`${API_URL}/games`)
+        ]);
+        lineUps = await luRes.json();
+        games   = await gRes.json();
+        // Fetch IP assignments for each line-up in parallel
+        const entries = await Promise.all(lineUps.map(async lu => {
+            const r = await fetch(`${API_URL}/line-ups/${lu.id}/games`);
+            return [lu.id, await r.json()];
+        }));
+        assignedMap = Object.fromEntries(entries);
+        renderList();
+    } catch (e) {
+        document.getElementById('lineup-list').innerHTML =
+            '<div class="text-center py-16 text-red-400 text-sm">Failed to load. Is the server running?</div>';
+    }
+}
+
+function renderList() {
+    const host = document.getElementById('lineup-list');
+    if (!lineUps.length) {
+        host.innerHTML = '<div class="text-center py-16 text-gray-400 text-sm">No line-ups yet. Add one above.</div>';
+        return;
+    }
+    host.innerHTML = lineUps.map(lu => {
+        const assigned = assignedMap[lu.id] || [];
+        const ipChips = assigned.length
+            ? assigned.map(gid => {
+                const g = games.find(x => x.id === gid);
+                return `<span class="badge badge-gray">${esc(g ? (g.display_label || g.name) : '#' + gid)}</span>`;
+              }).join(' ')
+            : '<span class="text-xs text-gray-400">No IPs assigned</span>';
+        const checkboxes = games.map(g => `
+            <label class="flex items-center gap-2 text-sm py-1">
+                <input type="checkbox" value="${g.id}" ${assigned.includes(g.id) ? 'checked' : ''} style="width:auto">
+                ${esc(g.display_label || g.name)}
+            </label>`).join('');
+        return `
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="text-2xl">${lu.icon ? esc(lu.icon) : '🏷️'}</div>
+                    <div>
+                        <h3 class="text-base font-bold text-gray-900">${esc(lu.display_label || lu.name)}
+                            <span class="badge ${lu.uses_families ? 'badge-blue' : 'badge-gray'}" style="margin-left:6px">${lu.uses_families ? 'Families' : 'Flat'}</span>
+                        </h3>
+                        <p class="text-xs text-gray-400">${esc(lu.name)}</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="toggleMode(${lu.id}, ${lu.uses_families ? 1 : 0})" class="btn-ghost">${lu.uses_families ? 'Switch to flat' : 'Switch to families'}</button>
+                    <button onclick="toggleAssign(${lu.id})" class="btn-teal">Assign IPs</button>
+                    <button onclick="deleteLineUp(${lu.id})" class="btn-danger">Delete</button>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-1 mt-3">${ipChips}</div>
+            <div id="assign-${lu.id}" class="hidden mt-3 pt-3 border-t border-gray-100">
+                <p class="field-label mb-2">Carried by these IPs</p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4">${checkboxes}</div>
+                <div class="flex justify-end gap-2 mt-3">
+                    <button onclick="toggleAssign(${lu.id})" class="btn-ghost">Cancel</button>
+                    <button onclick="saveAssign(${lu.id})" class="btn-primary">Save assignment</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function toggleAssign(id) {
+    document.getElementById(`assign-${id}`).classList.toggle('hidden');
+}
+
+async function toggleMode(id, current) {
+    const next = current ? 0 : 1;
+    if (!confirm(next ? 'Switch to family mode? Products will be browsed via families/sets.' : 'Switch to flat mode? Products will show as a single flat list under each IP.')) return;
+    try {
+        const res = await fetch(`${API_URL}/line-ups/${id}`, {
+            method: 'PATCH', headers: authHeaders(),
+            body: JSON.stringify({ uses_families: !!next })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Mode updated', 'success');
+        await loadAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function addLineUp() {
+    const name  = document.getElementById('lu-name').value.trim();
+    const label = document.getElementById('lu-label').value.trim();
+    const icon  = document.getElementById('lu-icon').value.trim();
+    const usesFamilies = document.getElementById('lu-uses-families').checked;
+    if (!name) return showToast('Name is required', 'error');
+    try {
+        const res = await fetch(`${API_URL}/line-ups`, {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ name, display_label: label || null, icon: icon || null, sort_order: lineUps.length + 1, uses_families: usesFamilies })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        document.getElementById('lu-name').value = '';
+        document.getElementById('lu-label').value = '';
+        document.getElementById('lu-icon').value = '';
+        document.getElementById('lu-uses-families').checked = true;
+        showToast('Line-up created!', 'success');
+        await loadAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function saveAssign(id) {
+    const boxes = document.querySelectorAll(`#assign-${id} input[type=checkbox]`);
+    const gameIds = Array.from(boxes).filter(b => b.checked).map(b => parseInt(b.value, 10));
+    try {
+        const res = await fetch(`${API_URL}/line-ups/${id}/games`, {
+            method: 'PUT', headers: authHeaders(),
+            body: JSON.stringify({ game_ids: gameIds })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Assignment saved!', 'success');
+        await loadAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteLineUp(id) {
+    if (!confirm('Delete this line-up?')) return;
+    try {
+        const res = await fetch(`${API_URL}/line-ups/${id}`, { method: 'DELETE', headers: authHeaders() });
+        const json = await res.json();
+        if (!res.ok) {
+            if (json.can_archive && confirm(`${json.error}\n\nArchive it instead?`)) {
+                const ar = await fetch(`${API_URL}/line-ups/${id}/archive`, { method: 'PATCH', headers: authHeaders() });
+                if (ar.ok) { showToast('Line-up archived', 'success'); await loadAll(); }
+                return;
+            }
+            throw new Error(json.error);
+        }
+        showToast('Line-up deleted', 'success');
+        await loadAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function esc(str) { return (str || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function showToast(msg, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = type === 'success' ? `✓ ${msg}` : `✕ ${msg}`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+}
+</script>
+</body>
+</html>

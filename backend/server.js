@@ -341,6 +341,123 @@ app.patch('/api/games/:id/archive', async (req, res) => {
 });
 
 // ==========================================
+// 2.6 LINE-UPS MANAGEMENT
+// Departments within an IP (TCG, Accessories, Snacks...). Cross-cutting:
+// one line-up spans many IPs (via line_up_games), one IP has many line-ups.
+// ==========================================
+app.get('/api/line-ups', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT * FROM line_ups WHERE archived = 0 ORDER BY sort_order ASC, name ASC');
+    res.json(rows);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch line-ups' }); }
+});
+
+app.post('/api/line-ups', async (req, res) => {
+  const { name, display_label, icon, sort_order, uses_families } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  try {
+    const [result] = await db.execute(
+      'INSERT INTO line_ups (name, display_label, icon, sort_order, uses_families) VALUES (?, ?, ?, ?, ?)',
+      [name.trim(), display_label?.trim() || null, icon?.trim() || null, sort_order || 0,
+       uses_families === undefined ? 1 : (uses_families ? 1 : 0)]
+    );
+    res.status(201).json({ id: result.insertId, message: 'Line-up created' });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Line-up name already exists' });
+    res.status(500).json({ error: 'Failed to create line-up' });
+  }
+});
+
+// Must be registered before PATCH /api/line-ups/:id — bulk reorder
+app.patch('/api/line-ups/reorder', authenticate, async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array required' });
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    for (const item of items) {
+      await conn.execute('UPDATE line_ups SET sort_order = ? WHERE id = ?', [item.sort_order, item.id]);
+    }
+    await conn.commit();
+    res.json({ message: 'Line-up order updated' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
+});
+
+app.patch('/api/line-ups/:id', async (req, res) => {
+  const { name, display_label, icon, sort_order, uses_families } = req.body;
+  try {
+    const updates = [];
+    const params = [];
+    if (name !== undefined) { updates.push('name = ?'); params.push(name.trim()); }
+    if (display_label !== undefined) { updates.push('display_label = ?'); params.push(display_label?.trim() || null); }
+    if (icon !== undefined) { updates.push('icon = ?'); params.push(icon?.trim() || null); }
+    if (sort_order !== undefined) { updates.push('sort_order = ?'); params.push(sort_order); }
+    if (uses_families !== undefined) { updates.push('uses_families = ?'); params.push(uses_families ? 1 : 0); }
+    if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
+    params.push(req.params.id);
+    const [result] = await db.execute(`UPDATE line_ups SET ${updates.join(', ')} WHERE id = ?`, params);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Line-up not found' });
+    res.json({ message: 'Line-up updated' });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Line-up name already exists' });
+    res.status(500).json({ error: 'Failed to update line-up' });
+  }
+});
+
+app.delete('/api/line-ups/:id', async (req, res) => {
+  try {
+    const [[inUse]] = await db.execute(
+      'SELECT COUNT(*) AS cnt FROM inventory_families WHERE line_up_id = ?', [req.params.id]
+    );
+    if (inUse.cnt > 0) {
+      return res.status(409).json({ error: 'Line-up has families assigned — archive it instead.', can_archive: true });
+    }
+    await db.execute('DELETE FROM line_ups WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Line-up deleted' });
+  } catch (error) { res.status(500).json({ error: 'Failed to delete line-up' }); }
+});
+
+app.patch('/api/line-ups/:id/archive', async (req, res) => {
+  try {
+    const [[lu]] = await db.execute('SELECT archived FROM line_ups WHERE id = ?', [req.params.id]);
+    if (!lu) return res.status(404).json({ error: 'Line-up not found' });
+    const newState = lu.archived ? 0 : 1;
+    await db.execute('UPDATE line_ups SET archived = ? WHERE id = ?', [newState, req.params.id]);
+    res.json({ archived: newState, message: newState ? 'Line-up archived' : 'Line-up restored' });
+  } catch (error) { res.status(500).json({ error: 'Failed to toggle archive' }); }
+});
+
+// Read the IPs assigned to a line-up
+app.get('/api/line-ups/:id/games', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT game_id FROM line_up_games WHERE line_up_id = ?', [req.params.id]);
+    res.json(rows.map(r => r.game_id));
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch line-up IPs' }); }
+});
+
+// Replace the IP assignment set for a line-up (the "assign IPs" step)
+app.put('/api/line-ups/:id/games', authenticate, async (req, res) => {
+  const { game_ids } = req.body;
+  if (!Array.isArray(game_ids)) return res.status(400).json({ error: 'game_ids array required' });
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.execute('DELETE FROM line_up_games WHERE line_up_id = ?', [req.params.id]);
+    for (const gid of game_ids) {
+      await conn.execute('INSERT INTO line_up_games (line_up_id, game_id) VALUES (?, ?)', [req.params.id, gid]);
+    }
+    await conn.commit();
+    res.json({ message: 'Line-up IPs updated' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
+});
+
+// ==========================================
 // 3. SUPPLIER MANAGEMENT
 // ==========================================
 app.get('/api/suppliers', async (req, res) => {
@@ -410,27 +527,27 @@ app.get('/api/inventory/latest-by-game', async (req, res) => {
         g.display_label,
         g.sort_order,
         (SELECT f.id FROM inventory_families f
-         WHERE f.game_id = g.id
+         WHERE f.game_id = g.id AND f.is_container = 0
          ORDER BY COALESCE(f.release_date, '1900-01-01') DESC, f.id DESC
          LIMIT 1)                                                     AS latest_family_id,
         (SELECT f.set_code FROM inventory_families f
-         WHERE f.game_id = g.id
+         WHERE f.game_id = g.id AND f.is_container = 0
          ORDER BY COALESCE(f.release_date, '1900-01-01') DESC, f.id DESC
          LIMIT 1)                                                     AS latest_set_code,
         (SELECT f.set_name FROM inventory_families f
-         WHERE f.game_id = g.id
+         WHERE f.game_id = g.id AND f.is_container = 0
          ORDER BY COALESCE(f.release_date, '1900-01-01') DESC, f.id DESC
          LIMIT 1)                                                     AS latest_set_name,
         (SELECT f.release_date FROM inventory_families f
-         WHERE f.game_id = g.id
+         WHERE f.game_id = g.id AND f.is_container = 0
          ORDER BY COALESCE(f.release_date, '1900-01-01') DESC, f.id DESC
          LIMIT 1)                                                     AS latest_release_date,
         COALESCE(SUM(i.stock_quantity), 0)                           AS total_stock,
         COALESCE(SUM(i.stock_quantity * i.cost_price), 0)            AS total_cost_value,
         COALESCE(SUM(i.stock_quantity * i.price), 0)                 AS total_retail_value
       FROM games g
-      LEFT JOIN inventory_families gf ON gf.game_id = g.id
-      LEFT JOIN inventory i ON i.family_id = gf.id AND i.product_type = 'sealed'
+      LEFT JOIN inventory_families gf ON gf.game_id = g.id AND gf.is_container = 0
+      LEFT JOIN inventory i ON i.family_id = gf.id AND i.product_type <> 'single'
       WHERE g.archived = 0
       GROUP BY g.id
       ORDER BY g.sort_order ASC`
@@ -439,9 +556,94 @@ app.get('/api/inventory/latest-by-game', async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Failed to fetch latest by game' }); }
 });
 
+// IP -> line-up summary for the landing page (Stages 1 & 2).
+// Returns each non-archived game with the line-ups assigned to it via line_up_games,
+// LEFT-joined to families/inventory so an assigned-but-empty line-up still shows.
+app.get('/api/inventory/ip-lineup-summary', async (req, res) => {
+  try {
+    const [rows] = await db.execute(`
+      SELECT
+        g.id            AS game_id,
+        g.name          AS game_name,
+        g.display_label AS game_display,
+        g.sort_order    AS game_sort,
+        lu.id           AS line_up_id,
+        lu.name         AS line_up_name,
+        lu.display_label AS line_up_display,
+        lu.icon         AS line_up_icon,
+        lu.sort_order   AS line_up_sort,
+        lu.uses_families AS uses_families,
+        COUNT(DISTINCT f.id)               AS family_count,
+        COALESCE(SUM(i.stock_quantity), 0) AS total_stock
+      FROM line_up_games lug
+      JOIN games    g  ON g.id  = lug.game_id    AND g.archived  = 0
+      JOIN line_ups lu ON lu.id = lug.line_up_id AND lu.archived = 0
+      LEFT JOIN inventory_families f ON f.game_id = g.id AND f.line_up_id = lu.id
+      LEFT JOIN inventory i          ON i.family_id = f.id
+      GROUP BY g.id, lu.id
+      ORDER BY g.sort_order ASC, lu.sort_order ASC`
+    );
+    const gameMap = {};
+    rows.forEach(r => {
+      if (!gameMap[r.game_id]) {
+        gameMap[r.game_id] = {
+          game_id:       r.game_id,
+          game_name:     r.game_name,
+          display_label: r.game_display,
+          sort_order:    r.game_sort,
+          line_ups:      []
+        };
+      }
+      gameMap[r.game_id].line_ups.push({
+        line_up_id:    r.line_up_id,
+        name:          r.line_up_name,
+        display_label: r.line_up_display,
+        icon:          r.line_up_icon,
+        uses_families: !!r.uses_families,
+        family_count:  Number(r.family_count),
+        total_stock:   Number(r.total_stock)
+      });
+    });
+    res.json(Object.values(gameMap));
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch IP/line-up summary' }); }
+});
+
+// Find-or-create the hidden container family for a flat (no-family) line-up.
+// One container per (game, line_up); never shown as a card. Lets flat line-ups
+// reuse the whole family/FIFO/product machinery.
+app.post('/api/inventory/flat-family', authenticate, async (req, res) => {
+  const { game_id, line_up_id } = req.body;
+  if (!game_id || !line_up_id) return res.status(400).json({ error: 'game_id and line_up_id are required' });
+  const conn = await db.getConnection();
+  try {
+    const [[existing]] = await conn.execute(
+      'SELECT id FROM inventory_families WHERE game_id = ? AND line_up_id = ? AND is_container = 1 LIMIT 1',
+      [game_id, line_up_id]
+    );
+    if (existing) return res.json({ family_id: existing.id });
+
+    const [[lu]] = await conn.execute('SELECT name, display_label FROM line_ups WHERE id = ?', [line_up_id]);
+    if (!lu) return res.status(400).json({ error: 'line_up_id does not match a line-up' });
+    const setName = lu.display_label || lu.name;
+    const setCode = `__LU${line_up_id}_G${game_id}`;
+    const [result] = await conn.execute(
+      'INSERT INTO inventory_families (game_id, line_up_id, is_container, set_code, set_name) VALUES (?, ?, 1, ?, ?)',
+      [game_id, line_up_id, setCode, setName]
+    );
+    res.status(201).json({ family_id: result.insertId });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to resolve flat line-up family' });
+  } finally { conn.release(); }
+});
+
 // Family list — grouped by inventory_families for the inventory grid
 app.get('/api/inventory/families', async (req, res) => {
   try {
+    // Container families (flat line-ups) never show as cards. Optional line-up filter too.
+    const lineUpId = req.query.line_up_id ? parseInt(req.query.line_up_id, 10) : null;
+    const lineUpFilter = lineUpId ? 'WHERE f.is_container = 0 AND f.line_up_id = ?' : 'WHERE f.is_container = 0';
+    const lineUpParams = lineUpId ? [lineUpId] : [];
+
     // Families from the inventory_families table
     const [rows] = await db.execute(`
       SELECT
@@ -450,6 +652,8 @@ app.get('/api/inventory/families', async (req, res) => {
         f.set_name                                        AS family_set_name,
         f.release_date,
         f.sort_order                                      AS family_sort_order,
+        f.line_up_id,
+        lu.name                                           AS line_up_name,
         g.id                                              AS game_id,
         g.name                                            AS game_title,
         g.display_label,
@@ -461,10 +665,13 @@ app.get('/api/inventory/families', async (req, res) => {
         COALESCE(SUM(i.stock_quantity * i.price), 0)      AS category_retail_value
       FROM inventory_families f
       JOIN games g ON g.id = f.game_id AND g.archived = 0
-      LEFT JOIN inventory i ON i.family_id = f.id AND i.product_type = 'sealed'
+      LEFT JOIN line_ups lu ON lu.id = f.line_up_id
+      LEFT JOIN inventory i ON i.family_id = f.id AND i.product_type <> 'single'
       LEFT JOIN categories c ON c.id = i.category_id
+      ${lineUpFilter}
       GROUP BY f.id, c.id
-      ORDER BY g.sort_order ASC, f.sort_order ASC, f.release_date DESC, c.name ASC`
+      ORDER BY g.sort_order ASC, f.sort_order ASC, f.release_date DESC, c.name ASC`,
+      lineUpParams
     );
 
     // Orphaned inventory rows (family_id IS NULL) — backward compat
@@ -503,6 +710,8 @@ app.get('/api/inventory/families', async (req, res) => {
           set_name:           row.family_set_name,
           release_date:       row.release_date,
           sort_order:         row.family_sort_order,
+          line_up_id:         row.line_up_id,
+          line_up_name:       row.line_up_name,
           game_id:            row.game_id,
           game_title:         row.game_title,
           display_label:      row.display_label,
@@ -551,7 +760,7 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
       FROM inventory i
       LEFT JOIN categories      c      ON c.id = i.category_id
       LEFT JOIN product_bundles pb_up  ON pb_up.child_product_id = i.id
-      WHERE i.set_name = ? AND i.product_type = 'sealed'
+      WHERE i.set_name = ? AND i.product_type <> 'single'
       ORDER BY i.is_bundle DESC, i.id ASC
     `, [req.params.set_name]);
 
@@ -621,14 +830,14 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
 
 // Create a new family
 app.post('/api/inventory/families', async (req, res) => {
-  const { game_id, set_code, set_name, release_date } = req.body;
+  const { game_id, set_code, set_name, release_date, line_up_id } = req.body;
   if (!game_id || !set_code || !set_name) {
     return res.status(400).json({ error: 'game_id, set_code, and set_name are required' });
   }
   try {
     const [result] = await db.execute(
-      'INSERT INTO inventory_families (game_id, set_code, set_name, release_date) VALUES (?, ?, ?, ?)',
-      [game_id, set_code.trim(), set_name.trim(), release_date || null]
+      'INSERT INTO inventory_families (game_id, set_code, set_name, release_date, line_up_id) VALUES (?, ?, ?, ?, ?)',
+      [game_id, set_code.trim(), set_name.trim(), release_date || null, line_up_id || null]
     );
     res.status(201).json({ id: result.insertId, message: 'Family created' });
   } catch (error) {
@@ -661,7 +870,7 @@ app.get('/api/inventory/family-by-id/:id', async (req, res) => {
       FROM inventory i
       LEFT JOIN categories      c     ON c.id = i.category_id
       LEFT JOIN product_bundles pb_up ON pb_up.child_product_id = i.id
-      WHERE i.family_id = ? AND i.product_type = 'sealed'
+      WHERE i.family_id = ? AND i.product_type <> 'single'
       ORDER BY i.sort_order ASC, i.is_bundle DESC, i.id ASC
     `, [req.params.id]);
 
@@ -1158,10 +1367,10 @@ app.patch('/api/inventory/families/reorder', authenticate, async (req, res) => {
 
 // Edit family metadata — must be registered after /families/reorder (specific before generic)
 app.patch('/api/inventory/families/:id', authenticate, async (req, res) => {
-  const { set_name, set_code, release_date } = req.body;
+  const { set_name, set_code, release_date, line_up_id } = req.body;
   const fid = req.params.id;
-  if (!set_name?.trim() && !set_code?.trim() && release_date === undefined) {
-    return res.status(400).json({ error: 'Provide set_name, set_code, or release_date to update' });
+  if (!set_name?.trim() && !set_code?.trim() && release_date === undefined && line_up_id === undefined) {
+    return res.status(400).json({ error: 'Provide set_name, set_code, release_date, or line_up_id to update' });
   }
   const conn = await db.getConnection();
   try {
@@ -1173,6 +1382,7 @@ app.patch('/api/inventory/families/:id', authenticate, async (req, res) => {
     if (set_name !== undefined) { updates.push('set_name = ?'); params.push(set_name.trim()); }
     if (set_code !== undefined) { updates.push('set_code = ?'); params.push(set_code.trim()); }
     if (release_date !== undefined) { updates.push('release_date = ?'); params.push(release_date || null); }
+    if (line_up_id !== undefined) { updates.push('line_up_id = ?'); params.push(line_up_id || null); }
     params.push(fid);
 
     await conn.execute(`UPDATE inventory_families SET ${updates.join(', ')} WHERE id = ?`, params);

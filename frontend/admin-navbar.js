@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     
                     <div class="hidden md:flex space-x-1">
-                        <a href="admin-inventory.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">📦 Inventory</a>
+                        <a href="admin-ips.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">📦 Inventory</a>
                         <a href="admin-outstock.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">📤 Outstock</a>
                         <a href="admin-singles.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">🃏 Singles</a>
                         <a href="admin-customers.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">👥 Customers Master</a>
@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <a href="admin-suppliers.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">🏢 Suppliers</a>
                         <a href="admin-staff.html" class="px-3 py-2 rounded-md text-sm font-bold text-red-400 hover:bg-gray-700 hover:text-white transition">🛡️ Staff</a>
                         <a href="admin-categories.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">📁 Categories</a>
+                        <a href="admin-lineups.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">🗂️ Line-ups</a>
                         ` : ''}
                     </div>
                 </div>

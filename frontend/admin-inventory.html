@@ -23,8 +23,9 @@
             Add Inventory (Family)
         </button>
     </div>
-    <div class="mb-3">
+    <div class="mb-3 flex items-center gap-3 flex-wrap">
         <input type="text" id="family-search" placeholder="Search families..." style="max-width:260px">
+        <span id="lineup-chip"></span>
     </div>
 
     <!-- Inventory Value Summary Bar -->
@@ -468,9 +469,15 @@
             </button>
         </div>
         <div class="space-y-4">
-            <div>
-                <label class="field-label">Game *</label>
-                <select id="family-game" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:white"><option value="">Select game...</option></select>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="field-label">Game *</label>
+                    <select id="family-game" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;background:white"><option value="">Select game...</option></select>
+                </div>
+                <div>
+                    <label class="field-label">Line-up</label>
+                    <select id="family-lineup"><option value="">-- None --</option></select>
+                </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <div>
@@ -576,9 +583,18 @@
                     <select id="add-category"><option value="">-- Select --</option></select>
                 </div>
                 <div>
-                    <label class="field-label">Card / Set ID</label>
-                    <input type="text" id="add-card-id" placeholder="OP17-001">
+                    <label class="field-label">Product Type</label>
+                    <select id="add-product-type">
+                        <option value="sealed">Sealed</option>
+                        <option value="apparel">Apparel</option>
+                        <option value="supply">Supply / Accessory</option>
+                        <option value="snack">Snack</option>
+                    </select>
                 </div>
+            </div>
+            <div>
+                <label class="field-label">Card / Set ID</label>
+                <input type="text" id="add-card-id" placeholder="OP17-001">
             </div>
             <div>
                 <label class="field-label">Product Name *</label>
@@ -662,6 +678,10 @@
                 <label class="field-label">Set Name *</label>
                 <input type="text" id="ef-set-name" placeholder="e.g. Royal Bloodlines">
             </div>
+            <div>
+                <label class="field-label">Line-up</label>
+                <select id="ef-lineup"><option value="">-- None --</option></select>
+            </div>
         </div>
         <div class="modal-footer">
             <button onclick="closeEditFamilyModal()" class="btn-ghost">Cancel</button>
@@ -696,7 +716,10 @@ let categories    = [];
 let allProducts   = [];
 let currentFamily = null; // object: { id, set_code, set_name, game_id, game_title, release_date, ... }
 let familyData    = [];
+let lineUpList    = [];   // fetched from /api/line-ups
 let activeGame    = '';   // game id (number) or '' for All
+let activeLineUp  = '';   // line_up id (number) or '' for no filter
+let flatMode      = false; // true when opened as a flat (no-family) line-up container
 let activeCategory = '';
 
 // Returns true iff p's category tier is non-null AND at least one other product in the
@@ -709,18 +732,70 @@ function canShowBreakdownUI(p, allProds) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
-    await Promise.all([loadGames(), loadCategories(), loadFamilies()]);
+    await Promise.all([loadGames(), loadCategories(), loadLineUps(), loadFamilies()]);
     document.getElementById('family-search').addEventListener('input', () => renderFamilyGrid());
     document.getElementById('d-price').addEventListener('input', calcMargin);
 
-    // Deep-link: ?family=OP17 auto-opens that family's tree view
     const urlParams = new URLSearchParams(window.location.search);
+
+    // Flat (no-family) line-up: open its hidden container family directly, skip the family grid.
+    const paramFlat = urlParams.get('flat_family');
+    if (paramFlat) {
+        flatMode = true;
+        if (urlParams.get('line_up')) activeLineUp = parseInt(urlParams.get('line_up'), 10);
+        await openFamily(parseInt(paramFlat, 10));
+        return;
+    }
+
+    // Deep-link from the landing page: ?game=<id>&line_up=<id> — filter by IP + line-up
+    const paramLineUp = urlParams.get('line_up');
+    const paramGame   = urlParams.get('game');
+    if (paramLineUp) activeLineUp = parseInt(paramLineUp, 10);
+    if (paramGame)   activeGame   = parseInt(paramGame, 10);
+    if (paramLineUp || paramGame) { renderTabs(); await renderFamilyGrid(); }
+    renderLineUpChip();
+
+    // Deep-link: ?family=OP17 auto-opens that family's tree view
     const paramFamily = urlParams.get('family');
     if (paramFamily) {
         const match = familyData.find(f => f.set_code === paramFamily || f.set_name === paramFamily);
         if (match && match.id) openFamily(match.id);
     }
 });
+
+async function loadLineUps() {
+    try {
+        const res = await fetch(`${API_URL}/line-ups`);
+        lineUpList = await res.json();
+        populateFamilyLineUpSelect();
+    } catch(e) { console.error('Failed to load line-ups'); }
+}
+
+function populateFamilyLineUpSelect() {
+    const opts = '<option value="">-- None --</option>' +
+        lineUpList.map(l => `<option value="${l.id}">${l.display_label || l.name}</option>`).join('');
+    ['family-lineup', 'ef-lineup'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = opts;
+    });
+}
+
+function renderLineUpChip() {
+    const host = document.getElementById('lineup-chip');
+    if (!host) return;
+    if (!activeLineUp) { host.innerHTML = ''; return; }
+    const lu = lineUpList.find(l => l.id === activeLineUp);
+    const label = lu ? (lu.display_label || lu.name) : `#${activeLineUp}`;
+    host.innerHTML = `<span class="lineup-chip">Line-up: ${esc(label)}
+        <button onclick="clearLineUpFilter()" title="Clear filter" aria-label="Clear line-up filter">✕</button></span>`;
+}
+
+async function clearLineUpFilter() {
+    activeLineUp = '';
+    renderLineUpChip();
+    renderTabs();
+    await renderFamilyGrid();
+}
 
 async function loadGames() {
     try {
@@ -765,14 +840,20 @@ async function loadFamilies() {
     }
 }
 
+// familyData restricted by the active line-up filter (if any)
+function lineUpFilteredFamilies() {
+    return activeLineUp ? familyData.filter(f => f.line_up_id === activeLineUp) : familyData;
+}
+
 function renderTabs() {
     const container = document.getElementById('game-tabs');
-    const allCount = familyData.length;
+    const base = lineUpFilteredFamilies();
+    const allCount = base.length;
     const allActive = activeGame === '';
     let html = `<button onclick="setGameTab('')" class="game-tab${allActive ? ' game-tab-active' : ''}">All${allCount > 0 ? `<span class="tab-badge">${allCount}</span>` : ''}</button>`;
 
     html += gameList.map(g => {
-        const count = familyData.filter(f => f.game_id === g.id).length;
+        const count = base.filter(f => f.game_id === g.id).length;
         const isActive = activeGame === g.id;
         const editBtn = isActive
             ? `<span class="tab-edit-btn" onclick="event.stopPropagation(); openEditGameModal(${g.id})" title="Edit game" style="font-size:10px;margin-right:2px;opacity:0.7;cursor:pointer">✎</span>`
@@ -797,18 +878,20 @@ async function setGameTab(gameId) {
 }
 
 async function renderFamilyGrid() {
-    if (activeGame === '') {
+    // With no game selected: show the per-game overview, unless a line-up filter is
+    // active (then show that line-up's families across every IP).
+    if (activeGame === '' && !activeLineUp) {
         await renderAllTabGrid();
         return;
     }
     const tokens = document.getElementById('family-search').value.toLowerCase().split(/\s+/).filter(Boolean);
-    const filtered = familyData.filter(f => {
+    const filtered = lineUpFilteredFamilies().filter(f => {
         const ms = !tokens.length || tokens.every(t =>
             (f.set_code  || '').toLowerCase().includes(t) ||
             (f.set_name  || '').toLowerCase().includes(t) ||
             (f.game_title|| '').toLowerCase().includes(t)
         );
-        return f.game_id === activeGame && ms;
+        return (activeGame === '' || f.game_id === activeGame) && ms;
     }).sort((a, b) => {
         const ad = a.release_date ? a.release_date.split('T')[0] : '';
         const bd = b.release_date ? b.release_date.split('T')[0] : '';
@@ -938,6 +1021,8 @@ async function openFamily(familyId) {
 }
 
 function showFamilyView() {
+    // From a flat line-up, "Back" returns to the IP landing page (there is no family grid).
+    if (flatMode) { window.location.href = 'admin-ips.html'; return; }
     currentFamily = null;
     document.getElementById('tree-view').classList.add('hidden');
     document.getElementById('product-edit-view').classList.add('hidden');
@@ -961,13 +1046,25 @@ async function loadFamilyTree(familyId) {
         currentFamily = data.family;
         allProducts   = data.products || [];
 
-        document.getElementById('tree-title').textContent = currentFamily.set_code;
-        const releaseStr = currentFamily.release_date ? ' · ' + currentFamily.release_date.split('T')[0] : '';
-        document.getElementById('tree-subtitle').textContent =
-            (currentFamily.set_name !== currentFamily.set_code ? currentFamily.set_name + ' — ' : '') +
-            (currentFamily.game_title || '') + releaseStr;
-        document.getElementById('singles-nav-link').href =
-            `admin-singles.html?family=${encodeURIComponent(currentFamily.set_code)}`;
+        // Container families (flat line-ups) present as a plain product list, not a "set".
+        const isContainer = !!currentFamily.is_container;
+        const editBtn = document.querySelector('#tree-view button[title="Edit family"]');
+        const singlesLink = document.getElementById('singles-nav-link');
+        if (isContainer) {
+            document.getElementById('tree-title').textContent = currentFamily.set_name || 'Products';
+            document.getElementById('tree-subtitle').textContent = currentFamily.game_title || '';
+            if (editBtn) editBtn.style.display = 'none';
+            if (singlesLink) singlesLink.style.display = 'none';
+        } else {
+            if (editBtn) editBtn.style.display = '';
+            if (singlesLink) singlesLink.style.display = '';
+            document.getElementById('tree-title').textContent = currentFamily.set_code;
+            const releaseStr = currentFamily.release_date ? ' · ' + currentFamily.release_date.split('T')[0] : '';
+            document.getElementById('tree-subtitle').textContent =
+                (currentFamily.set_name !== currentFamily.set_code ? currentFamily.set_name + ' — ' : '') +
+                (currentFamily.game_title || '') + releaseStr;
+            singlesLink.href = `admin-singles.html?family=${encodeURIComponent(currentFamily.set_code)}`;
+        }
 
         await loadFamilyCategories(familyId);
 
@@ -2207,6 +2304,9 @@ function openAddProductModal() {
     document.getElementById('add-price').value     = '';
     document.getElementById('add-desc').value      = '';
     document.getElementById('add-long-desc').value = '';
+    // Flat (container) line-ups are non-TCG by nature — default to a supply type.
+    document.getElementById('add-product-type').value =
+        (currentFamily && currentFamily.is_container) ? 'supply' : 'sealed';
     document.getElementById('add-modal').classList.add('open');
 }
 function closeAddProductModal() { document.getElementById('add-modal').classList.remove('open'); }
@@ -2220,7 +2320,7 @@ async function addProduct() {
         price:             parseFloat(document.getElementById('add-price').value) || 0,
         quick_description: document.getElementById('add-desc').value.trim() || null,
         long_description:  document.getElementById('add-long-desc').value.trim() || null,
-        product_type:      'sealed'
+        product_type:      document.getElementById('add-product-type').value || 'sealed'
     };
     if (!data.card_name) return showToast('Product name is required', 'error');
     try {
@@ -2538,6 +2638,8 @@ function openAddFamilyModal() {
     document.getElementById('family-set-name').value    = '';
     document.getElementById('family-release-date').value = '';
     populateFamilyGameSelect();
+    // Default the line-up to the active filter, if any
+    document.getElementById('family-lineup').value = activeLineUp || '';
     const gameEl = document.getElementById('family-game');
     if (activeGame !== '') {
         gameEl.value    = activeGame;
@@ -2556,11 +2658,12 @@ async function saveFamily() {
     const setCode     = document.getElementById('family-set-code').value.trim();
     const setName     = document.getElementById('family-set-name').value.trim();
     const releaseDate = document.getElementById('family-release-date').value;
+    const lineUpId    = document.getElementById('family-lineup').value;
     if (!gameId || !setCode || !setName) return showToast('Game, Set Code, and Set Name are required', 'error');
     try {
         const res = await fetch(`${API_URL}/inventory/families`, {
             method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ game_id: gameId, set_code: setCode, set_name: setName, release_date: releaseDate || null })
+            body: JSON.stringify({ game_id: gameId, set_code: setCode, set_name: setName, release_date: releaseDate || null, line_up_id: lineUpId || null })
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
@@ -2820,6 +2923,7 @@ function openEditFamilyModal() {
     document.getElementById('ef-set-name').value    = currentFamily.set_name || '';
     document.getElementById('ef-release-date').value = currentFamily.release_date
         ? currentFamily.release_date.split('T')[0] : '';
+    document.getElementById('ef-lineup').value = currentFamily.line_up_id || '';
     document.getElementById('edit-family-modal').classList.add('open');
 }
 function closeEditFamilyModal() { document.getElementById('edit-family-modal').classList.remove('open'); }
@@ -2829,11 +2933,12 @@ async function saveEditFamily() {
     const setCode     = document.getElementById('ef-set-code').value.trim();
     const setName     = document.getElementById('ef-set-name').value.trim();
     const releaseDate = document.getElementById('ef-release-date').value;
+    const lineUpId    = document.getElementById('ef-lineup').value;
     if (!setCode || !setName) return showToast('Set Code and Set Name are required', 'error');
     try {
         const res = await fetch(`${API_URL}/inventory/families/${currentFamily.id}`, {
             method: 'PATCH', headers: authHeaders(),
-            body: JSON.stringify({ set_code: setCode, set_name: setName, release_date: releaseDate || null })
+            body: JSON.stringify({ set_code: setCode, set_name: setName, release_date: releaseDate || null, line_up_id: lineUpId || null })
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
