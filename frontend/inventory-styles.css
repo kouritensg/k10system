@@ -219,6 +219,18 @@ input:disabled { background: #f9fafb; color: #6b7280; cursor: not-allowed; }
 .toast.error   { background: #dc2626; }
 .toast.info    { background: #2563eb; }
 
+/* ── Line-up filter chip ── */
+.lineup-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+  font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px;
+}
+.lineup-chip button {
+  background: none; border: none; color: #1d4ed8; cursor: pointer;
+  font-size: 12px; line-height: 1; padding: 0; opacity: 0.7;
+}
+.lineup-chip button:hover { opacity: 1; }
+
 /* ── Family cards (inventory landing) ── */
 .family-card {
   background: white; border: 1px solid #e5e7eb; border-radius: 12px;
