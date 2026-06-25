@@ -30,8 +30,13 @@
                     <input type="text" id="lu-label" placeholder="Accessories">
                 </div>
                 <div>
-                    <label class="field-label">Icon (emoji)</label>
-                    <input type="text" id="lu-icon" placeholder="🎒" maxlength="8">
+                    <label class="field-label">Product type</label>
+                    <select id="lu-product-type">
+                        <option value="sealed">Sealed</option>
+                        <option value="apparel">Apparel</option>
+                        <option value="supply">Supply / Accessory</option>
+                        <option value="snack">Snack</option>
+                    </select>
                 </div>
                 <div>
                     <button onclick="addLineUp()" class="btn-primary w-full justify-center">+ Add line-up</button>
@@ -110,14 +115,12 @@ function renderList() {
         return `
         <div class="bg-white border border-gray-200 rounded-xl p-4">
             <div class="flex items-start justify-between gap-3">
-                <div class="flex items-center gap-3">
-                    <div class="text-2xl">${lu.icon ? esc(lu.icon) : '🏷️'}</div>
-                    <div>
-                        <h3 class="text-base font-bold text-gray-900">${esc(lu.display_label || lu.name)}
-                            <span class="badge ${lu.uses_families ? 'badge-blue' : 'badge-gray'}" style="margin-left:6px">${lu.uses_families ? 'Families' : 'Flat'}</span>
-                        </h3>
-                        <p class="text-xs text-gray-400">${esc(lu.name)}</p>
-                    </div>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">${esc(lu.display_label || lu.name)}
+                        <span class="badge ${lu.uses_families ? 'badge-blue' : 'badge-gray'}" style="margin-left:6px">${lu.uses_families ? 'Families' : 'Flat'}</span>
+                        <span class="badge badge-teal" style="margin-left:4px">${esc(lu.product_type || 'sealed')}</span>
+                    </h3>
+                    <p class="text-xs text-gray-400">${esc(lu.name)}</p>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="toggleMode(${lu.id}, ${lu.uses_families ? 1 : 0})" class="btn-ghost">${lu.uses_families ? 'Switch to flat' : 'Switch to families'}</button>
@@ -160,19 +163,19 @@ async function toggleMode(id, current) {
 async function addLineUp() {
     const name  = document.getElementById('lu-name').value.trim();
     const label = document.getElementById('lu-label').value.trim();
-    const icon  = document.getElementById('lu-icon').value.trim();
+    const productType = document.getElementById('lu-product-type').value;
     const usesFamilies = document.getElementById('lu-uses-families').checked;
     if (!name) return showToast('Name is required', 'error');
     try {
         const res = await fetch(`${API_URL}/line-ups`, {
             method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ name, display_label: label || null, icon: icon || null, sort_order: lineUps.length + 1, uses_families: usesFamilies })
+            body: JSON.stringify({ name, display_label: label || null, product_type: productType, sort_order: lineUps.length + 1, uses_families: usesFamilies })
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         document.getElementById('lu-name').value = '';
         document.getElementById('lu-label').value = '';
-        document.getElementById('lu-icon').value = '';
+        document.getElementById('lu-product-type').value = 'sealed';
         document.getElementById('lu-uses-families').checked = true;
         showToast('Line-up created!', 'success');
         await loadAll();

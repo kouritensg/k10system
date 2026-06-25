@@ -578,23 +578,14 @@
         </div>
         <div class="space-y-4">
             <div class="grid grid-cols-2 gap-3">
-                <div>
-                    <label class="field-label">Category Type *</label>
+                <div id="add-category-wrap">
+                    <label class="field-label">Category Type</label>
                     <select id="add-category"><option value="">-- Select --</option></select>
                 </div>
                 <div>
-                    <label class="field-label">Product Type</label>
-                    <select id="add-product-type">
-                        <option value="sealed">Sealed</option>
-                        <option value="apparel">Apparel</option>
-                        <option value="supply">Supply / Accessory</option>
-                        <option value="snack">Snack</option>
-                    </select>
+                    <label class="field-label">Card / Set ID</label>
+                    <input type="text" id="add-card-id" placeholder="OP17-001">
                 </div>
-            </div>
-            <div>
-                <label class="field-label">Card / Set ID</label>
-                <input type="text" id="add-card-id" placeholder="OP17-001">
             </div>
             <div>
                 <label class="field-label">Product Name *</label>
@@ -2304,9 +2295,10 @@ function openAddProductModal() {
     document.getElementById('add-price').value     = '';
     document.getElementById('add-desc').value      = '';
     document.getElementById('add-long-desc').value = '';
-    // Flat (container) line-ups are non-TCG by nature — default to a supply type.
-    document.getElementById('add-product-type').value =
-        (currentFamily && currentFamily.is_container) ? 'supply' : 'sealed';
+    // Flat (container) line-ups have no categories — hide the field. Product type
+    // is inherited from the line-up server-side, so there is no per-product picker.
+    document.getElementById('add-category-wrap').style.display =
+        (currentFamily && currentFamily.is_container) ? 'none' : '';
     document.getElementById('add-modal').classList.add('open');
 }
 function closeAddProductModal() { document.getElementById('add-modal').classList.remove('open'); }
@@ -2319,8 +2311,7 @@ async function addProduct() {
         card_name:         document.getElementById('add-name').value.trim(),
         price:             parseFloat(document.getElementById('add-price').value) || 0,
         quick_description: document.getElementById('add-desc').value.trim() || null,
-        long_description:  document.getElementById('add-long-desc').value.trim() || null,
-        product_type:      document.getElementById('add-product-type').value || 'sealed'
+        long_description:  document.getElementById('add-long-desc').value.trim() || null
     };
     if (!data.card_name) return showToast('Product name is required', 'error');
     try {
