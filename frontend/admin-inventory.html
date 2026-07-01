@@ -927,6 +927,7 @@ async function renderFamilyGrid() {
             <div class="flex items-center gap-2 text-sm flex-wrap mb-1">
                 <span class="text-gray-500">${f.total_products} product${f.total_products != 1 ? 's' : ''}</span>
                 ${f.bundle_count > 0 ? `<span class="badge badge-blue">${f.bundle_count} breakdown${f.bundle_count != 1 ? 's' : ''}</span>` : ''}
+                ${f.singles_count > 0 ? `<span class="badge badge-purple" style="cursor:pointer" title="Open singles manager" onclick="event.stopPropagation(); window.location.href='admin-singles.html?family=${encodeURIComponent(f.set_code)}'">${f.singles_count} single${f.singles_count != 1 ? 's' : ''} ↗</span>` : ''}
             </div>
             <div class="flex flex-wrap items-center gap-y-1 text-sm">
                 ${catBreakdown || `<span class="text-gray-400">No stock</span>`}

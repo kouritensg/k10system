@@ -353,14 +353,13 @@ app.get('/api/line-ups', async (req, res) => {
 });
 
 app.post('/api/line-ups', async (req, res) => {
-  const { name, display_label, sort_order, uses_families, product_type } = req.body;
+  const { name, display_label, sort_order, uses_families } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
   try {
     const [result] = await db.execute(
-      'INSERT INTO line_ups (name, display_label, sort_order, uses_families, product_type) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO line_ups (name, display_label, sort_order, uses_families) VALUES (?, ?, ?, ?)',
       [name.trim(), display_label?.trim() || null, sort_order || 0,
-       uses_families === undefined ? 1 : (uses_families ? 1 : 0),
-       product_type || 'sealed']
+       uses_families === undefined ? 1 : (uses_families ? 1 : 0)]
     );
     res.status(201).json({ id: result.insertId, message: 'Line-up created' });
   } catch (error) {
@@ -388,7 +387,7 @@ app.patch('/api/line-ups/reorder', authenticate, async (req, res) => {
 });
 
 app.patch('/api/line-ups/:id', async (req, res) => {
-  const { name, display_label, sort_order, uses_families, product_type } = req.body;
+  const { name, display_label, sort_order, uses_families } = req.body;
   try {
     const updates = [];
     const params = [];
@@ -396,7 +395,6 @@ app.patch('/api/line-ups/:id', async (req, res) => {
     if (display_label !== undefined) { updates.push('display_label = ?'); params.push(display_label?.trim() || null); }
     if (sort_order !== undefined) { updates.push('sort_order = ?'); params.push(sort_order); }
     if (uses_families !== undefined) { updates.push('uses_families = ?'); params.push(uses_families ? 1 : 0); }
-    if (product_type !== undefined) { updates.push('product_type = ?'); params.push(product_type || 'sealed'); }
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
     params.push(req.params.id);
     const [result] = await db.execute(`UPDATE line_ups SET ${updates.join(', ')} WHERE id = ?`, params);
@@ -575,6 +573,7 @@ app.get('/api/inventory/ip-lineup-summary', async (req, res) => {
         lu.sort_order   AS line_up_sort,
         lu.uses_families AS uses_families,
         COUNT(DISTINCT f.id)               AS family_count,
+        COUNT(DISTINCT CASE WHEN i.product_type = 'single' THEN i.id END) AS singles_count,
         COALESCE(SUM(i.stock_quantity), 0) AS total_stock
       FROM line_up_games lug
       JOIN games    g  ON g.id  = lug.game_id    AND g.archived  = 0
@@ -602,6 +601,7 @@ app.get('/api/inventory/ip-lineup-summary', async (req, res) => {
         icon:          r.line_up_icon,
         uses_families: !!r.uses_families,
         family_count:  Number(r.family_count),
+        singles_count: Number(r.singles_count) || 0,
         total_stock:   Number(r.total_stock)
       });
     });
@@ -655,6 +655,8 @@ app.get('/api/inventory/families', async (req, res) => {
         f.sort_order                                      AS family_sort_order,
         f.line_up_id,
         lu.name                                           AS line_up_name,
+        (SELECT COUNT(*) FROM inventory s
+          WHERE s.family_id = f.id AND s.product_type = 'single') AS singles_count,
         g.id                                              AS game_id,
         g.name                                            AS game_title,
         g.display_label,
@@ -713,6 +715,7 @@ app.get('/api/inventory/families', async (req, res) => {
           sort_order:         row.family_sort_order,
           line_up_id:         row.line_up_id,
           line_up_name:       row.line_up_name,
+          singles_count:      Number(row.singles_count) || 0,
           game_id:            row.game_id,
           game_title:         row.game_title,
           display_label:      row.display_label,
@@ -1234,16 +1237,11 @@ app.post('/api/inventory/add', async (req, res) => {
   const conn = await db.getConnection();
   try {
     const [[fam]] = await conn.execute(
-      `SELECT f.set_code, f.set_name AS fam_name, g.name AS game_title, lu.product_type AS lineup_product_type
-       FROM inventory_families f
-       JOIN games g ON g.id = f.game_id
-       LEFT JOIN line_ups lu ON lu.id = f.line_up_id
-       WHERE f.id = ?`,
+      `SELECT f.set_code, f.set_name AS fam_name, g.name AS game_title
+       FROM inventory_families f JOIN games g ON g.id = f.game_id WHERE f.id = ?`,
       [family_id]
     );
     if (!fam) return res.status(400).json({ error: 'family_id does not match an existing family' });
-    // Product type is defined by the line-up, not chosen per product.
-    const resolvedType = fam.lineup_product_type || product_type || 'sealed';
 
     const [[maxSort]] = await conn.execute(
       'SELECT COALESCE(MAX(sort_order), 0) AS mx FROM inventory WHERE family_id = ?',
@@ -1262,7 +1260,7 @@ app.post('/api/inventory/add', async (req, res) => {
         category_id || null, card_id || null, card_name,
         price || 0, cost_price || 0, stock_quantity || 0,
         quick_description || null, long_description || null,
-        resolvedType, card_condition || null, card_finish || null, sortOrder
+        product_type || 'sealed', card_condition || null, card_finish || null, sortOrder
       ]
     );
     res.status(201).json({ id: result.insertId, message: 'Product registered!' });

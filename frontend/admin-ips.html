@@ -115,7 +115,7 @@ function openIP(gameId) {
                     <span class="badge ${lu.uses_families ? 'badge-blue' : 'badge-gray'}">${lu.uses_families ? 'Families' : 'Flat'}</span>
                 </div>
                 <h3 class="text-lg font-bold text-gray-900 mb-1">${esc(lu.display_label || lu.name)}</h3>
-                <p class="text-sm text-gray-500">${lu.uses_families ? `${lu.family_count} group${lu.family_count != 1 ? 's' : ''} · ` : ''}${(lu.total_stock || 0).toLocaleString()} in stock</p>
+                <p class="text-sm text-gray-500">${lu.uses_families ? `${lu.family_count} group${lu.family_count != 1 ? 's' : ''} · ` : ''}${(lu.total_stock || 0).toLocaleString()} in stock${lu.singles_count > 0 ? ` · ${lu.singles_count.toLocaleString()} single${lu.singles_count != 1 ? 's' : ''}` : ''}</p>
             </div>`).join('');
     }
     document.getElementById('ip-view').classList.add('hidden');
