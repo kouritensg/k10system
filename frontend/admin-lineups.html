@@ -39,6 +39,25 @@
             </label>
         </div>
 
+        <!-- Add IP (game) -->
+        <div class="bg-white border border-gray-200 rounded-xl p-4 mb-6">
+            <p class="field-label mb-2">Add IP</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div>
+                    <label class="field-label">Name *</label>
+                    <input type="text" id="ip-name" placeholder="Gundam">
+                </div>
+                <div>
+                    <label class="field-label">Display label</label>
+                    <input type="text" id="ip-label" placeholder="Gundam TCG">
+                </div>
+                <div>
+                    <button onclick="addIP()" class="btn-primary w-full justify-center">+ Add IP</button>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">New IPs appear in every line-up's <strong>Assign IPs</strong> list below.</p>
+        </div>
+
         <div id="lineup-list" class="space-y-3">
             <div class="text-center py-16 text-gray-400 text-sm">Loading…</div>
         </div>
@@ -166,6 +185,24 @@ async function addLineUp() {
         document.getElementById('lu-label').value = '';
         document.getElementById('lu-uses-families').checked = true;
         showToast('Line-up created!', 'success');
+        await loadAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function addIP() {
+    const name  = document.getElementById('ip-name').value.trim();
+    const label = document.getElementById('ip-label').value.trim();
+    if (!name) return showToast('IP name is required', 'error');
+    try {
+        const res = await fetch(`${API_URL}/games`, {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ name, display_label: label || null, sort_order: games.length + 1 })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        document.getElementById('ip-name').value = '';
+        document.getElementById('ip-label').value = '';
+        showToast('IP added!', 'success');
         await loadAll();
     } catch (e) { showToast(e.message, 'error'); }
 }

@@ -11,9 +11,17 @@
 
 <script src="admin-navbar.js"></script>
 
+<!-- PERSISTENT INVENTORY NAV — line-up + IP axes, visible above both the grid and flat product lists -->
+<div id="inv-nav" class="max-w-6xl mx-auto px-4 mt-8">
+    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Line-up</div>
+    <div id="lineup-tabs" class="flex flex-wrap gap-0 border-b border-gray-200 mb-3"></div>
+    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">IP</div>
+    <div id="game-tabs" class="flex flex-wrap gap-0 border-b border-gray-200"></div>
+</div>
+
 <!-- FAMILY LIST VIEW -->
-<div id="family-view" class="max-w-6xl mx-auto px-4 mt-8 pb-16">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+<div id="family-view" class="max-w-6xl mx-auto px-4 mt-5 pb-16">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Inventory</h1>
             <p class="text-sm text-gray-500 mt-0.5">Select a product family to manage</p>
@@ -25,15 +33,11 @@
     </div>
     <div class="mb-3 flex items-center gap-3 flex-wrap">
         <input type="text" id="family-search" placeholder="Search families..." style="max-width:260px">
-        <span id="lineup-chip"></span>
     </div>
 
     <!-- Inventory Value Summary Bar -->
     <div id="inventory-summary" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"></div>
 
-    <div class="mb-4 border-b border-gray-200">
-        <div id="game-tabs" class="flex flex-wrap gap-0"></div>
-    </div>
     <div id="family-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="col-span-full text-center py-16 text-gray-400 text-sm">Loading families...</div>
     </div>
@@ -711,6 +715,7 @@ let lineUpList    = [];   // fetched from /api/line-ups
 let activeGame    = '';   // game id (number) or '' for All
 let activeLineUp  = '';   // line_up id (number) or '' for no filter
 let flatMode      = false; // true when opened as a flat (no-family) line-up container
+let ipLineups     = {};   // game_id -> [{ line_up_id, name, display_label, uses_families, ... }]
 let activeCategory = '';
 
 // Returns true iff p's category tier is non-null AND at least one other product in the
@@ -723,18 +728,19 @@ function canShowBreakdownUI(p, allProds) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'admin.html'; return; }
-    await Promise.all([loadGames(), loadCategories(), loadLineUps(), loadFamilies()]);
+    await Promise.all([loadGames(), loadCategories(), loadLineUps(), loadSummary(), loadFamilies()]);
     document.getElementById('family-search').addEventListener('input', () => renderFamilyGrid());
     document.getElementById('d-price').addEventListener('input', calcMargin);
 
     const urlParams = new URLSearchParams(window.location.search);
 
-    // Flat (no-family) line-up: open its hidden container family directly, skip the family grid.
+    // Flat (no-family) line-up: open its hidden container family directly.
     const paramFlat = urlParams.get('flat_family');
     if (paramFlat) {
-        flatMode = true;
         if (urlParams.get('line_up')) activeLineUp = parseInt(urlParams.get('line_up'), 10);
         await openFamily(parseInt(paramFlat, 10));
+        if (currentFamily) activeGame = currentFamily.game_id;
+        renderLineUpTabs(); renderTabs();
         return;
     }
 
@@ -743,8 +749,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const paramGame   = urlParams.get('game');
     if (paramLineUp) activeLineUp = parseInt(paramLineUp, 10);
     if (paramGame)   activeGame   = parseInt(paramGame, 10);
-    if (paramLineUp || paramGame) { renderTabs(); await renderFamilyGrid(); }
-    renderLineUpChip();
+    renderLineUpTabs(); renderTabs();
+    if (paramLineUp || paramGame) { await renderFamilyGrid(); }
 
     // Deep-link: ?family=OP17 auto-opens that family's tree view
     const paramFamily = urlParams.get('family');
@@ -753,6 +759,93 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (match && match.id) openFamily(match.id);
     }
 });
+
+// Load per-IP line-up assignments (drives the line-up tab row)
+async function loadSummary() {
+    try {
+        const res = await fetch(`${API_URL}/inventory/ip-lineup-summary`, { headers: authHeaders() });
+        const data = await res.json();
+        ipLineups = {};
+        data.forEach(g => { ipLineups[g.game_id] = g.line_ups || []; });
+    } catch(e) { console.error('Failed to load IP/line-up summary'); }
+}
+
+// Show/hide the three inventory surfaces. mode: 'grid' | 'flat' | 'detail'
+function setInvView(mode) {
+    const nav  = document.getElementById('inv-nav');
+    const fam  = document.getElementById('family-view');
+    const tree = document.getElementById('tree-view');
+    nav.classList.toggle('hidden',  mode === 'detail');
+    fam.classList.toggle('hidden',  mode !== 'grid');
+    tree.classList.toggle('hidden', mode === 'grid');
+}
+
+// Line-ups to show as tabs: assigned to the active IP, or all line-ups when IP = All
+function lineUpsForActiveIP() {
+    if (activeGame === '') {
+        return lineUpList.map(l => ({ id: l.id, name: l.name, display_label: l.display_label, uses_families: !!l.uses_families }));
+    }
+    return (ipLineups[activeGame] || []).map(s => ({
+        id: s.line_up_id, name: s.name, display_label: s.display_label, uses_families: !!s.uses_families
+    }));
+}
+
+function renderLineUpTabs() {
+    const container = document.getElementById('lineup-tabs');
+    if (!container) return;
+    const lus = lineUpsForActiveIP();
+    let html = `<button onclick="setLineUpTab('')" class="game-tab${!activeLineUp ? ' game-tab-active' : ''}">All</button>`;
+    html += lus.map(l => {
+        const isActive = activeLineUp === l.id;
+        const flatBadge = l.uses_families ? '' : `<span class="tab-badge" style="background:#f3f4f6;color:#6b7280;margin-left:4px">flat</span>`;
+        return `<button onclick="setLineUpTab(${l.id})" class="game-tab${isActive ? ' game-tab-active' : ''}">${esc(l.display_label || l.name)}${flatBadge}</button>`;
+    }).join('');
+    container.innerHTML = html;
+}
+
+async function setLineUpTab(id) {
+    if (id === '' || id === undefined) {
+        activeLineUp = ''; flatMode = false;
+        setInvView('grid');
+        renderLineUpTabs(); renderTabs();
+        await renderFamilyGrid();
+        return;
+    }
+    const lu = lineUpsForActiveIP().find(l => l.id === id) || lineUpList.find(l => l.id === id);
+    activeLineUp = id;
+    if (lu && !lu.uses_families) {
+        // Flat line-up needs a specific IP to resolve its container
+        if (activeGame === '') {
+            flatMode = false;
+            setInvView('grid');
+            renderLineUpTabs(); renderTabs();
+            document.getElementById('family-grid').innerHTML =
+                `<div class="col-span-full text-center py-16 text-gray-400 text-sm">Select an IP above to view <strong>${esc(lu.display_label || lu.name)}</strong>.</div>`;
+            return;
+        }
+        await openFlatLineUp(activeGame, id);
+        return;
+    }
+    // Family-based line-up → filtered grid
+    flatMode = false;
+    setInvView('grid');
+    renderLineUpTabs(); renderTabs();
+    await renderFamilyGrid();
+}
+
+// Resolve a flat line-up's hidden container for an IP and open its product list in place
+async function openFlatLineUp(gameId, lineUpId) {
+    try {
+        const res = await fetch(`${API_URL}/inventory/flat-family`, {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ game_id: gameId, line_up_id: lineUpId })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        renderLineUpTabs();
+        await openFamily(json.family_id);
+    } catch(e) { showToast(e.message || 'Failed to open line-up', 'error'); }
+}
 
 async function loadLineUps() {
     try {
@@ -769,23 +862,6 @@ function populateFamilyLineUpSelect() {
         const el = document.getElementById(id);
         if (el) el.innerHTML = opts;
     });
-}
-
-function renderLineUpChip() {
-    const host = document.getElementById('lineup-chip');
-    if (!host) return;
-    if (!activeLineUp) { host.innerHTML = ''; return; }
-    const lu = lineUpList.find(l => l.id === activeLineUp);
-    const label = lu ? (lu.display_label || lu.name) : `#${activeLineUp}`;
-    host.innerHTML = `<span class="lineup-chip">Line-up: ${esc(label)}
-        <button onclick="clearLineUpFilter()" title="Clear filter" aria-label="Clear line-up filter">✕</button></span>`;
-}
-
-async function clearLineUpFilter() {
-    activeLineUp = '';
-    renderLineUpChip();
-    renderTabs();
-    await renderFamilyGrid();
 }
 
 async function loadGames() {
@@ -864,6 +940,15 @@ function renderTabs() {
 
 async function setGameTab(gameId) {
     activeGame = gameId;
+    // Keep the line-up filter only if the new IP carries it and it is family-based
+    // (flat line-ups can't render in the grid, so drop to All).
+    if (activeLineUp) {
+        const lu = lineUpsForActiveIP().find(l => l.id === activeLineUp);
+        if (!lu || !lu.uses_families) activeLineUp = '';
+    }
+    flatMode = false;
+    setInvView('grid');
+    renderLineUpTabs();
     renderTabs();
     await renderFamilyGrid();
 }
@@ -1006,19 +1091,28 @@ function renderInventorySummary() {
 
 async function openFamily(familyId) {
     activeCategory = '';
-    document.getElementById('family-view').classList.add('hidden');
-    document.getElementById('tree-view').classList.remove('hidden');
-    document.getElementById('tree-view').classList.add('fade-in');
     await loadFamilyTree(familyId);
+    // Flat container → keep the nav bar visible (switch via tabs); a real family → detail view.
+    if (currentFamily && currentFamily.is_container) {
+        flatMode = true;
+        setInvView('flat');
+    } else {
+        flatMode = false;
+        setInvView('detail');
+    }
+    document.getElementById('tree-view').classList.add('fade-in');
 }
 
 function showFamilyView() {
-    // From a flat line-up, "Back" returns to the IP landing page (there is no family grid).
-    if (flatMode) { window.location.href = 'admin-ips.html'; return; }
+    const wasFlat = currentFamily && currentFamily.is_container;
     currentFamily = null;
-    document.getElementById('tree-view').classList.add('hidden');
+    flatMode = false;
+    // A flat line-up has no family grid, so returning drops the filter to All.
+    if (wasFlat) activeLineUp = '';
     document.getElementById('product-edit-view').classList.add('hidden');
-    document.getElementById('family-view').classList.remove('hidden');
+    setInvView('grid');
+    renderLineUpTabs();
+    renderTabs();
     loadFamilies();
 }
 
