@@ -456,6 +456,198 @@ app.put('/api/line-ups/:id/games', authenticate, async (req, res) => {
   } finally { conn.release(); }
 });
 
+// ---- IP-keyed line-up assignment (mirror of the two handlers above, keyed by game) ----
+// Read the line-ups carried by an IP
+app.get('/api/games/:gameId/line-ups', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT line_up_id FROM line_up_games WHERE game_id = ?', [req.params.gameId]);
+    res.json(rows.map(r => r.line_up_id));
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch IP line-ups' }); }
+});
+
+// Replace the line-up set carried by an IP (the IP-first "which line-ups does this IP carry" step)
+app.put('/api/games/:gameId/line-ups', authenticate, async (req, res) => {
+  const { line_up_ids } = req.body;
+  if (!Array.isArray(line_up_ids)) return res.status(400).json({ error: 'line_up_ids array required' });
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.execute('DELETE FROM line_up_games WHERE game_id = ?', [req.params.gameId]);
+    for (const lid of line_up_ids) {
+      await conn.execute('INSERT INTO line_up_games (line_up_id, game_id) VALUES (?, ?)', [lid, req.params.gameId]);
+    }
+    await conn.commit();
+    res.json({ message: 'IP line-ups updated' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
+});
+
+// ==========================================
+// 2.7 PER-IP CASE/PACK CONFIGURATIONS
+// A config is a named breakdown template scoped to one IP (game): an ordered tier
+// ladder (container -> ... -> pack). Configs SEED per-family `categories` at
+// family-create time (see POST /api/inventory/families); they never change FIFO,
+// product_bundles, or already-seeded categories. Config + its tiers move together.
+// ==========================================
+
+// Validate + normalise a tiers array from the request body. Returns { error } or { tiers }.
+function normaliseConfigTiers(tiers) {
+  if (!Array.isArray(tiers) || tiers.length < 2) {
+    return { error: 'A configuration needs at least 2 tiers (a container and a child)' };
+  }
+  const seen = new Set();
+  const out = [];
+  for (let i = 0; i < tiers.length; i++) {
+    const t = tiers[i] || {};
+    const name = (t.category_name || '').trim();
+    if (!name) return { error: `Tier ${i + 1} needs a category name` };
+    const key = name.toLowerCase();
+    if (seen.has(key)) return { error: `Duplicate category name "${name}" within the configuration` };
+    seen.add(key);
+    let qty;
+    if (i === 0) {
+      qty = null; // top container has no parent
+    } else {
+      qty = t.qty_per_parent;
+      if (!Number.isInteger(qty) || qty <= 0) {
+        return { error: `Tier ${i + 1} ("${name}") needs a positive quantity per parent` };
+      }
+    }
+    out.push({ tier: i + 1, category_name: name, qty_per_parent: qty });
+  }
+  return { tiers: out };
+}
+
+// List an IP's configs, each with its ordered tiers (no N+1: two queries stitched in JS)
+app.get('/api/games/:gameId/configs', async (req, res) => {
+  const includeArchived = req.query.include_archived === '1';
+  try {
+    const [configs] = await db.execute(
+      `SELECT id, game_id, name, display_label, sort_order, archived
+         FROM product_configs
+        WHERE game_id = ? ${includeArchived ? '' : 'AND archived = 0'}
+        ORDER BY sort_order ASC, id ASC`,
+      [req.params.gameId]
+    );
+    if (!configs.length) return res.json([]);
+    const ids = configs.map(c => c.id);
+    const [tiers] = await db.query(
+      'SELECT config_id, tier, category_name, qty_per_parent FROM product_config_tiers WHERE config_id IN (?) ORDER BY tier ASC',
+      [ids]
+    );
+    const byConfig = {};
+    for (const t of tiers) (byConfig[t.config_id] ||= []).push(t);
+    res.json(configs.map(c => ({ ...c, tiers: byConfig[c.id] || [] })));
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch configurations' }); }
+});
+
+// Create a config + its tier ladder in one transaction
+app.post('/api/games/:gameId/configs', async (req, res) => {
+  const { name, display_label, sort_order, tiers } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  const norm = normaliseConfigTiers(tiers);
+  if (norm.error) return res.status(400).json({ error: norm.error });
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [result] = await conn.execute(
+      'INSERT INTO product_configs (game_id, name, display_label, sort_order) VALUES (?, ?, ?, ?)',
+      [req.params.gameId, name.trim(), display_label?.trim() || null, sort_order || 0]
+    );
+    const configId = result.insertId;
+    for (const t of norm.tiers) {
+      await conn.execute(
+        'INSERT INTO product_config_tiers (config_id, tier, category_name, qty_per_parent) VALUES (?, ?, ?, ?)',
+        [configId, t.tier, t.category_name, t.qty_per_parent]
+      );
+    }
+    await conn.commit();
+    res.status(201).json({ id: configId, message: 'Configuration created' });
+  } catch (err) {
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'A configuration with that name already exists for this IP' });
+    res.status(500).json({ error: 'Failed to create configuration' });
+  } finally { conn.release(); }
+});
+
+// Edit a config: name/label/sort_order and/or a full tier-ladder replace. Forward-only —
+// never touches already-seeded `categories`/`product_bundles`.
+app.patch('/api/games/:gameId/configs/:id', async (req, res) => {
+  const { name, display_label, sort_order, tiers } = req.body;
+  let normTiers = null;
+  if (tiers !== undefined) {
+    const norm = normaliseConfigTiers(tiers);
+    if (norm.error) return res.status(400).json({ error: norm.error });
+    normTiers = norm.tiers;
+  }
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const updates = [];
+    const params = [];
+    if (name !== undefined) {
+      if (!name.trim()) { await conn.rollback(); return res.status(400).json({ error: 'Name cannot be empty' }); }
+      updates.push('name = ?'); params.push(name.trim());
+    }
+    if (display_label !== undefined) { updates.push('display_label = ?'); params.push(display_label?.trim() || null); }
+    if (sort_order !== undefined) { updates.push('sort_order = ?'); params.push(sort_order); }
+    if (updates.length) {
+      params.push(req.params.id, req.params.gameId);
+      const [result] = await conn.execute(
+        `UPDATE product_configs SET ${updates.join(', ')} WHERE id = ? AND game_id = ?`, params
+      );
+      if (result.affectedRows === 0) { await conn.rollback(); return res.status(404).json({ error: 'Configuration not found' }); }
+    } else {
+      // no scalar updates — still confirm the config belongs to this IP before replacing tiers
+      const [[cfg]] = await conn.execute(
+        'SELECT id FROM product_configs WHERE id = ? AND game_id = ?', [req.params.id, req.params.gameId]
+      );
+      if (!cfg) { await conn.rollback(); return res.status(404).json({ error: 'Configuration not found' }); }
+    }
+    if (normTiers) {
+      await conn.execute('DELETE FROM product_config_tiers WHERE config_id = ?', [req.params.id]);
+      for (const t of normTiers) {
+        await conn.execute(
+          'INSERT INTO product_config_tiers (config_id, tier, category_name, qty_per_parent) VALUES (?, ?, ?, ?)',
+          [req.params.id, t.tier, t.category_name, t.qty_per_parent]
+        );
+      }
+    }
+    await conn.commit();
+    res.json({ message: 'Configuration updated' });
+  } catch (err) {
+    await conn.rollback();
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'A configuration with that name already exists for this IP' });
+    res.status(500).json({ error: 'Failed to update configuration' });
+  } finally { conn.release(); }
+});
+
+// Archive a config (hide from the seed picker + Stage-2 list)
+app.patch('/api/games/:gameId/configs/:id/archive', async (req, res) => {
+  try {
+    const [[cfg]] = await db.execute(
+      'SELECT archived FROM product_configs WHERE id = ? AND game_id = ?', [req.params.id, req.params.gameId]
+    );
+    if (!cfg) return res.status(404).json({ error: 'Configuration not found' });
+    const newState = cfg.archived ? 0 : 1;
+    await db.execute('UPDATE product_configs SET archived = ? WHERE id = ?', [newState, req.params.id]);
+    res.json({ archived: newState, message: newState ? 'Configuration archived' : 'Configuration restored' });
+  } catch (error) { res.status(500).json({ error: 'Failed to toggle archive' }); }
+});
+
+// Hard delete a config (cascade drops its tiers). Safe — configs don't hard-link families after seeding.
+app.delete('/api/games/:gameId/configs/:id', async (req, res) => {
+  try {
+    const [result] = await db.execute(
+      'DELETE FROM product_configs WHERE id = ? AND game_id = ?', [req.params.id, req.params.gameId]
+    );
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Configuration not found' });
+    res.json({ message: 'Configuration deleted' });
+  } catch (error) { res.status(500).json({ error: 'Failed to delete configuration' }); }
+});
+
 // ==========================================
 // 3. SUPPLIER MANAGEMENT
 // ==========================================
@@ -834,20 +1026,59 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
 
 // Create a new family
 app.post('/api/inventory/families', async (req, res) => {
-  const { game_id, set_code, set_name, release_date, line_up_id } = req.body;
+  const { game_id, set_code, set_name, release_date, line_up_id, config_ids } = req.body;
   if (!game_id || !set_code || !set_name) {
     return res.status(400).json({ error: 'game_id, set_code, and set_name are required' });
   }
+  const conn = await db.getConnection();
   try {
-    const [result] = await db.execute(
+    await conn.beginTransaction();
+    const [result] = await conn.execute(
       'INSERT INTO inventory_families (game_id, set_code, set_name, release_date, line_up_id) VALUES (?, ?, ?, ?, ?)',
       [game_id, set_code.trim(), set_name.trim(), release_date || null, line_up_id || null]
     );
-    res.status(201).json({ id: result.insertId, message: 'Family created' });
+    const familyId = result.insertId;
+
+    // Optionally seed per-family categories from the chosen per-IP configs (§1.4/1.5).
+    // First-write-wins per (family_id, name): never overwrite an existing category.
+    let seededCount = 0;
+    if (Array.isArray(config_ids) && config_ids.length) {
+      // Only tiers from configs that actually belong to this IP. Order by config-application
+      // order first (the order ids were passed) so that on a shared category name the FIRST
+      // applied config wins the row (§1.5); tier ASC keeps each config's own ladder intact.
+      const [tiers] = await conn.query(
+        `SELECT t.category_name, t.tier, t.qty_per_parent
+           FROM product_config_tiers t
+           JOIN product_configs c ON c.id = t.config_id
+          WHERE t.config_id IN (?) AND c.game_id = ?
+          ORDER BY FIELD(t.config_id, ?) ASC, t.tier ASC, t.id ASC`,
+        [config_ids, game_id, config_ids]
+      );
+      const claimed = new Set();
+      for (const t of tiers) {
+        const key = t.category_name.toLowerCase();
+        if (claimed.has(key)) continue; // an earlier config already seeded this name
+        claimed.add(key);
+        // Guarded insert: skip if a category with this name already exists for the family.
+        const [[existing]] = await conn.execute(
+          'SELECT id FROM categories WHERE family_id = ? AND name = ?', [familyId, t.category_name]
+        );
+        if (existing) continue;
+        await conn.execute(
+          'INSERT INTO categories (family_id, name, tier, default_qty_per_parent) VALUES (?, ?, ?, ?)',
+          [familyId, t.category_name, t.tier, t.qty_per_parent ?? null]
+        );
+        seededCount++;
+      }
+    }
+
+    await conn.commit();
+    res.status(201).json({ id: familyId, seeded_categories: seededCount, message: 'Family created' });
   } catch (error) {
+    await conn.rollback();
     if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'A family with this set code already exists for this game' });
     res.status(500).json({ error: 'Failed to create family' });
-  }
+  } finally { conn.release(); }
 });
 
 // Get family by ID including all products (supports empty families)

@@ -497,6 +497,10 @@
                 <label class="field-label">Set Name * <span class="normal-case font-normal text-gray-400">(e.g. Royal Bloodlines)</span></label>
                 <input type="text" id="family-set-name" placeholder="Royal Bloodlines">
             </div>
+            <div id="family-config-section" class="hidden">
+                <label class="field-label">Apply configurations to this set</label>
+                <div id="family-config-list" class="space-y-1.5 mt-1"></div>
+            </div>
         </div>
         <div class="modal-footer">
             <button onclick="closeAddFamilyModal()" class="btn-ghost">Cancel</button>
@@ -717,6 +721,7 @@ let activeLineUp  = '';   // line_up id (number) or '' for no filter
 let flatMode      = false; // true when opened as a flat (no-family) line-up container
 let ipLineups     = {};   // game_id -> [{ line_up_id, name, display_label, uses_families, ... }]
 let activeCategory = '';
+let familyConfigs  = [];  // configs for the IP chosen in the Add Family modal
 
 // Returns true iff p's category tier is non-null AND at least one other product in the
 // same family has a category tier strictly greater than p's — meaning p can be broken down.
@@ -1220,18 +1225,13 @@ function renderCategorySidebar() {
             <div class="flex items-center gap-1 flex-shrink-0 ml-1">
                 <span class="text-[11px] rounded-full px-1.5 py-0.5
                              ${active ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}">${count}</span>
-                <span onclick="event.stopPropagation(); openEditCategoryModal(${cat.id}, '${esc(cat.name)}', ${cat.tier ?? 'null'}, ${cat.default_qty_per_parent ?? 'null'})"
-                      class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-700 text-[11px] transition-opacity cursor-pointer" title="Edit">✎</span>
             </div>
         </button>`;
     });
 
-    html += `<div class="px-3 py-2 border-t border-gray-100">
-        <button onclick="openAddCategoryModal()"
-            class="w-full text-center text-[11px] text-gray-400 hover:text-gray-600 border border-dashed border-gray-200 hover:border-gray-400 rounded-lg py-1.5 transition-colors">
-            + Add category
-        </button>
-    </div>`;
+    // Category structure (tier + qty) is now owned by the per-IP configuration and seeded at
+    // family-create — this sidebar is read-only here (filter only). Manage categories via
+    // Case/Pack Configurations on admin-ips.html.
 
     sidebar.innerHTML = html;
     renderTierMap();
@@ -1252,10 +1252,11 @@ function renderTierMap() {
 
     body.innerHTML = tiered.map((c, i) => {
         const colorClass = tierColors[(c.tier - 1) % tierColors.length];
+        const qtyLabel = c.default_qty_per_parent != null ? `breaks into ×${c.default_qty_per_parent}` : 'breaks into';
         const connector = i > 0
             ? `<div class="flex items-center gap-1.5 my-1 pl-1">
                    <div class="w-3 border-l-2 border-dashed border-gray-200 h-3"></div>
-                   <span class="text-[10px] text-gray-300">breaks into</span>
+                   <span class="text-[10px] text-gray-300">${qtyLabel}</span>
                </div>`
             : '';
         return `${connector}
@@ -2735,9 +2736,39 @@ function openAddFamilyModal() {
         gameEl.disabled      = false;
         gameEl.style.opacity = '';
     }
+    gameEl.onchange = loadFamilyConfigs;   // re-fetch configs when the IP changes
     document.getElementById('add-family-modal').classList.add('open');
+    loadFamilyConfigs();
 }
 function closeAddFamilyModal() { document.getElementById('add-family-modal').classList.remove('open'); }
+
+// Fetch the chosen IP's non-archived configs and render them as an opt-in checklist.
+async function loadFamilyConfigs() {
+    const gameId  = document.getElementById('family-game').value;
+    const section = document.getElementById('family-config-section');
+    const list    = document.getElementById('family-config-list');
+    familyConfigs = [];
+    if (!gameId) { section.classList.add('hidden'); list.innerHTML = ''; return; }
+    try {
+        const res = await fetch(`${API_URL}/games/${gameId}/configs`, { headers: authHeaders() });
+        familyConfigs = await res.json();
+    } catch (e) { familyConfigs = []; }
+    if (!familyConfigs.length) { section.classList.add('hidden'); list.innerHTML = ''; return; }
+    section.classList.remove('hidden');
+    list.innerHTML = familyConfigs.map(c => {
+        const chain = (c.tiers || []).map((t, i) =>
+            i === 0 ? esc(t.category_name) : `${esc(t.category_name)} (×${t.qty_per_parent})`
+        ).join(' → ');
+        return `
+        <label class="flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+            <input type="checkbox" class="family-config-check mt-0.5" value="${c.id}">
+            <span class="min-w-0">
+                <span class="text-sm font-medium text-gray-700">${esc(c.display_label || c.name)}</span>
+                <span class="block text-xs text-gray-400 truncate">${chain}</span>
+            </span>
+        </label>`;
+    }).join('');
+}
 
 async function saveFamily() {
     const gameId      = document.getElementById('family-game').value;
@@ -2746,14 +2777,16 @@ async function saveFamily() {
     const releaseDate = document.getElementById('family-release-date').value;
     const lineUpId    = document.getElementById('family-lineup').value;
     if (!gameId || !setCode || !setName) return showToast('Game, Set Code, and Set Name are required', 'error');
+    const configIds = Array.from(document.querySelectorAll('#family-config-list .family-config-check'))
+        .filter(b => b.checked).map(b => parseInt(b.value, 10));
     try {
         const res = await fetch(`${API_URL}/inventory/families`, {
             method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ game_id: gameId, set_code: setCode, set_name: setName, release_date: releaseDate || null, line_up_id: lineUpId || null })
+            body: JSON.stringify({ game_id: gameId, set_code: setCode, set_name: setName, release_date: releaseDate || null, line_up_id: lineUpId || null, config_ids: configIds })
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
-        showToast('Family created!', 'success');
+        showToast(json.seeded_categories ? `Family created — ${json.seeded_categories} categor${json.seeded_categories === 1 ? 'y' : 'ies'} seeded` : 'Family created!', 'success');
         closeAddFamilyModal();
         await loadFamilies();
         openFamily(json.id);

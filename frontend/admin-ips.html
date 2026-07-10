@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>K10 Admin - Inventory by IP</title>
+    <title>K10 Admin - IPs & Config</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="inventory-styles.css">
 </head>
@@ -15,31 +15,149 @@
 
         <!-- ===== Stage 1: IP grid ===== -->
         <div id="ip-view">
-            <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
                 <div>
-                    <h2 class="text-xl font-bold text-gray-800">Inventory</h2>
-                    <p class="text-sm text-gray-500 mt-0.5">Select an IP to view its line-ups</p>
+                    <h2 class="text-xl font-bold text-gray-800">IPs &amp; Configuration</h2>
+                    <p class="text-sm text-gray-500 mt-0.5">Select an IP to manage its line-ups &amp; case/pack configs</p>
                 </div>
-                <input type="text" id="ip-search" placeholder="Search IPs..." style="max-width:260px">
+                <div class="flex items-center gap-2">
+                    <input type="text" id="ip-search" placeholder="Search IPs..." style="max-width:220px">
+                    <button onclick="openAddIPModal()" class="btn-primary whitespace-nowrap">+ Add IP</button>
+                </div>
             </div>
             <div id="ip-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div class="col-span-full text-center py-16 text-gray-400 text-sm">Loading...</div>
             </div>
         </div>
 
-        <!-- ===== Stage 2: line-ups for the chosen IP ===== -->
+        <!-- ===== Stage 2: manage one IP ===== -->
         <div id="lineup-view" class="hidden">
             <button onclick="backToIPs()" class="btn-ghost mb-4">← All IPs</button>
             <div class="flex items-center gap-3 mb-6">
                 <div class="text-3xl" id="lineup-ip-icon"></div>
                 <div>
                     <h2 class="text-xl font-bold text-gray-800" id="lineup-ip-name"></h2>
-                    <p class="text-sm text-gray-500 mt-0.5">Select a line-up to manage its inventory</p>
+                    <p class="text-sm text-gray-500 mt-0.5">Manage line-ups and case/pack configurations</p>
                 </div>
             </div>
-            <div id="lineup-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-        </div>
 
+            <!-- Section A: line-ups carried by this IP -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-base font-bold text-gray-800">Line-ups</h3>
+                    <button onclick="openAddLineUpModal()" class="btn-ghost text-sm">+ Add line-up</button>
+                </div>
+                <p class="text-xs text-gray-400 mb-3">Tick the line-ups this IP carries, then save.</p>
+                <div id="lineup-checklist" class="space-y-1.5"></div>
+                <div class="flex justify-end mt-4">
+                    <button onclick="saveLineUpAssignment()" class="btn-primary text-sm">Save line-ups</button>
+                </div>
+            </div>
+
+            <!-- Section B: case/pack configurations -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-base font-bold text-gray-800">Case / Pack Configurations</h3>
+                    <button onclick="openAddConfigModal()" class="btn-ghost text-sm">+ Add configuration</button>
+                </div>
+                <p class="text-xs text-gray-400 mb-3">Reusable breakdown templates that seed a new set's categories.</p>
+                <div id="config-list" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Add IP modal ===== -->
+    <div id="ip-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width:420px">
+            <div class="modal-header">
+                <h2 class="modal-title">Add IP</h2>
+                <button onclick="closeModal('ip-modal')" class="modal-close">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="field-label">IP Name *</label>
+                    <input type="text" id="ip-name" placeholder="e.g. One Piece">
+                </div>
+                <div>
+                    <label class="field-label">Display Label</label>
+                    <input type="text" id="ip-label" placeholder="e.g. One Piece TCG">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('ip-modal')" class="btn-ghost">Cancel</button>
+                <button onclick="addIP()" class="btn-primary">Save IP</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Add line-up modal ===== -->
+    <div id="lineup-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width:420px">
+            <div class="modal-header">
+                <h2 class="modal-title">Add Line-up</h2>
+                <button onclick="closeModal('lineup-modal')" class="modal-close">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="field-label">Name *</label>
+                    <input type="text" id="lu-name" placeholder="e.g. TCG">
+                </div>
+                <div>
+                    <label class="field-label">Display Label</label>
+                    <input type="text" id="lu-label" placeholder="e.g. Trading Cards">
+                </div>
+                <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" id="lu-uses-families" checked>
+                    Uses families (sets). Uncheck for a flat line-up (accessories, snacks…).
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('lineup-modal')" class="btn-ghost">Cancel</button>
+                <button onclick="addLineUp()" class="btn-primary">Save Line-up</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Add / Edit config modal ===== -->
+    <div id="config-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width:520px">
+            <div class="modal-header">
+                <h2 class="modal-title" id="config-modal-title">Add Configuration</h2>
+                <button onclick="closeModal('config-modal')" class="modal-close">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <input type="hidden" id="config-modal-id">
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="field-label">Name *</label>
+                        <input type="text" id="config-name" placeholder="e.g. Standard Case">
+                    </div>
+                    <div>
+                        <label class="field-label">Display Label</label>
+                        <input type="text" id="config-label" placeholder="optional">
+                    </div>
+                </div>
+                <div>
+                    <label class="field-label">Tiers (top container → terminal pack)</label>
+                    <div id="tier-rows" class="space-y-2"></div>
+                    <button onclick="addTierRow()" class="btn-ghost text-xs mt-2">+ Add tier</button>
+                </div>
+                <div class="bg-gray-50 rounded-lg px-3 py-2">
+                    <span class="text-[11px] text-gray-400 uppercase tracking-wide">Preview</span>
+                    <div id="config-preview" class="text-sm font-medium text-gray-700 mt-0.5">—</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('config-modal')" class="btn-ghost">Cancel</button>
+                <button onclick="saveConfig()" class="btn-primary">Save Configuration</button>
+            </div>
+        </div>
     </div>
 
     <div id="toast-container"></div>
@@ -50,18 +168,31 @@ function authHeaders() {
   return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('k10_token') || ''}` };
 }
 
-let summary = [];   // [{ game_id, game_name, display_label, line_ups:[...] }]
+let games      = [];   // [{ id, name, display_label, sort_order }]
+let summary    = [];   // [{ game_id, game_name, display_label, line_ups:[...] }]
+let allLineUps = [];   // [{ id, name, display_label, icon, uses_families }]
+let currentGameId    = null;   // IP being managed in Stage 2
+let currentCarried   = [];     // line_up_ids carried by currentGameId
+let currentConfigs   = [];     // configs for currentGameId
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'login.html'; return; }
+    const role = (localStorage.getItem('k10_role') || '').toLowerCase();
+    if (role !== 'admin') { window.location.href = 'admin.html'; return; }
     document.getElementById('ip-search').addEventListener('input', renderIPs);
-    await loadSummary();
+    await loadAll();
 });
 
-async function loadSummary() {
+async function loadAll() {
     try {
-        const res = await fetch(`${API_URL}/inventory/ip-lineup-summary`, { headers: authHeaders() });
-        summary = await res.json();
+        const [gRes, sRes, lRes] = await Promise.all([
+            fetch(`${API_URL}/games`, { headers: authHeaders() }),
+            fetch(`${API_URL}/inventory/ip-lineup-summary`, { headers: authHeaders() }),
+            fetch(`${API_URL}/line-ups`, { headers: authHeaders() })
+        ]);
+        games      = await gRes.json();
+        summary    = await sRes.json();
+        allLineUps = await lRes.json();
         renderIPs();
     } catch (e) {
         document.getElementById('ip-grid').innerHTML =
@@ -69,81 +200,328 @@ async function loadSummary() {
     }
 }
 
+// ---- Stage 1: IP grid (all IPs, even those with no line-ups yet) ----
 function renderIPs() {
     const tokens = document.getElementById('ip-search').value.toLowerCase().split(/\s+/).filter(Boolean);
-    const filtered = summary.filter(g => {
-        const label = (g.display_label || g.game_name || '').toLowerCase();
+    const filtered = games.filter(g => {
+        const label = (g.display_label || g.name || '').toLowerCase();
         return !tokens.length || tokens.every(t => label.includes(t));
     });
     const grid = document.getElementById('ip-grid');
     if (!filtered.length) {
-        grid.innerHTML = '<div class="col-span-full text-center py-16 text-gray-400 text-sm">No IPs with assigned line-ups yet. Assign line-ups to IPs in <a class="text-blue-600 underline" href="admin-lineups.html">Line-ups</a>.</div>';
+        grid.innerHTML = '<div class="col-span-full text-center py-16 text-gray-400 text-sm">No IPs yet. Click <span class="font-semibold">+ Add IP</span> to create one.</div>';
         return;
     }
     grid.innerHTML = filtered.map(g => {
-        const luCount = g.line_ups.length;
-        const totalStock = g.line_ups.reduce((s, lu) => s + (lu.total_stock || 0), 0);
-        const chips = g.line_ups.slice(0, 4).map(lu =>
+        const s = summary.find(x => x.game_id === g.id);
+        const lineUps = s ? s.line_ups : [];
+        const luCount = lineUps.length;
+        const totalStock = lineUps.reduce((acc, lu) => acc + (lu.total_stock || 0), 0);
+        const chips = lineUps.slice(0, 4).map(lu =>
             `<span class="badge badge-gray">${lineUpIcon(lu)} ${esc(lu.display_label || lu.name)}</span>`
         ).join(' ');
         return `
-        <div class="family-card fade-in" onclick="openIP(${g.game_id})">
+        <div class="family-card fade-in" onclick="openIP(${g.id})">
             <div class="flex items-start justify-between mb-2">
-                <div class="text-3xl">${gameIcon(g.game_name)}</div>
+                <div class="text-3xl">${gameIcon(g.name)}</div>
                 <span class="badge badge-blue">${luCount} line-up${luCount != 1 ? 's' : ''}</span>
             </div>
-            <h3 class="text-lg font-bold text-gray-900 mb-1">${esc(g.display_label || g.game_name)}</h3>
+            <h3 class="text-lg font-bold text-gray-900 mb-1">${esc(g.display_label || g.name)}</h3>
             <p class="text-xs text-gray-400 mb-2">${totalStock.toLocaleString()} in stock</p>
             <div class="flex flex-wrap gap-1">${chips}</div>
         </div>`;
     }).join('');
 }
 
-function openIP(gameId) {
-    const g = summary.find(x => x.game_id === gameId);
+// ---- Stage 2: manage one IP ----
+async function openIP(gameId) {
+    const g = games.find(x => x.id === gameId);
     if (!g) return;
-    document.getElementById('lineup-ip-icon').textContent = gameIcon(g.game_name);
-    document.getElementById('lineup-ip-name').textContent = g.display_label || g.game_name;
-    const grid = document.getElementById('lineup-grid');
-    if (!g.line_ups.length) {
-        grid.innerHTML = '<div class="col-span-full text-center py-16 text-gray-400 text-sm">No line-ups assigned to this IP yet.</div>';
-    } else {
-        grid.innerHTML = g.line_ups.map(lu => `
-            <div class="family-card fade-in" onclick="openLineUp(${g.game_id}, ${lu.line_up_id}, ${lu.uses_families ? 1 : 0})">
-                <div class="flex items-start justify-between">
-                    <div class="text-3xl mb-2">${lineUpIcon(lu)}</div>
-                    <span class="badge ${lu.uses_families ? 'badge-blue' : 'badge-gray'}">${lu.uses_families ? 'Families' : 'Flat'}</span>
-                </div>
-                <h3 class="text-lg font-bold text-gray-900 mb-1">${esc(lu.display_label || lu.name)}</h3>
-                <p class="text-sm text-gray-500">${lu.uses_families ? `${lu.family_count} group${lu.family_count != 1 ? 's' : ''} · ` : ''}${(lu.total_stock || 0).toLocaleString()} in stock${lu.singles_count > 0 ? ` · ${lu.singles_count.toLocaleString()} single${lu.singles_count != 1 ? 's' : ''}` : ''}</p>
-            </div>`).join('');
-    }
+    currentGameId = gameId;
+    document.getElementById('lineup-ip-icon').textContent = gameIcon(g.name);
+    document.getElementById('lineup-ip-name').textContent = g.display_label || g.name;
     document.getElementById('ip-view').classList.add('hidden');
     document.getElementById('lineup-view').classList.remove('hidden');
     window.scrollTo(0, 0);
+    document.getElementById('lineup-checklist').innerHTML = '<div class="text-sm text-gray-400 py-2">Loading…</div>';
+    document.getElementById('config-list').innerHTML = '<div class="text-sm text-gray-400 py-2">Loading…</div>';
+    await Promise.all([loadCarried(), loadConfigs()]);
 }
 
 function backToIPs() {
+    currentGameId = null;
     document.getElementById('lineup-view').classList.add('hidden');
     document.getElementById('ip-view').classList.remove('hidden');
 }
 
-async function openLineUp(gameId, lineUpId, usesFamilies) {
-    if (usesFamilies) {
-        window.location.href = `admin-inventory.html?game=${gameId}&line_up=${lineUpId}`;
+// -- Section A: line-up assignment --
+async function loadCarried() {
+    try {
+        const res = await fetch(`${API_URL}/games/${currentGameId}/line-ups`, { headers: authHeaders() });
+        currentCarried = await res.json();
+    } catch (e) { currentCarried = []; }
+    renderLineUpChecklist();
+}
+
+function renderLineUpChecklist() {
+    const box = document.getElementById('lineup-checklist');
+    if (!allLineUps.length) {
+        box.innerHTML = '<div class="text-sm text-gray-400 py-2">No line-ups exist yet. Add one above.</div>';
         return;
     }
-    // Flat line-up: resolve (find-or-create) its hidden container family, then open it directly.
+    box.innerHTML = allLineUps.map(lu => {
+        const checked = currentCarried.includes(lu.id) ? 'checked' : '';
+        return `
+        <label class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+            <input type="checkbox" class="lu-check" value="${lu.id}" ${checked}>
+            <span>${lineUpIcon(lu)}</span>
+            <span class="text-sm text-gray-700 flex-1">${esc(lu.display_label || lu.name)}</span>
+            <span class="badge ${lu.uses_families ? 'badge-blue' : 'badge-gray'}">${lu.uses_families ? 'Families' : 'Flat'}</span>
+        </label>`;
+    }).join('');
+}
+
+async function saveLineUpAssignment() {
+    const ids = Array.from(document.querySelectorAll('#lineup-checklist .lu-check'))
+        .filter(b => b.checked).map(b => parseInt(b.value, 10));
     try {
-        const res = await fetch(`${API_URL}/inventory/flat-family`, {
-            method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ game_id: gameId, line_up_id: lineUpId })
+        const res = await fetch(`${API_URL}/games/${currentGameId}/line-ups`, {
+            method: 'PUT', headers: authHeaders(), body: JSON.stringify({ line_up_ids: ids })
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
-        window.location.href = `admin-inventory.html?flat_family=${json.family_id}&line_up=${lineUpId}`;
-    } catch (e) { showToast(e.message || 'Failed to open line-up', 'error'); }
+        currentCarried = ids;
+        showToast('Line-ups saved!', 'success');
+        await refreshSummary();
+    } catch (e) { showToast(e.message, 'error'); }
 }
+
+// -- Section B: configurations --
+async function loadConfigs() {
+    try {
+        const res = await fetch(`${API_URL}/games/${currentGameId}/configs`, { headers: authHeaders() });
+        currentConfigs = await res.json();
+    } catch (e) { currentConfigs = []; }
+    renderConfigList();
+}
+
+function chainString(tiers) {
+    return (tiers || []).map((t, i) =>
+        i === 0 ? esc(t.category_name) : `${esc(t.category_name)} (×${t.qty_per_parent})`
+    ).join(' → ');
+}
+
+function renderConfigList() {
+    const box = document.getElementById('config-list');
+    if (!currentConfigs.length) {
+        box.innerHTML = '<div class="text-sm text-gray-400 py-2">No configurations yet. Add one to seed new sets automatically.</div>';
+        return;
+    }
+    box.innerHTML = currentConfigs.map(c => `
+        <div class="flex items-center gap-3 border border-gray-100 rounded-lg px-3 py-2.5">
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-bold text-gray-800">${esc(c.display_label || c.name)}</div>
+                <div class="text-xs text-gray-500 truncate">${chainString(c.tiers)}</div>
+            </div>
+            <button onclick="editConfig(${c.id})" class="text-gray-400 hover:text-blue-600 text-xs px-1" title="Edit">✎</button>
+            <button onclick="archiveConfig(${c.id})" class="text-gray-400 hover:text-amber-600 text-xs px-1" title="Archive">📥</button>
+            <button onclick="deleteConfig(${c.id})" class="text-gray-400 hover:text-red-600 text-xs px-1" title="Delete">🗑</button>
+        </div>`).join('');
+}
+
+// ---- Config modal + tier builder ----
+let tierRows = [];   // [{ category_name, qty_per_parent }]
+
+function openAddConfigModal() {
+    document.getElementById('config-modal-title').textContent = 'Add Configuration';
+    document.getElementById('config-modal-id').value = '';
+    document.getElementById('config-name').value = '';
+    document.getElementById('config-label').value = '';
+    tierRows = [{ category_name: '', qty_per_parent: null }, { category_name: '', qty_per_parent: '' }];
+    renderTierRows();
+    openModal('config-modal');
+}
+
+function editConfig(id) {
+    const c = currentConfigs.find(x => x.id === id);
+    if (!c) return;
+    document.getElementById('config-modal-title').textContent = 'Edit Configuration';
+    document.getElementById('config-modal-id').value = c.id;
+    document.getElementById('config-name').value = c.name;
+    document.getElementById('config-label').value = c.display_label || '';
+    tierRows = (c.tiers || []).map((t, i) => ({
+        category_name: t.category_name,
+        qty_per_parent: i === 0 ? null : t.qty_per_parent
+    }));
+    if (tierRows.length < 2) tierRows = [{ category_name: '', qty_per_parent: null }, { category_name: '', qty_per_parent: '' }];
+    renderTierRows();
+    openModal('config-modal');
+}
+
+function renderTierRows() {
+    const box = document.getElementById('tier-rows');
+    box.innerHTML = tierRows.map((r, i) => `
+        <div class="flex items-center gap-2">
+            <span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 flex-shrink-0">T${i + 1}</span>
+            <input type="text" placeholder="Category name" value="${esc(r.category_name)}"
+                   oninput="updateTier(${i}, 'name', this.value)" style="flex:2">
+            <input type="number" min="1" placeholder="${i === 0 ? '—' : 'qty / parent'}"
+                   value="${r.qty_per_parent ?? ''}" ${i === 0 ? 'disabled' : ''}
+                   oninput="updateTier(${i}, 'qty', this.value)" style="flex:1">
+            <button onclick="removeTierRow(${i})" class="text-gray-300 hover:text-red-500 text-sm px-1" title="Remove"
+                    ${tierRows.length <= 2 ? 'style="visibility:hidden"' : ''}>✕</button>
+        </div>`).join('');
+    renderConfigPreview();
+}
+
+function updateTier(i, field, val) {
+    if (field === 'name') tierRows[i].category_name = val;
+    else tierRows[i].qty_per_parent = val === '' ? '' : parseInt(val, 10);
+    renderConfigPreview();
+}
+
+function addTierRow() {
+    tierRows.push({ category_name: '', qty_per_parent: '' });
+    renderTierRows();
+}
+
+function removeTierRow(i) {
+    if (tierRows.length <= 2) return;
+    tierRows.splice(i, 1);
+    tierRows[0].qty_per_parent = null; // first row is always the container
+    renderTierRows();
+}
+
+function renderConfigPreview() {
+    const tiers = tierRows.map((r, i) => ({
+        category_name: r.category_name || '?',
+        qty_per_parent: i === 0 ? null : (r.qty_per_parent || '?')
+    }));
+    document.getElementById('config-preview').innerHTML = chainString(tiers) || '—';
+}
+
+async function saveConfig() {
+    const id    = document.getElementById('config-modal-id').value;
+    const name  = document.getElementById('config-name').value.trim();
+    const label = document.getElementById('config-label').value.trim();
+    if (!name) return showToast('Name is required', 'error');
+    if (tierRows.length < 2) return showToast('A configuration needs at least 2 tiers', 'error');
+    const tiers = [];
+    const seen = new Set();
+    for (let i = 0; i < tierRows.length; i++) {
+        const cn = (tierRows[i].category_name || '').trim();
+        if (!cn) return showToast(`Tier ${i + 1} needs a category name`, 'error');
+        if (seen.has(cn.toLowerCase())) return showToast(`Duplicate category name "${cn}"`, 'error');
+        seen.add(cn.toLowerCase());
+        if (i === 0) {
+            tiers.push({ category_name: cn });
+        } else {
+            const q = tierRows[i].qty_per_parent;
+            if (!Number.isInteger(q) || q <= 0) return showToast(`Tier ${i + 1} ("${cn}") needs a positive quantity`, 'error');
+            tiers.push({ category_name: cn, qty_per_parent: q });
+        }
+    }
+    const body = JSON.stringify({ name, display_label: label || null, tiers });
+    const url  = id ? `${API_URL}/games/${currentGameId}/configs/${id}` : `${API_URL}/games/${currentGameId}/configs`;
+    try {
+        const res = await fetch(url, { method: id ? 'PATCH' : 'POST', headers: authHeaders(), body });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast(id ? 'Configuration updated!' : 'Configuration created!', 'success');
+        closeModal('config-modal');
+        await loadConfigs();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function archiveConfig(id) {
+    try {
+        const res = await fetch(`${API_URL}/games/${currentGameId}/configs/${id}/archive`, {
+            method: 'PATCH', headers: authHeaders()
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast(json.message || 'Archived', 'success');
+        await loadConfigs();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function deleteConfig(id) {
+    const c = currentConfigs.find(x => x.id === id);
+    if (!confirm(`Delete configuration "${c ? (c.display_label || c.name) : ''}"? This cannot be undone.`)) return;
+    try {
+        const res = await fetch(`${API_URL}/games/${currentGameId}/configs/${id}`, {
+            method: 'DELETE', headers: authHeaders()
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Configuration deleted', 'success');
+        await loadConfigs();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ---- Add IP / Add line-up ----
+function openAddIPModal() {
+    document.getElementById('ip-name').value = '';
+    document.getElementById('ip-label').value = '';
+    openModal('ip-modal');
+}
+
+async function addIP() {
+    const name  = document.getElementById('ip-name').value.trim();
+    const label = document.getElementById('ip-label').value.trim();
+    if (!name) return showToast('IP name is required', 'error');
+    try {
+        const res = await fetch(`${API_URL}/games`, {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ name, display_label: label || null, sort_order: games.length + 1 })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('IP added!', 'success');
+        closeModal('ip-modal');
+        await loadAll();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function openAddLineUpModal() {
+    document.getElementById('lu-name').value = '';
+    document.getElementById('lu-label').value = '';
+    document.getElementById('lu-uses-families').checked = true;
+    openModal('lineup-modal');
+}
+
+async function addLineUp() {
+    const name  = document.getElementById('lu-name').value.trim();
+    const label = document.getElementById('lu-label').value.trim();
+    const usesFamilies = document.getElementById('lu-uses-families').checked;
+    if (!name) return showToast('Name is required', 'error');
+    try {
+        const res = await fetch(`${API_URL}/line-ups`, {
+            method: 'POST', headers: authHeaders(),
+            body: JSON.stringify({ name, display_label: label || null, sort_order: allLineUps.length + 1, uses_families: usesFamilies })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Line-up created!', 'success');
+        closeModal('lineup-modal');
+        // Refresh the line-up list so it becomes assignable immediately.
+        const lRes = await fetch(`${API_URL}/line-ups`, { headers: authHeaders() });
+        allLineUps = await lRes.json();
+        renderLineUpChecklist();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// Keep the Stage-1 grid stock/line-up chips fresh after an assignment change.
+async function refreshSummary() {
+    try {
+        const sRes = await fetch(`${API_URL}/inventory/ip-lineup-summary`, { headers: authHeaders() });
+        summary = await sRes.json();
+    } catch (e) { /* non-fatal */ }
+}
+
+// ---- shared helpers ----
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 function showToast(msg, type = 'success') {
     const c = document.getElementById('toast-container');
@@ -173,7 +551,7 @@ function gameIcon(title) {
     return icons[title] || '🃏';
 }
 
-function esc(str) { return (str || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function esc(str) { return (str || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 </script>
 </body>
 </html>
