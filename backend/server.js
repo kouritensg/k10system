@@ -173,8 +173,10 @@ async function logChange(conn, inventory_id, username, field_name, old_value, ne
 // ==========================================
 // 2. CATEGORY MANAGEMENT
 // ==========================================
-// Per-family categories — GET ?family_id=X returns only that family's categories.
-// No family_id param returns all (used by admin-categories.html POC page).
+// Per-family categories — READ ONLY. Category structure (name/tier/qty) is owned by per-IP
+// configurations and seeded at family-create / apply-configs (see product_configs + the
+// seedFamilyCategories helper). Manual category CRUD was retired with the Categories page.
+// GET ?family_id=X returns only that family's categories; no param returns all.
 app.get('/api/categories', async (req, res) => {
   const { family_id } = req.query;
   try {
@@ -188,71 +190,6 @@ app.get('/api/categories', async (req, res) => {
     const [rows] = await db.execute(query, params);
     res.json(rows);
   } catch (error) { res.status(500).json({ error: 'Failed to fetch categories' }); }
-});
-
-app.post('/api/categories', async (req, res) => {
-  const { name, family_id, tier, default_qty_per_parent } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
-  if (tier !== undefined && tier !== null) {
-    const t = parseInt(tier);
-    if (!Number.isInteger(t) || t < 1) return res.status(400).json({ error: 'tier must be a positive integer' });
-  }
-  if (default_qty_per_parent !== undefined && default_qty_per_parent !== null) {
-    const d = parseInt(default_qty_per_parent);
-    if (!Number.isInteger(d) || d < 1) return res.status(400).json({ error: 'default_qty_per_parent must be a positive integer' });
-  }
-  try {
-    const [result] = await db.execute(
-      'INSERT INTO categories (family_id, name, tier, default_qty_per_parent) VALUES (?, ?, ?, ?)',
-      [family_id || null, name.trim(),
-       (tier !== undefined && tier !== null) ? parseInt(tier) : null,
-       (default_qty_per_parent !== undefined && default_qty_per_parent !== null) ? parseInt(default_qty_per_parent) : null]
-    );
-    res.status(201).json({ id: result.insertId, message: 'Category added' });
-  } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Category already exists for this family' });
-    res.status(500).json({ error: 'Failed to add category' });
-  }
-});
-
-app.delete('/api/categories/:id', async (req, res) => {
-  try {
-    await db.execute('DELETE FROM categories WHERE id = ?', [req.params.id]);
-    res.json({ message: 'Category deleted' });
-  } catch (error) { res.status(500).json({ error: 'Cannot delete. Category might be linked to products.' }); }
-});
-
-app.patch('/api/categories/:id', async (req, res) => {
-  const { name, tier, default_qty_per_parent } = req.body;
-  if (tier !== undefined && tier !== null) {
-    const t = parseInt(tier);
-    if (!Number.isInteger(t) || t < 1) return res.status(400).json({ error: 'tier must be a positive integer' });
-  }
-  if (default_qty_per_parent !== undefined && default_qty_per_parent !== null) {
-    const d = parseInt(default_qty_per_parent);
-    if (!Number.isInteger(d) || d < 1) return res.status(400).json({ error: 'default_qty_per_parent must be a positive integer' });
-  }
-  const updates = [];
-  const params = [];
-  if (name !== undefined) {
-    if (!name.trim()) return res.status(400).json({ error: 'name cannot be empty' });
-    updates.push('name = ?'); params.push(name.trim());
-  }
-  if (tier !== undefined) { updates.push('tier = ?'); params.push(tier === null ? null : parseInt(tier)); }
-  if (default_qty_per_parent !== undefined) {
-    updates.push('default_qty_per_parent = ?');
-    params.push(default_qty_per_parent === null || default_qty_per_parent === '' ? null : parseInt(default_qty_per_parent));
-  }
-  if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
-  params.push(req.params.id);
-  try {
-    const [result] = await db.execute(`UPDATE categories SET ${updates.join(', ')} WHERE id = ?`, params);
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Category not found' });
-    res.json({ message: 'Category updated' });
-  } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Category name already exists for this family' });
-    res.status(500).json({ error: 'Failed to update category' });
-  }
 });
 
 // ==========================================
@@ -492,8 +429,14 @@ app.put('/api/games/:gameId/line-ups', authenticate, async (req, res) => {
 // product_bundles, or already-seeded categories. Config + its tiers move together.
 // ==========================================
 
-// Validate + normalise a tiers array from the request body. Returns { error } or { tiers }.
-function normaliseConfigTiers(tiers) {
+// Validate + normalise a tiers array from the request body. `startTier` is the absolute tier of the
+// top row (default 1) so a config can sit below the top of the global ladder, e.g. TIN(T2)→Pack(T3).
+// Returns { error } or { tiers }.
+function normaliseConfigTiers(tiers, startTier) {
+  const start = (startTier === undefined || startTier === null) ? 1 : startTier;
+  if (!Number.isInteger(start) || start < 1) {
+    return { error: 'Starting tier must be a positive integer' };
+  }
   if (!Array.isArray(tiers) || tiers.length < 2) {
     return { error: 'A configuration needs at least 2 tiers (a container and a child)' };
   }
@@ -508,14 +451,14 @@ function normaliseConfigTiers(tiers) {
     seen.add(key);
     let qty;
     if (i === 0) {
-      qty = null; // top container has no parent
+      qty = null; // top container of this config has no parent within it
     } else {
       qty = t.qty_per_parent;
       if (!Number.isInteger(qty) || qty <= 0) {
         return { error: `Tier ${i + 1} ("${name}") needs a positive quantity per parent` };
       }
     }
-    out.push({ tier: i + 1, category_name: name, qty_per_parent: qty });
+    out.push({ tier: start + i, category_name: name, qty_per_parent: qty });
   }
   return { tiers: out };
 }
@@ -545,9 +488,9 @@ app.get('/api/games/:gameId/configs', async (req, res) => {
 
 // Create a config + its tier ladder in one transaction
 app.post('/api/games/:gameId/configs', async (req, res) => {
-  const { name, display_label, sort_order, tiers } = req.body;
+  const { name, display_label, sort_order, tiers, start_tier } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
-  const norm = normaliseConfigTiers(tiers);
+  const norm = normaliseConfigTiers(tiers, start_tier);
   if (norm.error) return res.status(400).json({ error: norm.error });
   const conn = await db.getConnection();
   try {
@@ -575,10 +518,10 @@ app.post('/api/games/:gameId/configs', async (req, res) => {
 // Edit a config: name/label/sort_order and/or a full tier-ladder replace. Forward-only —
 // never touches already-seeded `categories`/`product_bundles`.
 app.patch('/api/games/:gameId/configs/:id', async (req, res) => {
-  const { name, display_label, sort_order, tiers } = req.body;
+  const { name, display_label, sort_order, tiers, start_tier } = req.body;
   let normTiers = null;
   if (tiers !== undefined) {
-    const norm = normaliseConfigTiers(tiers);
+    const norm = normaliseConfigTiers(tiers, start_tier);
     if (norm.error) return res.status(400).json({ error: norm.error });
     normTiers = norm.tiers;
   }
@@ -1025,6 +968,40 @@ app.get('/api/inventory/family/:set_name', async (req, res) => {
 });
 
 // Create a new family
+// Seed a family's `categories` from the chosen per-IP configs (§1.4/1.5). Runs on the caller's
+// transaction connection. First-write-wins per (family_id, name): never overwrites an existing
+// category. Only tiers from configs that belong to `gameId` are used; shared names are claimed by
+// the first applied config (config-application order, then tier). Returns the number seeded.
+async function seedFamilyCategories(conn, familyId, gameId, configIds) {
+  if (!Array.isArray(configIds) || !configIds.length) return 0;
+  const [tiers] = await conn.query(
+    `SELECT t.category_name, t.tier, t.qty_per_parent
+       FROM product_config_tiers t
+       JOIN product_configs c ON c.id = t.config_id
+      WHERE t.config_id IN (?) AND c.game_id = ?
+      ORDER BY FIELD(t.config_id, ?) ASC, t.tier ASC, t.id ASC`,
+    [configIds, gameId, configIds]
+  );
+  const claimed = new Set();
+  let seededCount = 0;
+  for (const t of tiers) {
+    const key = t.category_name.toLowerCase();
+    if (claimed.has(key)) continue; // an earlier config already seeded this name
+    claimed.add(key);
+    // Guarded insert: skip if a category with this name already exists for the family.
+    const [[existing]] = await conn.execute(
+      'SELECT id FROM categories WHERE family_id = ? AND name = ?', [familyId, t.category_name]
+    );
+    if (existing) continue;
+    await conn.execute(
+      'INSERT INTO categories (family_id, name, tier, default_qty_per_parent) VALUES (?, ?, ?, ?)',
+      [familyId, t.category_name, t.tier, t.qty_per_parent ?? null]
+    );
+    seededCount++;
+  }
+  return seededCount;
+}
+
 app.post('/api/inventory/families', async (req, res) => {
   const { game_id, set_code, set_name, release_date, line_up_id, config_ids } = req.body;
   if (!game_id || !set_code || !set_name) {
@@ -1038,46 +1015,35 @@ app.post('/api/inventory/families', async (req, res) => {
       [game_id, set_code.trim(), set_name.trim(), release_date || null, line_up_id || null]
     );
     const familyId = result.insertId;
-
-    // Optionally seed per-family categories from the chosen per-IP configs (§1.4/1.5).
-    // First-write-wins per (family_id, name): never overwrite an existing category.
-    let seededCount = 0;
-    if (Array.isArray(config_ids) && config_ids.length) {
-      // Only tiers from configs that actually belong to this IP. Order by config-application
-      // order first (the order ids were passed) so that on a shared category name the FIRST
-      // applied config wins the row (§1.5); tier ASC keeps each config's own ladder intact.
-      const [tiers] = await conn.query(
-        `SELECT t.category_name, t.tier, t.qty_per_parent
-           FROM product_config_tiers t
-           JOIN product_configs c ON c.id = t.config_id
-          WHERE t.config_id IN (?) AND c.game_id = ?
-          ORDER BY FIELD(t.config_id, ?) ASC, t.tier ASC, t.id ASC`,
-        [config_ids, game_id, config_ids]
-      );
-      const claimed = new Set();
-      for (const t of tiers) {
-        const key = t.category_name.toLowerCase();
-        if (claimed.has(key)) continue; // an earlier config already seeded this name
-        claimed.add(key);
-        // Guarded insert: skip if a category with this name already exists for the family.
-        const [[existing]] = await conn.execute(
-          'SELECT id FROM categories WHERE family_id = ? AND name = ?', [familyId, t.category_name]
-        );
-        if (existing) continue;
-        await conn.execute(
-          'INSERT INTO categories (family_id, name, tier, default_qty_per_parent) VALUES (?, ?, ?, ?)',
-          [familyId, t.category_name, t.tier, t.qty_per_parent ?? null]
-        );
-        seededCount++;
-      }
-    }
-
+    const seededCount = await seedFamilyCategories(conn, familyId, game_id, config_ids);
     await conn.commit();
     res.status(201).json({ id: familyId, seeded_categories: seededCount, message: 'Family created' });
   } catch (error) {
     await conn.rollback();
     if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'A family with this set code already exists for this game' });
     res.status(500).json({ error: 'Failed to create family' });
+  } finally { conn.release(); }
+});
+
+// Apply configs to an EXISTING family (re-seed / add category structure after creation).
+app.post('/api/inventory/families/:id/apply-configs', async (req, res) => {
+  const { config_ids } = req.body;
+  if (!Array.isArray(config_ids) || !config_ids.length) {
+    return res.status(400).json({ error: 'config_ids array required' });
+  }
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [[family]] = await conn.execute(
+      'SELECT id, game_id FROM inventory_families WHERE id = ?', [req.params.id]
+    );
+    if (!family) { await conn.rollback(); return res.status(404).json({ error: 'Family not found' }); }
+    const seededCount = await seedFamilyCategories(conn, family.id, family.game_id, config_ids);
+    await conn.commit();
+    res.json({ seeded_categories: seededCount, message: 'Configurations applied' });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ error: 'Failed to apply configurations' });
   } finally { conn.release(); }
 });
 
