@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <a href="admin-PurchaseHistory.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">📜 PO (store) History</a>
                         <a href="admin-suppliers.html" class="px-3 py-2 rounded-md text-sm font-bold text-blue-400 hover:bg-gray-700 hover:text-white transition">🏢 Suppliers</a>
                         <a href="admin-staff.html" class="px-3 py-2 rounded-md text-sm font-bold text-red-400 hover:bg-gray-700 hover:text-white transition">🛡️ Staff</a>
-                        <a href="admin-categories.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">📁 Categories</a>
                         <a href="admin-ips.html" class="px-3 py-2 rounded-md text-sm font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition">🗂️ IPs &amp; Config</a>
                         ` : ''}
                     </div>

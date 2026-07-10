@@ -144,7 +144,17 @@
                     </div>
                 </div>
                 <div>
-                    <label class="field-label">Tiers (top container → terminal pack)</label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="field-label mb-0">Tiers (top container → terminal pack)</label>
+                        <label class="text-xs text-gray-500 flex items-center gap-1">
+                            Starts at tier
+                            <select id="config-start-tier" onchange="setStartTier(this.value)" class="text-xs border border-gray-200 rounded px-1 py-0.5">
+                                <option value="1">T1</option>
+                                <option value="2">T2</option>
+                                <option value="3">T3</option>
+                            </select>
+                        </label>
+                    </div>
                     <div id="tier-rows" class="space-y-2"></div>
                     <button onclick="addTierRow()" class="btn-ghost text-xs mt-2">+ Add tier</button>
                 </div>
@@ -330,13 +340,22 @@ function renderConfigList() {
 }
 
 // ---- Config modal + tier builder ----
-let tierRows = [];   // [{ category_name, qty_per_parent }]
+let tierRows = [];       // [{ category_name, qty_per_parent }]
+let startTier = 1;       // absolute tier of the top row (T1/T2/T3) — lets a config sit below the top
+
+function setStartTierSelect() { document.getElementById('config-start-tier').value = String(startTier); }
+function setStartTier(val) {
+    startTier = parseInt(val, 10) || 1;
+    renderTierRows();
+}
 
 function openAddConfigModal() {
     document.getElementById('config-modal-title').textContent = 'Add Configuration';
     document.getElementById('config-modal-id').value = '';
     document.getElementById('config-name').value = '';
     document.getElementById('config-label').value = '';
+    startTier = 1;
+    setStartTierSelect();
     tierRows = [{ category_name: '', qty_per_parent: null }, { category_name: '', qty_per_parent: '' }];
     renderTierRows();
     openModal('config-modal');
@@ -349,6 +368,8 @@ function editConfig(id) {
     document.getElementById('config-modal-id').value = c.id;
     document.getElementById('config-name').value = c.name;
     document.getElementById('config-label').value = c.display_label || '';
+    startTier = (c.tiers && c.tiers.length) ? Math.min(...c.tiers.map(t => t.tier)) : 1;
+    setStartTierSelect();
     tierRows = (c.tiers || []).map((t, i) => ({
         category_name: t.category_name,
         qty_per_parent: i === 0 ? null : t.qty_per_parent
@@ -362,7 +383,7 @@ function renderTierRows() {
     const box = document.getElementById('tier-rows');
     box.innerHTML = tierRows.map((r, i) => `
         <div class="flex items-center gap-2">
-            <span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 flex-shrink-0">T${i + 1}</span>
+            <span class="text-[9px] font-black px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 flex-shrink-0">T${startTier + i}</span>
             <input type="text" placeholder="Category name" value="${esc(r.category_name)}"
                    oninput="updateTier(${i}, 'name', this.value)" style="flex:2">
             <input type="number" min="1" placeholder="${i === 0 ? '—' : 'qty / parent'}"
@@ -421,7 +442,7 @@ async function saveConfig() {
             tiers.push({ category_name: cn, qty_per_parent: q });
         }
     }
-    const body = JSON.stringify({ name, display_label: label || null, tiers });
+    const body = JSON.stringify({ name, display_label: label || null, tiers, start_tier: startTier });
     const url  = id ? `${API_URL}/games/${currentGameId}/configs/${id}` : `${API_URL}/games/${currentGameId}/configs`;
     try {
         const res = await fetch(url, { method: id ? 'PATCH' : 'POST', headers: authHeaders(), body });
