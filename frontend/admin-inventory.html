@@ -579,6 +579,11 @@
                 <div id="add-category-wrap">
                     <label class="field-label">Category Type</label>
                     <select id="add-category"><option value="">-- Select --</option></select>
+                    <p id="add-category-empty" class="hidden text-[11px] text-amber-600 mt-1">
+                        No categories yet —
+                        <button type="button" onclick="closeAddProductModal(); openApplyConfigModal();" class="underline font-semibold">apply a configuration</button>
+                        to this set first.
+                    </p>
                 </div>
                 <div>
                     <label class="field-label">Card / Set ID</label>
@@ -2385,8 +2390,12 @@ function openAddProductModal() {
     document.getElementById('add-long-desc').value = '';
     // Flat (container) line-ups have no categories — hide the field. Product type
     // is inherited from the line-up server-side, so there is no per-product picker.
-    document.getElementById('add-category-wrap').style.display =
-        (currentFamily && currentFamily.is_container) ? 'none' : '';
+    const isContainer = currentFamily && currentFamily.is_container;
+    document.getElementById('add-category-wrap').style.display = isContainer ? 'none' : '';
+    // Category types come from the family's applied configuration(s). Refresh the select and,
+    // if the set has none yet, guide the user to Apply configuration instead of a dead dropdown.
+    populateCategorySelect();
+    document.getElementById('add-category-empty').classList.toggle('hidden', isContainer || categories.length > 0);
     document.getElementById('add-modal').classList.add('open');
 }
 function closeAddProductModal() { document.getElementById('add-modal').classList.remove('open'); }
