@@ -651,7 +651,7 @@ app.get('/api/games/:gameId/singles-config', async (req, res) => {
     const out = { rarity: [], condition: [], finish: [] };
     for (const r of rows) (out[r.dimension] ||= []).push({ value: r.value, label: r.label });
     res.json(out);
-  } catch (error) { res.status(500).json({ error: 'Failed to fetch singles configuration' }); }
+  } catch (error) { res.status(500).json({ error: error.message || 'Failed to fetch singles configuration' }); }
 });
 
 // Replace an IP's singles config (all three dimensions at once).
@@ -679,7 +679,7 @@ app.put('/api/games/:gameId/singles-config', async (req, res) => {
     res.json({ message: 'Singles configuration saved' });
   } catch (err) {
     await conn.rollback();
-    res.status(500).json({ error: 'Failed to save singles configuration' });
+    res.status(500).json({ error: err.message || 'Failed to save singles configuration' });
   } finally { conn.release(); }
 });
 
