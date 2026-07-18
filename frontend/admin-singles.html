@@ -113,6 +113,9 @@
             <button onclick="addCardRow()" id="add-card-btn" class="hidden text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700">+ Add Card</button>
             <button onclick="openImportModal()" id="import-btn" class="hidden text-xs font-semibold bg-gray-700 text-white px-3 py-1.5 rounded-md hover:bg-gray-800">Import JSON</button>
             <button onclick="openSealedModal()" id="open-sealed-btn" class="hidden text-xs font-semibold bg-amber-600 text-white px-3 py-1.5 rounded-md hover:bg-amber-700">Open Sealed</button>
+            <button onclick="toggleStockIn(true)" id="stock-in-btn" class="hidden text-xs font-semibold bg-emerald-600 text-white px-3 py-1.5 rounded-md hover:bg-emerald-700">Stock In</button>
+            <button onclick="saveStockIn()" id="stock-in-save-btn" class="hidden text-xs font-semibold bg-emerald-600 text-white px-3 py-1.5 rounded-md hover:bg-emerald-700">Save stock-in</button>
+            <button onclick="toggleStockIn(false)" id="stock-in-cancel-btn" class="hidden text-xs font-semibold border border-gray-300 text-gray-600 px-3 py-1.5 rounded-md hover:bg-gray-50">Cancel</button>
         </div>
 
         <!-- Pagination bar -->
@@ -163,7 +166,7 @@
             <h2 class="text-base font-bold text-gray-900">Import JSON</h2>
             <button onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
         </div>
-        <p class="text-xs text-gray-500 mb-3">Upload or paste a JSON file produced by the scraper. Reference prices are updated; your <strong>price</strong> and <strong>stock</strong> fields are never overwritten.</p>
+        <p class="text-xs text-gray-500 mb-3">Upload or paste a JSON file produced by the scraper. Imports the <strong>card list</strong> (ID, name, reference price) for this series. Rarity/condition are set per card; your price and stock are never overwritten.</p>
         <div class="mb-3">
             <label class="text-xs font-semibold text-gray-700 mb-1 block">File (.json)</label>
             <input type="file" id="import-file" accept=".json" class="text-xs" onchange="handleImportFile(this)">
@@ -182,7 +185,6 @@
                     <thead><tr class="bg-gray-50">
                         <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Card ID</th>
                         <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Name</th>
-                        <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Rarity</th>
                         <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Ref Price</th>
                     </tr></thead>
                     <tbody id="preview-tbody"></tbody>
@@ -271,6 +273,10 @@ function authHeaders() {
 let currentFamilyId = null;
 let currentFamilyName = '';
 let currentGameTitle = '';
+let currentGameId = null;
+let singlesConfig = { rarity: [], condition: [], finish: [] };  // per-IP allowed values (empty → fallback)
+let stockInMode = false;   // when true, rows show qty+cost inputs instead of the stock number
+let lastRows = [];         // last rendered singles rows (for re-render on mode toggle)
 let currentRarities = [];
 let currentPage = { offset: 0, limit: 50, total: 0 };
 let allFamilies = [];
@@ -342,13 +348,15 @@ function filterSidebar(q) {
     renderSidebar(filtered);
 }
 
-function selectFamily(f) {
+async function selectFamily(f) {
     currentFamilyId = f.family_id;
     currentFamilyName = f.set_name;
     currentGameTitle = f.game_title || '';
+    currentGameId = f.game_id || null;
     currentRarities = f.distinct_rarities || [];
     currentPage.offset = 0;
     expandedCards.clear();
+    await loadSinglesConfig();  // per-IP allowed rarity/condition/finish (drives the dropdowns)
 
     // Update URL
     const url = new URL(window.location);
@@ -366,6 +374,8 @@ function selectFamily(f) {
     document.getElementById('add-card-btn').classList.remove('hidden');
     document.getElementById('import-btn').classList.remove('hidden');
     document.getElementById('open-sealed-btn').classList.remove('hidden');
+    document.getElementById('stock-in-btn').classList.remove('hidden');
+    if (stockInMode) toggleStockIn(false);  // reset stock-in mode when switching families
     const sl = document.getElementById('view-sealed-link');
     sl.href = `admin-inventory.html?family_id=${f.family_id}`;
     sl.classList.remove('hidden');
@@ -420,6 +430,7 @@ function scheduleSearch() {
 
 // ===================== RENDER ROWS =====================
 function renderSinglesRows(rows) {
+    lastRows = rows;
     const body = document.getElementById('singles-body');
     if (!rows.length) {
         body.innerHTML = `<tr><td colspan="10" class="text-center py-10 text-gray-400 text-sm">No singles found. Click <strong>+ Add Card</strong> or <strong>Import JSON</strong> to get started.</td></tr>`;
@@ -455,6 +466,54 @@ function renderSinglesRows(rows) {
     hideCollapsedVariants();
 }
 
+// ---- Inline Stock-In (creates FIFO waves) ----
+// Stock cell: normal display, or qty-received + unit-cost inputs while in stock-in mode.
+function stockInCell(v) {
+    if (!stockInMode) {
+        return `<td class="editable" onclick="enterEdit(this,'number','stock_quantity','${esc(v.id)}')">${dispCell(v.stock_quantity)}</td>`;
+    }
+    const cost = v.cost_price ?? v.reference ?? '';
+    return `<td>
+        <div class="flex items-center gap-1">
+            <span class="text-gray-300 text-[11px]" title="current stock">${dispCell(v.stock_quantity)}</span>
+            <input type="number" min="1" class="si-qty cell-input" data-id="${v.id}" placeholder="+qty" style="width:48px">
+            <input type="number" min="0" step="0.01" class="si-cost cell-input" data-id="${v.id}" placeholder="cost" value="${esc(String(cost))}" style="width:58px">
+        </div>
+    </td>`;
+}
+
+function toggleStockIn(on) {
+    stockInMode = on;
+    document.getElementById('stock-in-btn').classList.toggle('hidden', on);
+    document.getElementById('stock-in-save-btn').classList.toggle('hidden', !on);
+    document.getElementById('stock-in-cancel-btn').classList.toggle('hidden', !on);
+    renderSinglesRows(lastRows);
+}
+
+async function saveStockIn() {
+    const items = [];
+    document.querySelectorAll('.si-qty').forEach(qEl => {
+        const qty = parseInt(qEl.value);
+        if (!Number.isInteger(qty) || qty <= 0) return;
+        const id = qEl.dataset.id;
+        const costEl = document.querySelector(`.si-cost[data-id="${id}"]`);
+        const unit_cost = parseFloat(costEl && costEl.value);
+        items.push({ inventory_id: parseInt(id), qty, unit_cost: Number.isFinite(unit_cost) ? unit_cost : 0 });
+    });
+    if (!items.length) { showToast('Enter a quantity on at least one card', 'error'); return; }
+    try {
+        const res = await fetch(`${API_URL}/inventory/singles/stock-in`, {
+            method: 'POST', headers: authHeaders(), body: JSON.stringify({ items })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast(`Stocked in ${json.total_qty} across ${json.waves_created} card${json.waves_created !== 1 ? 's' : ''}`, 'success');
+        toggleStockIn(false);
+        await loadFamilies();   // refresh singles_count in the sidebar
+        loadSingles();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
 function groupKey(card) {
     const r = card.rarity || '';
     return card.card_id ? `id:${card.card_id}:${r}` : `nm:${card.card_name}:${r}`;
@@ -468,11 +527,11 @@ function buildSingleVariantRow(card, v) {
         <td>${thumbHtml(v.image_url)}</td>
         <td class="editable" onclick="enterEdit(this,'text','card_id','${esc(v.id)}')">${dispCell(card.card_id)}</td>
         <td class="editable" onclick="enterEdit(this,'text','card_name','${esc(v.id)}')">${dispCell(card.card_name)}</td>
-        <td class="editable" onclick="enterEdit(this,'text','rarity','${esc(v.id)}')">${rarityBadge(card.rarity)}</td>
+        <td>${raritySelect(v.id, card.rarity)}</td>
         <td>${condSelect(v.id, v.card_condition)}</td>
         <td>${finishSelect(v.id, v.card_finish)}</td>
         <td class="editable" onclick="enterEdit(this,'price','price','${esc(v.id)}')">${priceCell(v.price, v.reference)}</td>
-        <td class="editable" onclick="enterEdit(this,'number','stock_quantity','${esc(v.id)}')">${dispCell(v.stock_quantity)}</td>
+        ${stockInCell(v)}
         <td class="text-gray-400 text-[11px]">${relativeTime(v.updated_at)}</td>
         <td class="text-center"><button onclick="deleteSingle(${v.id})" class="text-red-400 hover:text-red-600 font-bold px-1">✕</button></td>
     `;
@@ -519,7 +578,7 @@ function buildVariantSubRow(card, v) {
         <td>${condSelect(v.id, v.card_condition)}</td>
         <td>${finishSelect(v.id, v.card_finish)}</td>
         <td class="editable" onclick="enterEdit(this,'price','price','${esc(v.id)}')">${priceCell(v.price, v.reference)}</td>
-        <td class="editable" onclick="enterEdit(this,'number','stock_quantity','${esc(v.id)}')">${dispCell(v.stock_quantity)}</td>
+        ${stockInCell(v)}
         <td class="text-gray-400 text-[11px]">${relativeTime(v.updated_at)}</td>
         <td class="text-center"><button onclick="deleteSingle(${v.id})" class="text-red-400 hover:text-red-600 font-bold px-1">✕</button></td>
     `;
@@ -643,11 +702,11 @@ function addCardRow() {
         <td></td>
         <td><input type="text" id="new-card-id" placeholder="BT25-001" class="cell-input" autofocus></td>
         <td><input type="text" id="new-card-name" placeholder="Card Name *" class="cell-input"></td>
-        <td><input type="text" id="new-rarity" placeholder="C" class="cell-input" style="width:52px"></td>
+        <td>${rarityInputNew()}</td>
         <td>${condSelectNew()}</td>
         <td>${finishSelectNew()}</td>
         <td><input type="number" id="new-price" value="0" step="0.01" class="cell-input" style="width:80px"></td>
-        <td><input type="number" id="new-stock" value="0" class="cell-input" style="width:60px"></td>
+        <td class="text-gray-300 text-[11px]">via Stock In</td>
         <td></td>
         <td class="text-center">
             <button onclick="saveNewCard()" class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded hover:bg-blue-700 font-semibold">Save</button>
@@ -669,8 +728,8 @@ async function saveNewCard() {
         rarity: document.getElementById('new-rarity').value.trim() || null,
         card_condition: document.getElementById('new-condition').value || 'NM',
         card_finish: document.getElementById('new-finish').value || null,
-        price: parseFloat(document.getElementById('new-price').value) || 0,
-        stock_quantity: parseInt(document.getElementById('new-stock').value) || 0
+        price: parseFloat(document.getElementById('new-price').value) || 0
+        // stock enters via Stock In (FIFO wave); catalog rows start at 0
     };
     try {
         const res = await fetch(`${API_URL}/inventory/add`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) });
@@ -704,7 +763,7 @@ function addVariantRow(btn) {
         <td>${condSelectNew('LP')}</td>
         <td>${finishSelectNew()}</td>
         <td><input type="number" id="var-price" value="0" step="0.01" class="cell-input" style="width:80px"></td>
-        <td><input type="number" id="var-stock" value="0" class="cell-input" style="width:60px"></td>
+        <td class="text-gray-300 text-[11px]">via Stock In</td>
         <td></td>
         <td class="text-center">
             <button class="save-variant-btn text-xs bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 font-semibold">Save</button>
@@ -733,8 +792,8 @@ async function saveNewVariant(btn) {
         rarity: rarity || null,
         card_condition: row.querySelector('#new-condition').value || 'LP',
         card_finish: row.querySelector('#new-finish').value || null,
-        price: parseFloat(row.querySelector('#var-price').value) || 0,
-        stock_quantity: parseInt(row.querySelector('#var-stock').value) || 0
+        price: parseFloat(row.querySelector('#var-price').value) || 0
+        // stock enters via Stock In (FIFO wave)
     };
     try {
         const res = await fetch(`${API_URL}/inventory/add`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) });
@@ -850,7 +909,6 @@ function showImportPreview(cards) {
         <tr class="border-t border-gray-100">
             <td class="px-3 py-1 font-mono text-gray-600">${esc(c.card_id || '—')}</td>
             <td class="px-3 py-1">${esc(c.name || c.card_name || '—')}</td>
-            <td class="px-3 py-1">${c.rarity ? rarityBadge(c.rarity) : '—'}</td>
             <td class="px-3 py-1">${c.currency || 'JPY'} ${c.reference_price ?? '—'}</td>
         </tr>`).join('');
     preview.classList.remove('hidden');
@@ -1095,33 +1153,76 @@ function thumbHtml(url) {
     </div>`;
 }
 
+// ---- Per-IP singles config: option sources with fallback to legacy hardcoded values ----
+async function loadSinglesConfig() {
+    singlesConfig = { rarity: [], condition: [], finish: [] };
+    if (!currentGameId) return;
+    try {
+        const res = await fetch(`${API_URL}/games/${currentGameId}/singles-config`);
+        if (!res.ok) return;
+        const json = await res.json();
+        singlesConfig = {
+            rarity:    (json.rarity    || []).map(v => v.value),
+            condition: (json.condition || []).map(v => v.value),
+            finish:    (json.finish    || []).map(v => v.value)
+        };
+    } catch (e) { /* fallback to empty → legacy defaults */ }
+}
+// Config is the single source of truth — no hardcoded fallback (defaults are seeded per IP server-side).
+function condOptions()    { return singlesConfig.condition; }
+function finishSpecials() { return singlesConfig.finish; }
+function rarityOptions()  { return singlesConfig.rarity; }
+
+// Inline rarity dropdown for an existing single-variant row (persists like condition/finish).
+function raritySelect(id, val) {
+    const opts = [...rarityOptions()];
+    if (val && !opts.includes(val)) opts.unshift(val);   // keep a legacy/unlisted value selectable
+    return `<select class="cell-select" style="width:64px" onchange="raritySelectChange(${id}, this.value)">
+        <option value="">—</option>
+        ${opts.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
+    </select>`;
+}
+async function raritySelectChange(id, value) { await patchSingle(id, 'rarity', value || null, null); }
+
 function condSelect(id, val) {
-    const opts = ['NM','LP','MP','HP','DMG'];
+    const opts = [...condOptions()];
+    if (val && !opts.includes(val)) opts.unshift(val);   // keep legacy values selectable
     return `<select class="cell-select" onchange="condSelectChange(${id}, this.value)">
-        ${opts.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
+        ${opts.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
     </select>`;
 }
 
 function finishSelect(id, val) {
-    const opts = [['','Normal'],['Foil','Foil'],['Reverse','Reverse'],['Alt Art','Alt Art']];
+    const specials = [...finishSpecials()];
+    if (val && !specials.includes(val)) specials.unshift(val);
+    const opts = [['','Normal'], ...specials.map(s => [s, s])];
     return `<select class="cell-select" onchange="finishSelectChange(${id}, this.value)">
-        ${opts.map(([v,l]) => `<option value="${v}" ${(val||'')===(v)?'selected':''}>${l}</option>`).join('')}
+        ${opts.map(([v,l]) => `<option value="${esc(v)}" ${(val||'')===(v)?'selected':''}>${esc(l)}</option>`).join('')}
     </select>`;
 }
 
 function condSelectNew(def='NM') {
-    const opts = ['NM','LP','MP','HP','DMG'];
+    const opts = condOptions();
+    const sel = opts.includes(def) ? def : opts[0];
     return `<select id="new-condition" class="cell-select">
-        ${opts.map(o => `<option value="${o}" ${o===def?'selected':''}>${o}</option>`).join('')}
+        ${opts.map(o => `<option value="${esc(o)}" ${o===sel?'selected':''}>${esc(o)}</option>`).join('')}
     </select>`;
 }
 
 function finishSelectNew() {
+    const opts = [['','Normal'], ...finishSpecials().map(s => [s, s])];
     return `<select id="new-finish" class="cell-select">
-        <option value="">Normal</option>
-        <option value="Foil">Foil</option>
-        <option value="Reverse">Reverse</option>
-        <option value="Alt Art">Alt Art</option>
+        ${opts.map(([v,l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}
+    </select>`;
+}
+
+// Rarity is always a dropdown from the IP's config (empty list ⇒ only "—"; configure rarities first).
+function rarityInputNew(val='') {
+    const list = [...rarityOptions()];
+    if (val && !list.includes(val)) list.unshift(val);
+    return `<select id="new-rarity" class="cell-select" style="width:64px">
+        <option value="">—</option>
+        ${list.map(r => `<option value="${esc(r)}" ${r===val?'selected':''}>${esc(r)}</option>`).join('')}
     </select>`;
 }
 
