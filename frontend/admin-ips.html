@@ -55,13 +55,23 @@
             </div>
 
             <!-- Section B: case/pack configurations -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-base font-bold text-gray-800">Case / Pack Configurations</h3>
                     <button onclick="openAddConfigModal()" class="btn-ghost text-sm">+ Add configuration</button>
                 </div>
                 <p class="text-xs text-gray-400 mb-3">Reusable breakdown templates that seed a new set's categories.</p>
                 <div id="config-list" class="space-y-2"></div>
+            </div>
+
+            <!-- Section C: singles configuration -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-base font-bold text-gray-800">Singles Configuration</h3>
+                    <button onclick="openSinglesConfigModal()" class="btn-ghost text-sm">Edit</button>
+                </div>
+                <p class="text-xs text-gray-400 mb-3">Allowed Rarity, Condition &amp; Finishing values for this IP's single cards.</p>
+                <div id="singles-config-view" class="space-y-2.5"></div>
             </div>
         </div>
     </div>
@@ -170,6 +180,40 @@
         </div>
     </div>
 
+    <!-- ===== Singles configuration modal ===== -->
+    <div id="singles-config-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width:560px">
+            <div class="modal-header">
+                <h2 class="modal-title">Singles Configuration</h2>
+                <button onclick="closeModal('singles-config-modal')" class="modal-close">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="field-label">Rarity</label>
+                    <div id="scv-rarity-rows" class="space-y-1.5"></div>
+                    <button onclick="addSinglesValue('rarity')" class="btn-ghost text-xs mt-2">+ Add</button>
+                </div>
+                <div>
+                    <label class="field-label">Condition</label>
+                    <div id="scv-condition-rows" class="space-y-1.5"></div>
+                    <button onclick="addSinglesValue('condition')" class="btn-ghost text-xs mt-2">+ Add</button>
+                </div>
+                <div>
+                    <label class="field-label">Finishing</label>
+                    <div id="scv-finish-rows" class="space-y-1.5"></div>
+                    <button onclick="addSinglesValue('finish')" class="btn-ghost text-xs mt-2">+ Add</button>
+                    <p class="text-[10px] text-gray-400 mt-1">"Normal" is always available — list only special finishes.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('singles-config-modal')" class="btn-ghost">Cancel</button>
+                <button onclick="saveSinglesConfig()" class="btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast-container"></div>
 
 <script>
@@ -184,6 +228,7 @@ let allLineUps = [];   // [{ id, name, display_label, icon, uses_families }]
 let currentGameId    = null;   // IP being managed in Stage 2
 let currentCarried   = [];     // line_up_ids carried by currentGameId
 let currentConfigs   = [];     // configs for currentGameId
+let currentSinglesConfig = { rarity: [], condition: [], finish: [] };  // singles allowed values for currentGameId
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!localStorage.getItem('k10_token')) { window.location.href = 'login.html'; return; }
@@ -255,7 +300,8 @@ async function openIP(gameId) {
     window.scrollTo(0, 0);
     document.getElementById('lineup-checklist').innerHTML = '<div class="text-sm text-gray-400 py-2">Loading…</div>';
     document.getElementById('config-list').innerHTML = '<div class="text-sm text-gray-400 py-2">Loading…</div>';
-    await Promise.all([loadCarried(), loadConfigs()]);
+    document.getElementById('singles-config-view').innerHTML = '<div class="text-sm text-gray-400 py-2">Loading…</div>';
+    await Promise.all([loadCarried(), loadConfigs(), loadSinglesConfig()]);
 }
 
 function backToIPs() {
@@ -477,6 +523,97 @@ async function deleteConfig(id) {
         if (!res.ok) throw new Error(json.error);
         showToast('Configuration deleted', 'success');
         await loadConfigs();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ---- Singles configuration (per-IP allowed Rarity/Condition/Finishing) ----
+const SINGLES_DIMS = [
+    { key: 'rarity',    label: 'Rarity' },
+    { key: 'condition', label: 'Condition' },
+    { key: 'finish',    label: 'Finishing' }
+];
+let singlesEdit = { rarity: [], condition: [], finish: [] };  // working copy while editing
+
+async function loadSinglesConfig() {
+    try {
+        const res = await fetch(`${API_URL}/games/${currentGameId}/singles-config`, { headers: authHeaders() });
+        const json = await res.json();
+        currentSinglesConfig = {
+            rarity:    (json.rarity    || []).map(v => v.value),
+            condition: (json.condition || []).map(v => v.value),
+            finish:    (json.finish    || []).map(v => v.value)
+        };
+    } catch (e) { currentSinglesConfig = { rarity: [], condition: [], finish: [] }; }
+    renderSinglesConfig();
+}
+
+function renderSinglesConfig() {
+    const box = document.getElementById('singles-config-view');
+    const anyValues = SINGLES_DIMS.some(d => currentSinglesConfig[d.key].length);
+    if (!anyValues) {
+        box.innerHTML = '<div class="text-sm text-gray-400 py-2">No singles configuration yet. Click <span class="font-semibold">Edit</span> to set allowed values.</div>';
+        return;
+    }
+    box.innerHTML = SINGLES_DIMS.map(d => {
+        const vals = currentSinglesConfig[d.key];
+        const chips = vals.length
+            ? vals.map(v => `<span class="badge badge-gray">${esc(v)}</span>`).join(' ')
+            : '<span class="text-xs text-gray-300">— none —</span>';
+        return `
+        <div class="flex items-start gap-2">
+            <span class="text-xs font-semibold text-gray-500 w-20 flex-shrink-0 pt-0.5">${d.label}</span>
+            <div class="flex flex-wrap gap-1">${chips}</div>
+        </div>`;
+    }).join('');
+}
+
+function openSinglesConfigModal() {
+    singlesEdit = {
+        rarity:    [...currentSinglesConfig.rarity],
+        condition: [...currentSinglesConfig.condition],
+        finish:    [...currentSinglesConfig.finish]
+    };
+    SINGLES_DIMS.forEach(d => renderSinglesRows(d.key));
+    openModal('singles-config-modal');
+}
+
+function renderSinglesRows(dim) {
+    const box = document.getElementById(`scv-${dim}-rows`);
+    box.innerHTML = singlesEdit[dim].map((v, i) => `
+        <div class="flex items-center gap-1">
+            <input type="text" value="${esc(v)}" oninput="updateSinglesValue('${dim}', ${i}, this.value)"
+                   class="text-sm border border-gray-200 rounded px-2 py-1 w-full">
+            <button onclick="removeSinglesValue('${dim}', ${i})" class="text-gray-300 hover:text-red-500 text-sm px-1" title="Remove">✕</button>
+        </div>`).join('') || '<div class="text-[11px] text-gray-300 py-1">none</div>';
+}
+
+function updateSinglesValue(dim, i, val) { singlesEdit[dim][i] = val; }
+function addSinglesValue(dim) { singlesEdit[dim].push(''); renderSinglesRows(dim); }
+function removeSinglesValue(dim, i) { singlesEdit[dim].splice(i, 1); renderSinglesRows(dim); }
+
+async function saveSinglesConfig() {
+    const body = {};
+    for (const d of SINGLES_DIMS) {
+        const seen = new Set();
+        const vals = [];
+        for (const raw of singlesEdit[d.key]) {
+            const v = (raw || '').trim();
+            if (!v) continue;                       // drop blanks silently
+            if (seen.has(v.toLowerCase())) return showToast(`Duplicate ${d.label} value "${v}"`, 'error');
+            seen.add(v.toLowerCase());
+            vals.push(v);
+        }
+        body[d.key] = vals;
+    }
+    try {
+        const res = await fetch(`${API_URL}/games/${currentGameId}/singles-config`, {
+            method: 'PUT', headers: authHeaders(), body: JSON.stringify(body)
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error);
+        showToast('Singles configuration saved!', 'success');
+        closeModal('singles-config-modal');
+        await loadSinglesConfig();
     } catch (e) { showToast(e.message, 'error'); }
 }
 

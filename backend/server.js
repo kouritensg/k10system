@@ -205,16 +205,22 @@ app.get('/api/games', async (req, res) => {
 app.post('/api/games', async (req, res) => {
   const { name, display_label, sort_order } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  const conn = await db.getConnection();
   try {
-    const [result] = await db.execute(
+    await conn.beginTransaction();
+    const [result] = await conn.execute(
       'INSERT INTO games (name, display_label, sort_order) VALUES (?, ?, ?)',
       [name.trim(), display_label?.trim() || null, sort_order || 0]
     );
+    // Every IP starts with the default singles Condition/Finishing values (editable in IP & Config).
+    await seedDefaultSinglesConfig(conn, result.insertId);
+    await conn.commit();
     res.status(201).json({ id: result.insertId, message: 'Game created' });
   } catch (error) {
+    await conn.rollback();
     if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Game name already exists' });
     res.status(500).json({ error: 'Failed to create game' });
-  }
+  } finally { conn.release(); }
 });
 
 // Must be registered before PATCH /api/games/:id — bulk reorder games
@@ -589,6 +595,92 @@ app.delete('/api/games/:gameId/configs/:id', async (req, res) => {
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Configuration not found' });
     res.json({ message: 'Configuration deleted' });
   } catch (error) { res.status(500).json({ error: 'Failed to delete configuration' }); }
+});
+
+// ==========================================
+// 2.8 PER-IP SINGLES CONFIGURATION
+// One value-set per IP (game): allowed Rarity / Condition / Finishing values for single cards.
+// The single source of truth for the singles-manager dropdowns (no hardcoded fallback there).
+// Condition/Finishing are seeded with defaults per IP; Rarity is game-specific (starts empty).
+// ==========================================
+const SINGLES_DIMENSIONS = ['rarity', 'condition', 'finish'];
+const SINGLES_DEFAULTS = {
+  condition: ['NM', 'LP', 'MP', 'HP', 'DMG'],
+  finish:    ['Foil', 'Reverse', 'Alt Art']
+};
+
+// Seed the default Condition/Finishing values for an IP (idempotent via uk_singles_cfg). Rarity omitted.
+async function seedDefaultSinglesConfig(conn, gameId) {
+  for (const dim of ['condition', 'finish']) {
+    let i = 0;
+    for (const value of SINGLES_DEFAULTS[dim]) {
+      await conn.execute(
+        'INSERT IGNORE INTO singles_config_values (game_id, dimension, value, sort_order) VALUES (?, ?, ?, ?)',
+        [gameId, dim, value, i++]
+      );
+    }
+  }
+}
+
+// Normalise one dimension's incoming list into [{ value, label }]. Returns { error } or { items }.
+function normaliseSinglesValues(dim, raw) {
+  if (raw === undefined || raw === null) return { items: [] };
+  if (!Array.isArray(raw)) return { error: `${dim} must be an array` };
+  const seen = new Set();
+  const items = [];
+  for (const entry of raw) {
+    const value = (typeof entry === 'string' ? entry : (entry && entry.value) || '').trim();
+    if (!value) return { error: `${dim} values cannot be blank` };
+    const key = value.toLowerCase();
+    if (seen.has(key)) return { error: `Duplicate ${dim} value "${value}"` };
+    seen.add(key);
+    const label = (entry && typeof entry === 'object' && entry.label) ? String(entry.label).trim() : null;
+    items.push({ value, label: label || null });
+  }
+  return { items };
+}
+
+// Read an IP's singles config, grouped by dimension.
+app.get('/api/games/:gameId/singles-config', async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      `SELECT dimension, value, label FROM singles_config_values
+        WHERE game_id = ? ORDER BY sort_order ASC, id ASC`,
+      [req.params.gameId]
+    );
+    const out = { rarity: [], condition: [], finish: [] };
+    for (const r of rows) (out[r.dimension] ||= []).push({ value: r.value, label: r.label });
+    res.json(out);
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch singles configuration' }); }
+});
+
+// Replace an IP's singles config (all three dimensions at once).
+app.put('/api/games/:gameId/singles-config', async (req, res) => {
+  const normalised = {};
+  for (const dim of SINGLES_DIMENSIONS) {
+    const norm = normaliseSinglesValues(dim, req.body[dim]);
+    if (norm.error) return res.status(400).json({ error: norm.error });
+    normalised[dim] = norm.items;
+  }
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.execute('DELETE FROM singles_config_values WHERE game_id = ?', [req.params.gameId]);
+    for (const dim of SINGLES_DIMENSIONS) {
+      let i = 0;
+      for (const item of normalised[dim]) {
+        await conn.execute(
+          'INSERT INTO singles_config_values (game_id, dimension, value, label, sort_order) VALUES (?, ?, ?, ?, ?)',
+          [req.params.gameId, dim, item.value, item.label, i++]
+        );
+      }
+    }
+    await conn.commit();
+    res.json({ message: 'Singles configuration saved' });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: 'Failed to save singles configuration' });
+  } finally { conn.release(); }
 });
 
 // ==========================================
@@ -1131,6 +1223,7 @@ app.get('/api/inventory/all-families', async (req, res) => {
         f.id AS family_id,
         f.set_code,
         f.set_name,
+        g.id AS game_id,
         g.name AS game_title,
         f.release_date,
         COUNT(CASE WHEN i.product_type = 'single' THEN 1 END) AS singles_count,
@@ -1140,7 +1233,7 @@ app.get('/api/inventory/all-families', async (req, res) => {
       FROM inventory_families f
       JOIN games g ON g.id = f.game_id
       LEFT JOIN inventory i ON i.family_id = f.id
-      GROUP BY f.id, f.set_code, f.set_name, g.name, g.sort_order, f.sort_order, f.release_date
+      GROUP BY f.id, f.set_code, f.set_name, g.id, g.name, g.sort_order, f.sort_order, f.release_date
       ORDER BY g.sort_order, g.name, f.release_date DESC, f.set_name
     `);
     const result = rows.map(r => ({
@@ -1370,7 +1463,7 @@ app.post('/api/inventory/singles/import', authenticate, async (req, res) => {
                source_url = VALUES(source_url),
                scraped_at = VALUES(scraped_at),
                reference_image_url = VALUES(reference_image_url)`,
-            [family_id, cardId, card.rarity || null, source || 'unknown', source_url || null,
+            [family_id, cardId, null, source || 'unknown', source_url || null,
              card.reference_price || 0, card.currency || 'JPY',
              card.image_url || null, scraped_at || new Date().toISOString()]
           );
@@ -1379,9 +1472,11 @@ app.post('/api/inventory/singles/import', authenticate, async (req, res) => {
 
         // Optionally create missing inventory row
         if (create_missing !== false) {
+          // Catalog import is rarity-agnostic: one catalog row per (family, card_id). Rarity is set
+          // per card later from the per-IP config, so we match without it to avoid duplicates.
           const [[existing]] = await conn.execute(
-            `SELECT id FROM inventory WHERE family_id = ? AND card_id = ? AND rarity <=> ? AND product_type = 'single' LIMIT 1`,
-            [family_id, cardId, card.rarity || null]
+            `SELECT id FROM inventory WHERE family_id = ? AND card_id = ? AND product_type = 'single' LIMIT 1`,
+            [family_id, cardId]
           );
 
           if (existing) {
@@ -1395,11 +1490,11 @@ app.post('/api/inventory/singles/import', authenticate, async (req, res) => {
               'SELECT COALESCE(MAX(sort_order), 0) AS mx FROM inventory WHERE family_id = ?', [family_id]
             );
             const [insResult] = await conn.execute(
-              `INSERT INTO inventory (family_id, game_title, set_name, card_id, card_name, rarity,
+              `INSERT INTO inventory (family_id, game_title, set_name, card_id, card_name,
                 price, cost_price, stock_quantity, product_type, card_condition, image_url, sort_order)
-               VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 'single', 'NM', ?, ?)`,
+               VALUES (?, ?, ?, ?, ?, 0, 0, 0, 'single', 'NM', ?, ?)`,
               [family_id, famMeta.game_title, famMeta.set_code,
-               cardId, card.name || card.card_name || '', card.rarity || null,
+               cardId, card.name || card.card_name || '',
                card.image_url || null, maxSort.mx + 1]
             );
             await logChange(conn, insResult.insertId, req.user?.username || 'system',
@@ -1415,6 +1510,49 @@ app.post('/api/inventory/singles/import', authenticate, async (req, res) => {
 
     await conn.commit();
     res.json({ summary, errors });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ error: error.message });
+  } finally { conn.release(); }
+});
+
+// Bulk stock-in for singles — each row creates a FIFO wave (stock + cost enter only through FIFO).
+// Body: { items: [{ inventory_id, qty, unit_cost }], invoice_number? }
+app.post('/api/inventory/singles/stock-in', authenticate, async (req, res) => {
+  const { items, invoice_number } = req.body;
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items array is required' });
+
+  // Validate + normalise up front so the whole batch is all-or-nothing.
+  const rows = [];
+  for (const it of items) {
+    const inventory_id = parseInt(it.inventory_id);
+    const qty = parseInt(it.qty);
+    const unit_cost = Number(it.unit_cost);
+    if (!inventory_id) return res.status(400).json({ error: 'each item needs an inventory_id' });
+    if (!Number.isInteger(qty) || qty <= 0) return res.status(400).json({ error: `qty must be a positive integer (inventory_id ${inventory_id})` });
+    if (!Number.isFinite(unit_cost) || unit_cost < 0) return res.status(400).json({ error: `unit_cost must be a non-negative number (inventory_id ${inventory_id})` });
+    rows.push({ inventory_id, qty, unit_cost });
+  }
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    let wavesCreated = 0, totalQty = 0;
+    for (const r of rows) {
+      const [[inv]] = await conn.execute(
+        "SELECT id FROM inventory WHERE id = ? AND product_type = 'single'", [r.inventory_id]
+      );
+      if (!inv) { await conn.rollback(); return res.status(400).json({ error: `inventory_id ${r.inventory_id} is not a single` }); }
+      await conn.execute(
+        `INSERT INTO fifo (inventory_id, wave_name, cost_price, initial_qty, remaining_qty, arrival_date, is_active, invoice_number)
+         VALUES (?, 'Stock-In', ?, ?, ?, CURDATE(), TRUE, ?)`,
+        [r.inventory_id, r.unit_cost.toFixed(2), r.qty, r.qty, invoice_number || null]
+      );
+      await syncInventoryStock(r.inventory_id, conn, req.user.username, 'Singles Stock-In');
+      wavesCreated++; totalQty += r.qty;
+    }
+    await conn.commit();
+    res.json({ waves_created: wavesCreated, total_qty: totalQty, message: 'Stock-in complete' });
   } catch (error) {
     await conn.rollback();
     res.status(500).json({ error: error.message });
