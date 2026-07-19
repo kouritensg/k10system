@@ -1360,25 +1360,27 @@ app.get('/api/inventory/singles', async (req, res) => {
 
     const [variantRows] = await db.execute(
       `SELECT i.id, i.card_id, i.card_name, i.rarity, i.card_condition, i.card_finish,
-              i.price, i.stock_quantity, i.updated_at, i.image_url,
+              i.price, i.cost_price, i.stock_quantity, i.updated_at, i.image_url,
               sr.source AS ref_source, sr.source_url AS ref_source_url,
               sr.reference_price, sr.currency AS ref_currency, sr.scraped_at AS ref_scraped_at
        FROM inventory i
        LEFT JOIN (
-         SELECT sr1.family_id, sr1.card_id, sr1.rarity, sr1.source, sr1.source_url,
+         SELECT sr1.family_id, sr1.card_id, sr1.rarity, sr1.card_finish, sr1.source, sr1.source_url,
                 sr1.reference_price, sr1.currency, sr1.scraped_at
          FROM singles_reference sr1
          INNER JOIN (
-           SELECT family_id, card_id, rarity, MAX(scraped_at) AS max_scraped_at
+           SELECT family_id, card_id, rarity, card_finish, MAX(scraped_at) AS max_scraped_at
            FROM singles_reference
-           GROUP BY family_id, card_id, rarity
+           GROUP BY family_id, card_id, rarity, card_finish
          ) latest ON sr1.family_id  = latest.family_id
-                 AND sr1.card_id   <=> latest.card_id
-                 AND sr1.rarity    <=> latest.rarity
+                 AND sr1.card_id     <=> latest.card_id
+                 AND sr1.rarity      <=> latest.rarity
+                 AND sr1.card_finish <=> latest.card_finish
                  AND sr1.scraped_at = latest.max_scraped_at
        ) sr ON sr.family_id = i.family_id
-           AND sr.card_id  <=> i.card_id
-           AND sr.rarity   <=> i.rarity
+           AND sr.card_id     <=> i.card_id
+           AND sr.rarity      <=> i.rarity
+           AND sr.card_finish <=> i.card_finish
        WHERE i.family_id = ? AND i.product_type = 'single' ${variantWhere}
        ORDER BY i.card_id, i.card_name, i.card_condition, i.card_finish`,
       variantParams
@@ -1396,6 +1398,7 @@ app.get('/api/inventory/singles', async (req, res) => {
         card_condition: v.card_condition,
         card_finish: v.card_finish,
         price: v.price,
+        cost_price: v.cost_price,
         stock_quantity: v.stock_quantity,
         updated_at: v.updated_at,
         image_url: v.image_url,
@@ -1432,6 +1435,18 @@ app.get('/api/inventory/singles', async (req, res) => {
   }
 });
 
+// Split a scraped card into base rarity + finish. The yuyu-tei scrape encodes "parallel" prints as
+// a rarity prefix (P-SEC, P-UR, …) and a "(パラレル…)" tag in the name; we normalise those into
+// rarity = base + card_finish = 'Parallel' so normal and parallel prints group as finish variants.
+function splitParallel(name, rarity) {
+  const rawName = (name || '').trim();
+  const rawRarity = (rarity || '').trim();
+  const isParallel = /^P-/i.test(rawRarity) || /パラレル/.test(rawName);
+  const base_rarity = rawRarity.replace(/^P-/i, '') || null;
+  const clean_name = rawName.replace(/[（(][^()（）]*パラレル[^()（）]*[)）]/g, '').trim();
+  return { base_rarity, card_finish: isParallel ? 'Parallel' : null, clean_name };
+}
+
 // Import singles reference data (and optionally scaffold inventory rows)
 app.post('/api/inventory/singles/import', authenticate, async (req, res) => {
   const { family_id, source, source_url, scraped_at, cards, create_missing } = req.body;
@@ -1445,61 +1460,93 @@ app.post('/api/inventory/singles/import', authenticate, async (req, res) => {
 
     await conn.beginTransaction();
 
-    const summary = { received: cards.length, reference_upserted: 0, inventory_created: 0, inventory_skipped_existing: 0, errors: 0 };
+    // Family/game meta once — used for INSERTs, sort order, and the Parallel finish config.
+    const [[famMeta]] = await conn.execute(
+      `SELECT f.game_id, f.set_code, g.name AS game_title
+         FROM inventory_families f JOIN games g ON g.id = f.game_id WHERE f.id = ?`,
+      [family_id]
+    );
+    const [[maxSort]] = await conn.execute(
+      'SELECT COALESCE(MAX(sort_order), 0) AS mx FROM inventory WHERE family_id = ?', [family_id]
+    );
+    let nextSort = maxSort.mx;
+    let parallelConfigEnsured = false;
+
+    const summary = { received: cards.length, reference_upserted: 0, inventory_created: 0, inventory_adopted: 0, inventory_skipped_existing: 0, errors: 0 };
     const errors = [];
 
     for (const card of cards) {
       try {
         const cardId = card.card_id || null;
+        const { base_rarity, card_finish, clean_name } = splitParallel(card.name || card.card_name, card.rarity);
 
-        // Upsert singles_reference (skip if card_id is null — can't key reference without it)
+        // Upsert singles_reference (skip if card_id is null — can't key reference without it).
+        // Keyed per (card_id, rarity, finish, source) so normal and parallel prints keep distinct prices.
         if (cardId) {
           await conn.execute(
             `INSERT INTO singles_reference
-               (family_id, card_id, rarity, source, source_url, reference_price, currency, reference_image_url, scraped_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               (family_id, card_id, rarity, card_finish, source, source_url, reference_price, currency, reference_image_url, scraped_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                reference_price = VALUES(reference_price),
                source_url = VALUES(source_url),
                scraped_at = VALUES(scraped_at),
                reference_image_url = VALUES(reference_image_url)`,
-            [family_id, cardId, null, source || 'unknown', source_url || null,
+            [family_id, cardId, base_rarity, card_finish, source || 'unknown', source_url || null,
              card.reference_price || 0, card.currency || 'JPY',
              card.image_url || null, scraped_at || new Date().toISOString()]
           );
           summary.reference_upserted++;
         }
 
-        // Optionally create missing inventory row
-        if (create_missing !== false) {
-          // Catalog import is rarity-agnostic: one catalog row per (family, card_id). Rarity is set
-          // per card later from the per-IP config, so we match without it to avoid duplicates.
-          const [[existing]] = await conn.execute(
-            `SELECT id FROM inventory WHERE family_id = ? AND card_id = ? AND product_type = 'single' LIMIT 1`,
-            [family_id, cardId]
+        // Make 'Parallel' a selectable finish for this game the first time we split one out.
+        if (card_finish === 'Parallel' && !parallelConfigEnsured) {
+          await conn.execute(
+            `INSERT IGNORE INTO singles_config_values (game_id, dimension, value, label, sort_order)
+             VALUES (?, 'finish', 'Parallel', 'Parallel', 99)`,
+            [famMeta.game_id]
           );
+          parallelConfigEnsured = true;
+        }
 
+        // Optionally scaffold the inventory row: one per (card_id, rarity, finish). A legacy
+        // rarity-NULL row is adopted for the first combo of a card_id; extras are created.
+        if (create_missing !== false && cardId) {
+          const [[existing]] = await conn.execute(
+            `SELECT id FROM inventory
+              WHERE family_id = ? AND card_id = ? AND product_type = 'single'
+                AND rarity <=> ? AND card_finish <=> ? LIMIT 1`,
+            [family_id, cardId, base_rarity, card_finish]
+          );
           if (existing) {
             summary.inventory_skipped_existing++;
           } else {
-            const [[famMeta]] = await conn.execute(
-              `SELECT f.set_code, g.name AS game_title FROM inventory_families f JOIN games g ON g.id = f.game_id WHERE f.id = ?`,
-              [family_id]
+            const [[legacy]] = await conn.execute(
+              `SELECT id FROM inventory
+                WHERE family_id = ? AND card_id = ? AND product_type = 'single' AND rarity IS NULL
+                LIMIT 1`,
+              [family_id, cardId]
             );
-            const [[maxSort]] = await conn.execute(
-              'SELECT COALESCE(MAX(sort_order), 0) AS mx FROM inventory WHERE family_id = ?', [family_id]
-            );
-            const [insResult] = await conn.execute(
-              `INSERT INTO inventory (family_id, game_title, set_name, card_id, card_name,
-                price, cost_price, stock_quantity, product_type, card_condition, image_url, sort_order)
-               VALUES (?, ?, ?, ?, ?, 0, 0, 0, 'single', 'NM', ?, ?)`,
-              [family_id, famMeta.game_title, famMeta.set_code,
-               cardId, card.name || card.card_name || '',
-               card.image_url || null, maxSort.mx + 1]
-            );
-            await logChange(conn, insResult.insertId, req.user?.username || 'system',
-              'stock_quantity', null, 0, `Import: ${source || 'unknown'}`);
-            summary.inventory_created++;
+            if (legacy) {
+              await conn.execute(
+                `UPDATE inventory SET rarity = ?, card_finish = ?, card_name = ?,
+                   image_url = COALESCE(?, image_url) WHERE id = ?`,
+                [base_rarity, card_finish, clean_name || card.name || '', card.image_url || null, legacy.id]
+              );
+              summary.inventory_adopted++;
+            } else {
+              const [insResult] = await conn.execute(
+                `INSERT INTO inventory (family_id, game_title, set_name, card_id, card_name, rarity, card_finish,
+                  price, cost_price, stock_quantity, product_type, card_condition, image_url, sort_order)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'single', 'NM', ?, ?)`,
+                [family_id, famMeta.game_title, famMeta.set_code, cardId,
+                 clean_name || card.name || card.card_name || '', base_rarity, card_finish,
+                 card.image_url || null, ++nextSort]
+              );
+              await logChange(conn, insResult.insertId, req.user?.username || 'system',
+                'stock_quantity', null, 0, `Import: ${source || 'unknown'}`);
+              summary.inventory_created++;
+            }
           }
         }
       } catch (err) {
@@ -1605,28 +1652,50 @@ app.post('/api/inventory/add', async (req, res) => {
 
 // Update product — updated, added set_name + is_bundle + quick_description + long_description + card_id + card_name + product_type + rarity
 app.put('/api/inventory/:id', authenticate, async (req, res) => {
-  const { card_name, card_id, price, stock_quantity, cost_price, category_id, set_name, is_bundle, quick_description, long_description, product_type, card_condition, card_finish, rarity } = req.body;
-  if (rarity !== undefined && typeof rarity === 'string' && rarity.length > 20) {
+  if (req.body.rarity !== undefined && typeof req.body.rarity === 'string' && req.body.rarity.length > 20) {
     return res.status(400).json({ error: 'rarity must be 20 characters or fewer' });
   }
+  // Partial update: only columns actually present in the body are written, so callers can send a
+  // single field (inline edits) without blanking the rest of the row. `stock_quantity` is
+  // intentionally NOT editable here — it is FIFO-managed by syncInventoryStock and must never be
+  // set directly (see CLAUDE.md).
+  const NORMALIZERS = {
+    card_name:         v => v || null,
+    card_id:           v => v || null,
+    price:             v => v,
+    cost_price:        v => v || 0,
+    category_id:       v => v || null,
+    set_name:          v => v || '',
+    is_bundle:         v => v || 0,
+    quick_description: v => v || null,
+    long_description:  v => v || null,
+    product_type:      v => v || 'sealed',
+    card_condition:    v => v || null,
+    card_finish:       v => v || null,
+    rarity:            v => v || null,
+  };
+  const sets = [];
+  const params = [];
+  for (const [col, norm] of Object.entries(NORMALIZERS)) {
+    if (req.body[col] !== undefined) {
+      sets.push(`${col} = ?`);
+      params.push(norm(req.body[col]));
+    }
+  }
+  if (!sets.length) return res.status(400).json({ error: 'No fields to update' });
+  params.push(req.params.id);
   const conn = await db.getConnection();
   try {
-    const [[old]] = await conn.execute('SELECT price FROM inventory WHERE id = ?', [req.params.id]);
-    await conn.execute(
-      `UPDATE inventory
-       SET card_name = ?, card_id = ?, price = ?, stock_quantity = ?, cost_price = ?,
-           category_id = ?, set_name = ?, is_bundle = ?, quick_description = ?, long_description = ?,
-           product_type = ?, card_condition = ?, card_finish = ?, rarity = COALESCE(?, rarity)
-       WHERE id = ?`,
-      [card_name || null, card_id || null, price, stock_quantity, cost_price || 0,
-       category_id || null, set_name || '', is_bundle || 0,
-       quick_description || null, long_description || null,
-       product_type || 'sealed', card_condition || null, card_finish || null,
-       rarity !== undefined ? (rarity || null) : null, req.params.id]
-    );
-    await logChange(conn, req.params.id, req.user.username, 'price', old.price, price, 'Manual Edit');
+    let old;
+    if (req.body.price !== undefined) {
+      [[old]] = await conn.execute('SELECT price FROM inventory WHERE id = ?', [req.params.id]);
+    }
+    await conn.execute(`UPDATE inventory SET ${sets.join(', ')} WHERE id = ?`, params);
+    if (req.body.price !== undefined) {
+      await logChange(conn, req.params.id, req.user.username, 'price', old.price, req.body.price, 'Manual Edit');
+    }
     res.json({ message: 'Updated' });
-  } catch (error) { res.status(500).json({ error: 'Update failed' }); }
+  } catch (error) { res.status(500).json({ error: error.message }); }
   finally { conn.release(); }
 });
 

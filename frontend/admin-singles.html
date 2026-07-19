@@ -104,7 +104,7 @@
             <select id="sort-select" class="text-xs border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:border-blue-400" onchange="loadSingles(true)">
                 <option value="card_id_asc">Card ID ↑</option>
                 <option value="card_name_asc">Name ↑</option>
-                <option value="price_desc">Price ↓</option>
+                <option value="price_desc">Sell Price ↓</option>
                 <option value="stock_desc">Stock ↓</option>
                 <option value="updated_desc">Updated ↓</option>
             </select>
@@ -137,7 +137,8 @@
                             <th style="width:55px">Rarity</th>
                             <th style="width:90px">Condition</th>
                             <th style="width:100px">Finish</th>
-                            <th style="width:110px">Price ($)</th>
+                            <th style="width:110px">Sell Price ($)</th>
+                            <th style="width:90px">Cost ($)</th>
                             <th style="width:80px">Stock</th>
                             <th style="width:90px">Updated</th>
                             <th style="width:42px; text-align:center">⋯</th>
@@ -185,6 +186,8 @@
                     <thead><tr class="bg-gray-50">
                         <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Card ID</th>
                         <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Name</th>
+                        <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Rarity</th>
+                        <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Finish</th>
                         <th class="px-3 py-1.5 text-left font-semibold text-gray-600">Ref Price</th>
                     </tr></thead>
                     <tbody id="preview-tbody"></tbody>
@@ -419,7 +422,7 @@ async function loadSingles(resetPage = false) {
         renderSinglesRows(data.rows);
         updatePagination();
     } catch (e) {
-        body.innerHTML = `<tr><td colspan="10" class="text-center py-10 text-red-400">Failed to load singles: ${esc(e.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="11" class="text-center py-10 text-red-400">Failed to load singles: ${esc(e.message)}</td></tr>`;
     }
 }
 
@@ -433,7 +436,7 @@ function renderSinglesRows(rows) {
     lastRows = rows;
     const body = document.getElementById('singles-body');
     if (!rows.length) {
-        body.innerHTML = `<tr><td colspan="10" class="text-center py-10 text-gray-400 text-sm">No singles found. Click <strong>+ Add Card</strong> or <strong>Import JSON</strong> to get started.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="11" class="text-center py-10 text-gray-400 text-sm">No singles found. Click <strong>+ Add Card</strong> or <strong>Import JSON</strong> to get started.</td></tr>`;
         return;
     }
     body.innerHTML = '';
@@ -456,7 +459,7 @@ function renderSinglesRows(rows) {
             btn.dataset.rarity = card.rarity || '';
             btn.onclick = () => addVariantRow(btn);
             const td = document.createElement('td');
-            td.colSpan = 10;
+            td.colSpan = 11;
             td.className = 'py-1 pl-12';
             td.appendChild(btn);
             addVarRow.appendChild(td);
@@ -470,7 +473,8 @@ function renderSinglesRows(rows) {
 // Stock cell: normal display, or qty-received + unit-cost inputs while in stock-in mode.
 function stockInCell(v) {
     if (!stockInMode) {
-        return `<td class="editable" onclick="enterEdit(this,'number','stock_quantity','${esc(v.id)}')">${dispCell(v.stock_quantity)}</td>`;
+        // Stock is FIFO-managed (syncInventoryStock owns it); change it via Stock In, not inline edit.
+        return `<td class="text-gray-700">${dispCell(v.stock_quantity)}</td>`;
     }
     const cost = v.cost_price ?? v.reference ?? '';
     return `<td>
@@ -523,19 +527,39 @@ function buildSingleVariantRow(card, v) {
     const tr = document.createElement('tr');
     tr.className = 'card-row';
     tr.dataset.id = v.id;
-    tr.innerHTML = `
+    tr.innerHTML = singleVariantRowHTML(card, v, false);
+    return tr;
+}
+
+// Full-width single-variant row. `editing` swaps display cells for inputs/selects and the
+// Edit button for Save/Cancel. Editable fields carry data-edit="<column>" for saveSingleRow.
+function singleVariantRowHTML(card, v, editing) {
+    if (editing) {
+        return `
         <td>${thumbHtml(v.image_url)}</td>
-        <td class="editable" onclick="enterEdit(this,'text','card_id','${esc(v.id)}')">${dispCell(card.card_id)}</td>
-        <td class="editable" onclick="enterEdit(this,'text','card_name','${esc(v.id)}')">${dispCell(card.card_name)}</td>
-        <td>${raritySelect(v.id, card.rarity)}</td>
-        <td>${condSelect(v.id, v.card_condition)}</td>
-        <td>${finishSelect(v.id, v.card_finish)}</td>
-        <td class="editable" onclick="enterEdit(this,'price','price','${esc(v.id)}')">${priceCell(v.price, v.reference)}</td>
+        <td><input type="text" class="cell-input" data-edit="card_id" value="${esc(card.card_id || '')}" style="width:90px"></td>
+        <td><input type="text" class="cell-input" data-edit="card_name" value="${esc(card.card_name || '')}"></td>
+        <td>${rarityBadge(card.rarity)}</td>
+        <td>${condSelectEdit(v.card_condition)}</td>
+        <td>${finishSelectEdit(v.card_finish)}</td>
+        <td><input type="number" step="0.01" min="0" class="cell-input" data-edit="price" value="${esc(String(v.price ?? 0))}" style="width:80px"></td>
+        <td>${costCell(v.cost_price)}</td>
         ${stockInCell(v)}
         <td class="text-gray-400 text-[11px]">${relativeTime(v.updated_at)}</td>
-        <td class="text-center"><button onclick="deleteSingle(${v.id})" class="text-red-400 hover:text-red-600 font-bold px-1">✕</button></td>
-    `;
-    return tr;
+        <td class="text-center">${rowEditActions(v.id, true)}</td>`;
+    }
+    return `
+        <td>${thumbHtml(v.image_url)}</td>
+        <td>${dispCell(card.card_id)}</td>
+        <td>${dispCell(card.card_name)}</td>
+        <td>${rarityBadge(card.rarity)}</td>
+        <td>${dispCell(v.card_condition)}</td>
+        <td>${dispCell(v.card_finish || 'Normal')}</td>
+        <td>${priceCell(v.price, v.reference)}</td>
+        <td>${costCell(v.cost_price)}</td>
+        ${stockInCell(v)}
+        <td class="text-gray-400 text-[11px]">${relativeTime(v.updated_at)}</td>
+        <td class="text-center">${rowEditActions(v.id, false)}</td>`;
 }
 
 function buildGroupHeaderRow(card) {
@@ -544,6 +568,11 @@ function buildGroupHeaderRow(card) {
     const priceRange = card.price_min === card.price_max
         ? `$${fmt(card.price_max)}`
         : `$${fmt(card.price_min)} – $${fmt(card.price_max)}`;
+    const costs = (card.variants || []).map(v => Number(v.cost_price) || 0).filter(c => c > 0);
+    const costRange = !costs.length ? '<span class="text-gray-300">—</span>'
+        : Math.min(...costs) === Math.max(...costs)
+            ? `$${fmt(Math.max(...costs))}`
+            : `$${fmt(Math.min(...costs))} – $${fmt(Math.max(...costs))}`;
     const tr = document.createElement('tr');
     tr.className = `card-row${isOpen ? ' expanded' : ''}`;
     tr.id = `grp-${CSS.escape(key)}`;
@@ -554,6 +583,7 @@ function buildGroupHeaderRow(card) {
         <td>${rarityBadge(card.rarity)}</td>
         <td colspan="2" class="text-gray-500 text-xs">${card.variant_count} variants</td>
         <td class="text-gray-600">${priceRange}</td>
+        <td class="text-gray-500 text-xs">${costRange}</td>
         <td class="text-gray-700 font-medium">${card.total_stock}</td>
         <td></td>
         <td class="text-center">
@@ -570,19 +600,39 @@ function buildVariantSubRow(card, v) {
     const tr = document.createElement('tr');
     tr.className = 'variant-subrow';
     tr.dataset.id = v.id;
-    tr.innerHTML = `
+    tr.innerHTML = variantSubRowHTML(card, v, false);
+    return tr;
+}
+
+// Sub-variant row under a group header. card_id/name/rarity are group-level (blank here), so only
+// condition/finish/price are editable per variant.
+function variantSubRowHTML(card, v, editing) {
+    if (editing) {
+        return `
         <td class="pl-8">${thumbHtml(v.image_url)}</td>
         <td></td>
         <td class="text-gray-500 text-xs">${esc(card.card_name)}</td>
         <td></td>
-        <td>${condSelect(v.id, v.card_condition)}</td>
-        <td>${finishSelect(v.id, v.card_finish)}</td>
-        <td class="editable" onclick="enterEdit(this,'price','price','${esc(v.id)}')">${priceCell(v.price, v.reference)}</td>
+        <td>${condSelectEdit(v.card_condition)}</td>
+        <td>${finishSelectEdit(v.card_finish)}</td>
+        <td><input type="number" step="0.01" min="0" class="cell-input" data-edit="price" value="${esc(String(v.price ?? 0))}" style="width:80px"></td>
+        <td>${costCell(v.cost_price)}</td>
         ${stockInCell(v)}
         <td class="text-gray-400 text-[11px]">${relativeTime(v.updated_at)}</td>
-        <td class="text-center"><button onclick="deleteSingle(${v.id})" class="text-red-400 hover:text-red-600 font-bold px-1">✕</button></td>
-    `;
-    return tr;
+        <td class="text-center">${rowEditActions(v.id, true)}</td>`;
+    }
+    return `
+        <td class="pl-8">${thumbHtml(v.image_url)}</td>
+        <td></td>
+        <td class="text-gray-500 text-xs">${esc(card.card_name)}</td>
+        <td></td>
+        <td>${dispCell(v.card_condition)}</td>
+        <td>${dispCell(v.card_finish || 'Normal')}</td>
+        <td>${priceCell(v.price, v.reference)}</td>
+        <td>${costCell(v.cost_price)}</td>
+        ${stockInCell(v)}
+        <td class="text-gray-400 text-[11px]">${relativeTime(v.updated_at)}</td>
+        <td class="text-center">${rowEditActions(v.id, false)}</td>`;
 }
 
 function toggleGroup(key) {
@@ -625,70 +675,74 @@ function hideCollapsedVariants() {
     }
 }
 
-// ===================== INLINE EDIT =====================
-function enterEdit(td, type, field, rawId) {
-    const id = rawId;
-    if (td.querySelector('input, select')) return;
-    const current = td.querySelector('.cell-display')?.textContent ?? td.textContent.trim();
-    const value = field === 'price' ? parseFloat(current.replace('$','')) || 0 :
-                  field === 'stock_quantity' ? parseInt(current) || 0 : current === '—' ? '' : current;
-
-    const input = document.createElement('input');
-    input.type = type === 'price' ? 'number' : type === 'number' ? 'number' : 'text';
-    if (type === 'price') { input.step = '0.01'; input.min = '0'; }
-    if (type === 'number') { input.min = '0'; }
-    input.value = value;
-    input.className = 'cell-input';
-
-    const orig = td.innerHTML;
-    td.innerHTML = '';
-    td.appendChild(input);
-    input.focus();
-    input.select();
-
-    const save = async () => {
-        const newVal = type === 'price' ? parseFloat(input.value) || 0
-                      : type === 'number' ? parseInt(input.value) || 0
-                      : input.value.trim();
-        td.innerHTML = orig;
-        await patchSingle(parseInt(id), field, newVal, td);
-    };
-    input.addEventListener('blur', save);
-    input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); input.removeEventListener('blur', save); save(); }
-        if (e.key === 'Escape') { input.removeEventListener('blur', save); td.innerHTML = orig; }
-        if (e.key === 'Tab') {
-            e.preventDefault();
-            input.removeEventListener('blur', save);
-            save();
-            // Move to next editable cell in same row
-            const row = td.closest('tr');
-            const editables = Array.from(row.querySelectorAll('.editable'));
-            const idx = editables.indexOf(td);
-            if (idx >= 0 && idx < editables.length - 1) editables[idx + 1].click();
-        }
-    });
+// ===================== ROW EDIT (Edit → Save / Cancel) =====================
+// Action buttons for a row: Edit + Delete when idle, Save + Cancel while editing.
+function rowEditActions(id, editing) {
+    if (editing) {
+        return `<button onclick="saveSingleRow(${id})" class="text-green-600 hover:text-green-800 font-bold px-1" title="Save">💾</button>
+                <button onclick="cancelSingleRow(${id})" class="text-gray-400 hover:text-gray-600 font-bold px-1" title="Cancel">✕</button>`;
+    }
+    return `<button onclick="editSingleRow(${id})" class="text-blue-500 hover:text-blue-700 font-bold px-1" title="Edit">✎</button>
+            <button onclick="deleteSingle(${id})" class="text-red-400 hover:text-red-600 font-bold px-1" title="Delete">✕</button>`;
 }
 
-async function patchSingle(id, field, value, td) {
+// Look up { card, v } for a variant id from the last rendered rows.
+function findVariantById(id) {
+    for (const card of (lastRows || [])) {
+        const v = (card.variants || []).find(x => String(x.id) === String(id));
+        if (v) return { card, v };
+    }
+    return null;
+}
+
+function rerenderRow(id, editing) {
+    const found = findVariantById(id);
+    const tr = document.querySelector(`#singles-body tr[data-id="${id}"]`);
+    if (!found || !tr) { loadSingles(); return null; }
+    const isSub = tr.classList.contains('variant-subrow');
+    tr.innerHTML = isSub ? variantSubRowHTML(found.card, found.v, editing)
+                         : singleVariantRowHTML(found.card, found.v, editing);
+    tr.classList.toggle('row-editing', editing);
+    return tr;
+}
+
+function editSingleRow(id) {
+    const tr = rerenderRow(id, true);
+    const first = tr && tr.querySelector('[data-edit]');
+    if (first) { first.focus(); if (first.select) first.select(); }
+}
+
+function cancelSingleRow(id) {
+    rerenderRow(id, false);
+}
+
+async function saveSingleRow(id) {
+    const tr = document.querySelector(`#singles-body tr[data-id="${id}"]`);
+    if (!tr) return;
+    const body = {};
+    tr.querySelectorAll('[data-edit]').forEach(el => {
+        const field = el.dataset.edit;
+        if (field === 'price') {
+            body.price = parseFloat(el.value) || 0;
+        } else {
+            const val = (el.value ?? '').trim();
+            // card_id / rarity: empty clears the value. condition / finish: '' passes through
+            // (backend normalises '' → NULL, i.e. "Normal" finish).
+            body[field] = (field === 'card_id' || field === 'rarity') ? (val || null) : val;
+        }
+    });
     try {
         const res = await fetch(`${API_URL}/inventory/${id}`, {
-            method: 'PUT',
-            headers: authHeaders(),
-            body: JSON.stringify({ [field]: value })
+            method: 'PUT', headers: authHeaders(), body: JSON.stringify(body)
         });
-        if (!res.ok) { const j = await res.json(); throw new Error(j.error || res.statusText); }
-        // Reload to show updated value; flash handled by re-render timing
+        if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || res.statusText); }
+        showToast('Saved', 'success');
         reloadFamilyMeta();
         loadSingles();
     } catch (e) {
         showToast('Save failed: ' + e.message, 'error');
-        loadSingles();
     }
 }
-
-async function condSelectChange(id, value) { await patchSingle(id, 'card_condition', value, null); }
-async function finishSelectChange(id, value) { await patchSingle(id, 'card_finish', value, null); }
 
 // ===================== ADD CARD =====================
 function addCardRow() {
@@ -706,6 +760,7 @@ function addCardRow() {
         <td>${condSelectNew()}</td>
         <td>${finishSelectNew()}</td>
         <td><input type="number" id="new-price" value="0" step="0.01" class="cell-input" style="width:80px"></td>
+        <td class="text-gray-300 text-[11px]">via Stock In</td>
         <td class="text-gray-300 text-[11px]">via Stock In</td>
         <td></td>
         <td class="text-center">
@@ -763,6 +818,7 @@ function addVariantRow(btn) {
         <td>${condSelectNew('LP')}</td>
         <td>${finishSelectNew()}</td>
         <td><input type="number" id="var-price" value="0" step="0.01" class="cell-input" style="width:80px"></td>
+        <td class="text-gray-300 text-[11px]">via Stock In</td>
         <td class="text-gray-300 text-[11px]">via Stock In</td>
         <td></td>
         <td class="text-center">
@@ -901,16 +957,34 @@ function parseImportJson(text) {
     }
 }
 
+// Mirror of the backend splitParallel: preview the base rarity + finish + cleaned name that the
+// import will actually create, so parallels are visible before committing.
+function splitParallelPreview(name, rarity) {
+    const rawName = (name || '').trim();
+    const rawRarity = (rarity || '').trim();
+    const isParallel = /^P-/i.test(rawRarity) || /パラレル/.test(rawName);
+    return {
+        base_rarity: rawRarity.replace(/^P-/i, '') || '',
+        card_finish: isParallel ? 'Parallel' : '',
+        clean_name: rawName.replace(/[（(][^()（）]*パラレル[^()（）]*[)）]/g, '').trim()
+    };
+}
+
 function showImportPreview(cards) {
     const preview = document.getElementById('import-preview');
     document.getElementById('preview-count').textContent = `(${cards.length} cards total, first 20 shown)`;
     const tbody = document.getElementById('preview-tbody');
-    tbody.innerHTML = cards.slice(0, 20).map(c => `
+    tbody.innerHTML = cards.slice(0, 20).map(c => {
+        const s = splitParallelPreview(c.name || c.card_name, c.rarity);
+        return `
         <tr class="border-t border-gray-100">
             <td class="px-3 py-1 font-mono text-gray-600">${esc(c.card_id || '—')}</td>
-            <td class="px-3 py-1">${esc(c.name || c.card_name || '—')}</td>
+            <td class="px-3 py-1">${esc(s.clean_name || c.name || c.card_name || '—')}</td>
+            <td class="px-3 py-1">${esc(s.base_rarity || '—')}</td>
+            <td class="px-3 py-1">${esc(s.card_finish || 'Normal')}</td>
             <td class="px-3 py-1">${c.currency || 'JPY'} ${c.reference_price ?? '—'}</td>
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
     preview.classList.remove('hidden');
 }
 
@@ -934,7 +1008,7 @@ async function doImport() {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error);
         const s = json.summary;
-        showToast(`${s.received} cards: ${s.inventory_created} created, ${s.inventory_skipped_existing} already existed`, 'success');
+        showToast(`${s.received} cards: ${s.inventory_created} created, ${s.inventory_adopted || 0} filled in, ${s.inventory_skipped_existing} already existed`, 'success');
         closeImportModal();
         await loadFamilies();
         loadSingles(true);
@@ -1140,6 +1214,13 @@ function priceCell(price, ref) {
     return `${display}<div class="ref-hint" title="Reference price from external source. Not your cost or sale price.">ref: ¥${ref.reference_price} · ${esc(ref.source)} · ${ago} ${link}</div>`;
 }
 
+// Read-only cost display (weighted-avg from FIFO; set stock/cost via Stock In, never inline).
+function costCell(cost) {
+    return (cost == null || Number(cost) === 0)
+        ? '<span class="text-gray-300">—</span>'
+        : `<span class="cell-display text-gray-600">$${fmt(cost)}</span>`;
+}
+
 function rarityBadge(r) {
     if (!r) return '<span class="text-gray-300">—</span>';
     return `<span class="rarity-badge">${esc(r)}</span>`;
@@ -1173,30 +1254,23 @@ function condOptions()    { return singlesConfig.condition; }
 function finishSpecials() { return singlesConfig.finish; }
 function rarityOptions()  { return singlesConfig.rarity; }
 
-// Inline rarity dropdown for an existing single-variant row (persists like condition/finish).
-function raritySelect(id, val) {
-    const opts = [...rarityOptions()];
-    if (val && !opts.includes(val)) opts.unshift(val);   // keep a legacy/unlisted value selectable
-    return `<select class="cell-select" style="width:64px" onchange="raritySelectChange(${id}, this.value)">
-        <option value="">—</option>
-        ${opts.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
-    </select>`;
-}
-async function raritySelectChange(id, value) { await patchSingle(id, 'rarity', value || null, null); }
-
-function condSelect(id, val) {
+// Row-edit dropdowns. No auto-save handler — saveSingleRow reads them by their data-edit attr
+// when the user clicks Save. Any legacy/unlisted current value is kept selectable.
+// (Rarity is deliberately not editable here — it is reference data set from the scrape/import
+// and rendered read-only via rarityBadge.)
+function condSelectEdit(val) {
     const opts = [...condOptions()];
-    if (val && !opts.includes(val)) opts.unshift(val);   // keep legacy values selectable
-    return `<select class="cell-select" onchange="condSelectChange(${id}, this.value)">
+    if (val && !opts.includes(val)) opts.unshift(val);
+    return `<select class="cell-select" data-edit="card_condition">
         ${opts.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${esc(o)}</option>`).join('')}
     </select>`;
 }
 
-function finishSelect(id, val) {
+function finishSelectEdit(val) {
     const specials = [...finishSpecials()];
     if (val && !specials.includes(val)) specials.unshift(val);
     const opts = [['','Normal'], ...specials.map(s => [s, s])];
-    return `<select class="cell-select" onchange="finishSelectChange(${id}, this.value)">
+    return `<select class="cell-select" data-edit="card_finish">
         ${opts.map(([v,l]) => `<option value="${esc(v)}" ${(val||'')===(v)?'selected':''}>${esc(l)}</option>`).join('')}
     </select>`;
 }
