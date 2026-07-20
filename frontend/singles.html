@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K10 Card Shop — Singles</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .card-thumb { width: 100%; aspect-ratio: 5 / 7; object-fit: cover; background: #f3f4f6; }
+        .drawer { transition: transform 0.25s ease; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center gap-3">
+            <div class="flex items-center space-x-2">
+                <div class="bg-blue-600 text-white p-2 rounded-lg font-bold text-lg">K10</div>
+                <h1 class="text-xl font-bold text-gray-800 tracking-tight">Singles</h1>
+            </div>
+            <button onclick="openCart()" class="relative bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-full shadow-sm transition text-sm">
+                🛒 Cart
+                <span id="cart-count" class="hidden absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Controls -->
+    <div class="bg-white border-b">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap gap-2 items-center">
+            <select id="set-select" onchange="onSetChange()" class="p-2 border rounded-lg bg-gray-50 font-semibold text-gray-700 text-sm min-w-[220px]">
+                <option value="">Loading sets…</option>
+            </select>
+            <input type="text" id="search" onkeyup="scheduleSearch()" placeholder="Search card name or ID…"
+                   class="p-2 border rounded-lg text-sm flex-grow min-w-[180px] focus:ring-2 focus:ring-blue-400 outline-none">
+            <select id="rarity-filter" onchange="loadSingles()" class="p-2 border rounded-lg bg-gray-50 text-sm text-gray-700">
+                <option value="">All rarities</option>
+            </select>
+            <select id="sort-select" onchange="loadSingles()" class="p-2 border rounded-lg bg-gray-50 text-sm text-gray-700">
+                <option value="card_id_asc">Card No. ↑</option>
+                <option value="price_desc">Price ↓</option>
+                <option value="card_name_asc">Name ↑</option>
+            </select>
+        </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+        <div id="status" class="text-center text-gray-500 py-16">Select a set to browse available singles.</div>
+        <div id="grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+    </main>
+
+    <footer class="bg-gray-800 text-gray-400 py-6 mt-8">
+        <div class="max-w-7xl mx-auto px-4 text-center text-sm">
+            <p>&copy; 2026 K10 Card Shop. Prices in SGD. Reservations are confirmed by our staff.</p>
+        </div>
+    </footer>
+
+    <!-- Cart drawer -->
+    <div id="cart-overlay" onclick="closeCart()" class="fixed inset-0 bg-black/40 z-50 hidden"></div>
+    <aside id="cart-drawer" class="drawer fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[60] translate-x-full flex flex-col">
+        <div class="flex items-center justify-between px-5 py-4 border-b">
+            <h2 class="text-lg font-bold text-gray-800">Your Reservation</h2>
+            <button onclick="closeCart()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+
+        <div id="cart-items" class="flex-grow overflow-y-auto px-5 py-4 space-y-3"></div>
+
+        <div id="cart-footer" class="border-t px-5 py-4">
+            <div class="flex justify-between font-bold text-gray-800 mb-3">
+                <span>Total</span><span id="cart-total">$0.00</span>
+            </div>
+            <div id="checkout-form" class="space-y-2">
+                <input type="text" id="cust-name" placeholder="Your name *" class="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                <input type="text" id="cust-contact" placeholder="Email or phone *" class="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+                <textarea id="cust-note" rows="2" placeholder="Note (pickup time, questions…)" class="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 outline-none"></textarea>
+                <button id="submit-btn" onclick="submitReservation()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow transition disabled:opacity-50">
+                    Submit Reservation
+                </button>
+                <p class="text-[11px] text-gray-400 text-center">This reserves the cards — our staff will contact you to confirm payment &amp; pickup. No payment is taken now.</p>
+            </div>
+        </div>
+    </aside>
+
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[70] flex flex-col space-y-2"></div>
+
+    <script>
+        const API_URL = 'https://k10system.onrender.com/api';
+        const CART_KEY = 'k10_singles_cart';
+        let currentRows = [];
+        let searchTimer = null;
+
+        document.addEventListener('DOMContentLoaded', () => { loadSets(); renderCart(); });
+
+        function esc(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+        }
+        function fmt(n) { return '$' + (parseFloat(n || 0)).toFixed(2); }
+
+        // ---------- Sets ----------
+        async function loadSets() {
+            try {
+                const res = await fetch(`${API_URL}/inventory/all-families`);
+                const fams = (await res.json()).filter(f => f.singles_count > 0);
+                const sel = document.getElementById('set-select');
+                if (!fams.length) { sel.innerHTML = '<option value="">No singles available yet</option>'; return; }
+                const byGame = {};
+                fams.forEach(f => { (byGame[f.game_title] = byGame[f.game_title] || []).push(f); });
+                sel.innerHTML = '<option value="">Choose a set…</option>' + Object.keys(byGame).map(game =>
+                    `<optgroup label="${esc(game)}">` +
+                    byGame[game].map(f => `<option value="${f.family_id}">${esc(f.set_name)} (${f.singles_count})</option>`).join('') +
+                    `</optgroup>`
+                ).join('');
+            } catch (e) {
+                document.getElementById('set-select').innerHTML = '<option value="">Failed to load sets</option>';
+            }
+        }
+
+        function onSetChange() { document.getElementById('rarity-filter').value = ''; loadSingles(); }
+        function scheduleSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(loadSingles, 300); }
+
+        // ---------- Browse singles ----------
+        async function loadSingles() {
+            const familyId = document.getElementById('set-select').value;
+            const status = document.getElementById('status');
+            const grid = document.getElementById('grid');
+            if (!familyId) { grid.innerHTML = ''; status.textContent = 'Select a set to browse available singles.'; status.classList.remove('hidden'); return; }
+
+            status.textContent = 'Loading…'; status.classList.remove('hidden'); grid.innerHTML = '';
+            const params = new URLSearchParams({ family_id: familyId, public: '1', in_stock_only: 'true', limit: '200', sort: document.getElementById('sort-select').value });
+            const search = document.getElementById('search').value.trim();
+            const rarity = document.getElementById('rarity-filter').value;
+            if (search) params.set('search', search);
+            if (rarity) params.set('rarity', rarity);
+
+            try {
+                const res = await fetch(`${API_URL}/inventory/singles?${params.toString()}`);
+                const data = await res.json();
+                currentRows = data.rows || [];
+                populateRarityFilter(currentRows, rarity);
+                if (!currentRows.length) { status.textContent = 'No singles found for this selection.'; return; }
+                status.classList.add('hidden');
+                renderGrid(currentRows);
+            } catch (e) {
+                status.textContent = 'Failed to load singles. Please try again.';
+            }
+        }
+
+        function populateRarityFilter(rows, keep) {
+            const sel = document.getElementById('rarity-filter');
+            if (document.getElementById('search').value.trim() || keep) return; // don't churn the list mid-search
+            const rarities = [...new Set(rows.map(r => r.rarity).filter(Boolean))].sort();
+            sel.innerHTML = '<option value="">All rarities</option>' + rarities.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
+        }
+
+        function variantLabel(card, v) {
+            const bits = [];
+            if (v.card_finish) bits.push(v.card_finish); else bits.push('Normal');
+            if (v.card_condition) bits.push(v.card_condition);
+            return bits.join(' · ');
+        }
+
+        function renderGrid(rows) {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = rows.map((card, ci) => {
+                const img = (card.variants.find(v => v.image_url) || {}).image_url || '';
+                const variants = card.variants.map((v, vi) => {
+                    const inCart = cartQty(v.id);
+                    const soldOut = v.stock_quantity <= 0;
+                    return `
+                    <div class="flex items-center justify-between gap-2 text-xs border-t border-gray-100 pt-1.5 mt-1.5">
+                        <div class="min-w-0">
+                            <div class="text-gray-600 truncate">${esc(variantLabel(card, v))}</div>
+                            <div class="font-bold text-green-700">${fmt(v.price)} <span class="font-normal text-gray-400">· ${v.stock_quantity} left</span></div>
+                        </div>
+                        <button ${soldOut ? 'disabled' : ''} onclick="addToCart(${ci}, ${vi})"
+                            class="shrink-0 ${soldOut ? 'bg-gray-200 text-gray-400' : 'bg-blue-600 hover:bg-blue-700 text-white'} font-bold rounded px-2 py-1 transition">
+                            ${inCart ? '+1' : 'Add'}
+                        </button>
+                    </div>`;
+                }).join('');
+                return `
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                    ${img ? `<img src="${esc(img)}" class="card-thumb" loading="lazy" onerror="this.style.display='none'">` : '<div class="card-thumb flex items-center justify-center text-gray-300 text-3xl">🃏</div>'}
+                    <div class="p-3 flex flex-col flex-grow">
+                        <div class="flex items-start justify-between gap-1">
+                            <h3 class="font-bold text-gray-800 text-sm leading-tight">${esc(card.card_name)}</h3>
+                            ${card.rarity ? `<span class="shrink-0 text-[10px] font-bold text-purple-600 border border-purple-200 px-1.5 py-0.5 rounded">${esc(card.rarity)}</span>` : ''}
+                        </div>
+                        <p class="text-[11px] font-mono text-gray-400 mb-1">${esc(card.card_id || '—')}</p>
+                        ${variants}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // ---------- Cart ----------
+        function getCart() { try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch { return []; } }
+        function saveCart(c) { localStorage.setItem(CART_KEY, JSON.stringify(c)); renderCart(); }
+        function cartQty(id) { const it = getCart().find(x => x.id === id); return it ? it.qty : 0; }
+
+        function addToCart(ci, vi) {
+            const card = currentRows[ci]; const v = card.variants[vi];
+            const cart = getCart();
+            const existing = cart.find(x => x.id === v.id);
+            const max = v.stock_quantity;
+            if (existing) {
+                if (existing.qty >= max) { showToast(`Only ${max} in stock`, 'error'); return; }
+                existing.qty++;
+            } else {
+                cart.push({ id: v.id, qty: 1, price: parseFloat(v.price) || 0, max,
+                    label: `${card.card_name} — ${variantLabel(card, v)}` });
+            }
+            saveCart(cart);
+            renderGrid(currentRows); // refresh Add/+1 labels
+            showToast('Added to cart');
+        }
+
+        function setQty(id, qty) {
+            let cart = getCart();
+            const it = cart.find(x => x.id === id);
+            if (!it) return;
+            qty = Math.max(0, Math.min(qty, it.max));
+            if (qty === 0) cart = cart.filter(x => x.id !== id);
+            else it.qty = qty;
+            saveCart(cart);
+            if (currentRows.length) renderGrid(currentRows);
+        }
+
+        function cartTotal() { return getCart().reduce((s, x) => s + x.price * x.qty, 0); }
+
+        function renderCart() {
+            const cart = getCart();
+            const countEl = document.getElementById('cart-count');
+            const totalQty = cart.reduce((s, x) => s + x.qty, 0);
+            countEl.textContent = totalQty;
+            countEl.classList.toggle('hidden', totalQty === 0);
+            document.getElementById('cart-total').textContent = fmt(cartTotal());
+
+            const wrap = document.getElementById('cart-items');
+            if (!cart.length) { wrap.innerHTML = '<p class="text-gray-400 text-sm text-center py-10">Your cart is empty.</p>'; return; }
+            wrap.innerHTML = cart.map(it => `
+                <div class="flex items-center gap-2 border border-gray-100 rounded-lg p-2">
+                    <div class="min-w-0 flex-grow">
+                        <div class="text-sm text-gray-800 leading-tight">${esc(it.label)}</div>
+                        <div class="text-xs text-gray-500">${fmt(it.price)} each</div>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="setQty(${it.id}, ${it.qty - 1})" class="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 font-bold">−</button>
+                        <span class="w-6 text-center text-sm font-bold">${it.qty}</span>
+                        <button onclick="setQty(${it.id}, ${it.qty + 1})" class="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 font-bold">+</button>
+                    </div>
+                    <button onclick="setQty(${it.id}, 0)" class="text-gray-300 hover:text-red-500 text-lg shrink-0">&times;</button>
+                </div>`).join('');
+        }
+
+        function openCart() { document.getElementById('cart-overlay').classList.remove('hidden'); document.getElementById('cart-drawer').classList.remove('translate-x-full'); }
+        function closeCart() { document.getElementById('cart-overlay').classList.add('hidden'); document.getElementById('cart-drawer').classList.add('translate-x-full'); }
+
+        // ---------- Submit ----------
+        async function submitReservation() {
+            const cart = getCart();
+            if (!cart.length) { showToast('Your cart is empty', 'error'); return; }
+            const name = document.getElementById('cust-name').value.trim();
+            const contact = document.getElementById('cust-contact').value.trim();
+            const note = document.getElementById('cust-note').value.trim();
+            if (!name) { showToast('Please enter your name', 'error'); return; }
+            if (!contact) { showToast('Please enter a contact', 'error'); return; }
+
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true; btn.textContent = 'Submitting…';
+            try {
+                const res = await fetch(`${API_URL}/store/reservations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, contact, note, items: cart.map(x => ({ inventory_id: x.id, qty: x.qty })) })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Reservation failed');
+                localStorage.removeItem(CART_KEY);
+                renderCart();
+                document.getElementById('cust-name').value = '';
+                document.getElementById('cust-contact').value = '';
+                document.getElementById('cust-note').value = '';
+                document.getElementById('cart-items').innerHTML =
+                    `<div class="text-center py-10">
+                        <div class="text-5xl mb-3">✅</div>
+                        <p class="font-bold text-gray-800">Reservation #${data.order_id} received!</p>
+                        <p class="text-sm text-gray-500 mt-1">We'll contact you to confirm. Total: ${fmt(data.total)}.</p>
+                     </div>`;
+                if (currentRows.length) loadSingles();
+            } catch (e) {
+                showToast(e.message, 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = 'Submit Reservation';
+            }
+        }
+
+        // ---------- Toast ----------
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = type === 'success' ? 'bg-green-600' : 'bg-red-600';
+            toast.className = `${colors} text-white px-5 py-2.5 rounded-lg shadow-lg text-sm font-medium transform transition-all duration-300 translate-y-2 opacity-0`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-y-2', 'opacity-0'));
+            setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-2'); setTimeout(() => toast.remove(), 300); }, 2500);
+        }
+    </script>
+</body>
+</html>

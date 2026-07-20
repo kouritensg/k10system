@@ -1263,6 +1263,8 @@ app.get('/api/inventory/singles/sets', async (req, res) => {
 // Paginated, searchable, sortable singles list grouped by card
 app.get('/api/inventory/singles', async (req, res) => {
   let { family_id, set, search, rarity, in_stock_only, sort, limit, offset } = req.query;
+  // Public storefront calls pass public=1 so internal cost_price is never sent to customers.
+  const hideCost = req.query.public === '1' || req.query.public === 'true';
 
   // Resolve family_id — accept either family_id (int) or set= (set_code alias)
   if (!family_id && set) {
@@ -1393,12 +1395,11 @@ app.get('/api/inventory/singles', async (req, res) => {
         ? `${v.card_id}::${v.rarity ?? ''}`
         : `__null__${v.card_name}::${v.rarity ?? ''}`;
       if (!variantMap[key]) variantMap[key] = [];
-      variantMap[key].push({
+      const variant = {
         id: v.id,
         card_condition: v.card_condition,
         card_finish: v.card_finish,
         price: v.price,
-        cost_price: v.cost_price,
         stock_quantity: v.stock_quantity,
         updated_at: v.updated_at,
         image_url: v.image_url,
@@ -1409,7 +1410,9 @@ app.get('/api/inventory/singles', async (req, res) => {
           currency: v.ref_currency,
           scraped_at: v.ref_scraped_at
         } : null
-      });
+      };
+      if (!hideCost) variant.cost_price = v.cost_price;
+      variantMap[key].push(variant);
     }
 
     const rows = groupRows.map(g => {
@@ -3253,6 +3256,79 @@ app.post('/api/sales', authenticate, async (req, res) => {
   } catch (error) { await conn.rollback(); res.status(500).json({ error: error.message }); } finally { conn.release(); }
 });
 
+// Public storefront: submit a singles reservation/order request. No auth and no stock/FIFO
+// mutation — prices are taken from the DB (client price is ignored), and staff fulfil the request
+// from the admin Preorders view. Records a 'Preorder'/'Pending' customer_order.
+app.post('/api/store/reservations', async (req, res) => {
+  const { name, contact, note, items } = req.body || {};
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'Please enter your name' });
+  if (!contact || !String(contact).trim()) return res.status(400).json({ error: 'Please enter a contact (email or phone)' });
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Your cart is empty' });
+  if (items.length > 100) return res.status(400).json({ error: 'Too many items in one request' });
+
+  // Normalise requested items up front.
+  const wanted = [];
+  for (const it of items) {
+    const inventory_id = parseInt(it && it.inventory_id);
+    const qty = parseInt(it && it.qty);
+    if (!inventory_id) return res.status(400).json({ error: 'Each item needs an inventory_id' });
+    if (!Number.isInteger(qty) || qty < 1 || qty > 99) return res.status(400).json({ error: `Quantity must be 1–99 (item ${inventory_id})` });
+    wanted.push({ inventory_id, qty });
+  }
+
+  const cleanName = String(name).trim().slice(0, 100);
+  const cleanContact = String(contact).trim().slice(0, 100);
+  const isEmail = cleanContact.includes('@');
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Validate each single and take the authoritative price from the DB (ignore client-supplied price).
+    const priced = [];
+    let total = 0;
+    for (const w of wanted) {
+      const [[row]] = await conn.execute(
+        "SELECT id, card_name, price, stock_quantity FROM inventory WHERE id = ? AND product_type = 'single'",
+        [w.inventory_id]
+      );
+      if (!row) { await conn.rollback(); return res.status(400).json({ error: `Item ${w.inventory_id} is not available` }); }
+      if (row.stock_quantity <= 0) { await conn.rollback(); return res.status(400).json({ error: `"${row.card_name}" is out of stock` }); }
+      if (w.qty > row.stock_quantity) { await conn.rollback(); return res.status(400).json({ error: `Only ${row.stock_quantity} of "${row.card_name}" available` }); }
+      const unit_price = parseFloat(row.price) || 0;
+      total += unit_price * w.qty;
+      priced.push({ inventory_id: row.id, qty: w.qty, unit_price });
+    }
+
+    // Find-or-create the customer by their contact (email or mobile — both UNIQUE in customers).
+    const [cust] = await conn.execute(
+      `INSERT INTO customers (name, email, mobile_number, status, loyalty_points)
+       VALUES (?, ?, ?, 'Active', 0)
+       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+      [cleanName, isEmail ? cleanContact : null, isEmail ? null : cleanContact]
+    );
+    const customer_id = cust.insertId;
+
+    const [orderResult] = await conn.execute(
+      `INSERT INTO customer_orders (customer_id, order_type, status, total_amount, deposit_amount, payment_method, notes)
+       VALUES (?, 'Preorder', 'Pending', ?, 0, 'Unpaid', ?)`,
+      [customer_id, total.toFixed(2), note ? String(note).trim().slice(0, 500) : null]
+    );
+    for (const p of priced) {
+      await conn.execute(
+        'INSERT INTO customer_order_items (order_id, inventory_id, quantity, unit_price) VALUES (?, ?, ?, ?)',
+        [orderResult.insertId, p.inventory_id, p.qty, p.unit_price]
+      );
+    }
+
+    await conn.commit();
+    res.status(201).json({ order_id: orderResult.insertId, total: Number(total.toFixed(2)), message: 'Reservation received' });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ error: error.message });
+  } finally { conn.release(); }
+});
+
 app.get('/api/sales/history', async (req, res) => {
   try {
     const [rows] = await db.execute(`
@@ -3268,8 +3344,8 @@ app.get('/api/sales/history', async (req, res) => {
 app.get('/api/sales/preorders', async (req, res) => {
   try {
     const [rows] = await db.execute(`
-      SELECT o.id, o.order_date, c.name as customer_name, c.mobile_number,
-             o.total_amount, o.deposit_amount, o.status,
+      SELECT o.id, o.order_date, c.name as customer_name, c.mobile_number, c.email,
+             o.total_amount, o.deposit_amount, o.status, o.notes,
              GROUP_CONCAT(CONCAT(i.card_name, ' (x', oi.quantity, ')') SEPARATOR ', ') as items_summary,
              GROUP_CONCAT(DISTINCT i.game_title) as game_tags
       FROM customer_orders o
