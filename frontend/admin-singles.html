@@ -116,6 +116,9 @@
             <button onclick="toggleStockIn(true)" id="stock-in-btn" class="hidden text-xs font-semibold bg-emerald-600 text-white px-3 py-1.5 rounded-md hover:bg-emerald-700">Stock In</button>
             <button onclick="saveStockIn()" id="stock-in-save-btn" class="hidden text-xs font-semibold bg-emerald-600 text-white px-3 py-1.5 rounded-md hover:bg-emerald-700">Save stock-in</button>
             <button onclick="toggleStockIn(false)" id="stock-in-cancel-btn" class="hidden text-xs font-semibold border border-gray-300 text-gray-600 px-3 py-1.5 rounded-md hover:bg-gray-50">Cancel</button>
+            <button onclick="toggleEditMode(true)" id="edit-page-btn" class="hidden text-xs font-semibold bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700">✎ Edit page</button>
+            <button onclick="saveEditPage()" id="edit-save-btn" class="hidden text-xs font-semibold bg-indigo-600 text-white px-3 py-1.5 rounded-md hover:bg-indigo-700">Save changes</button>
+            <button onclick="cancelEditPage()" id="edit-cancel-btn" class="hidden text-xs font-semibold border border-gray-300 text-gray-600 px-3 py-1.5 rounded-md hover:bg-gray-50">Cancel</button>
         </div>
 
         <!-- Pagination bar -->
@@ -279,6 +282,7 @@ let currentGameTitle = '';
 let currentGameId = null;
 let singlesConfig = { rarity: [], condition: [], finish: [] };  // per-IP allowed values (empty → fallback)
 let stockInMode = false;   // when true, rows show qty+cost inputs instead of the stock number
+let pageEditMode = false;  // when true, every row on the page is editable at once (top-level Save)
 let lastRows = [];         // last rendered singles rows (for re-render on mode toggle)
 let currentRarities = [];
 let currentPage = { offset: 0, limit: 50, total: 0 };
@@ -352,6 +356,7 @@ function filterSidebar(q) {
 }
 
 async function selectFamily(f) {
+    if (!guardLeaveEdit()) return;   // don't lose unsaved page edits when switching release
     currentFamilyId = f.family_id;
     currentFamilyName = f.set_name;
     currentGameTitle = f.game_title || '';
@@ -378,7 +383,9 @@ async function selectFamily(f) {
     document.getElementById('import-btn').classList.remove('hidden');
     document.getElementById('open-sealed-btn').classList.remove('hidden');
     document.getElementById('stock-in-btn').classList.remove('hidden');
+    document.getElementById('edit-page-btn').classList.remove('hidden');
     if (stockInMode) toggleStockIn(false);  // reset stock-in mode when switching families
+    if (pageEditMode) toggleEditMode(false);
     const sl = document.getElementById('view-sealed-link');
     sl.href = `admin-inventory.html?family_id=${f.family_id}`;
     sl.classList.remove('hidden');
@@ -448,6 +455,7 @@ function renderSinglesRows(rows) {
             for (const v of card.variants) {
                 body.appendChild(buildVariantSubRow(card, v));
             }
+            if (pageEditMode) continue;   // no "+ Add variant" row while editing the whole page
             // Add variant button row — use data attrs to avoid escaping issues in selector
             const addVarRow = document.createElement('tr');
             addVarRow.className = 'new-variant-row';
@@ -466,7 +474,7 @@ function renderSinglesRows(rows) {
             body.appendChild(addVarRow);
         }
     }
-    hideCollapsedVariants();
+    if (!pageEditMode) hideCollapsedVariants();   // page-edit shows every variant so all are editable
 }
 
 // ---- Inline Stock-In (creates FIFO waves) ----
@@ -487,6 +495,7 @@ function stockInCell(v) {
 }
 
 function toggleStockIn(on) {
+    if (on && !guardLeaveEdit()) return;   // don't lose unsaved page edits when entering Stock-In
     stockInMode = on;
     document.getElementById('stock-in-btn').classList.toggle('hidden', on);
     document.getElementById('stock-in-save-btn').classList.toggle('hidden', !on);
@@ -527,7 +536,8 @@ function buildSingleVariantRow(card, v) {
     const tr = document.createElement('tr');
     tr.className = 'card-row';
     tr.dataset.id = v.id;
-    tr.innerHTML = singleVariantRowHTML(card, v, false);
+    tr.innerHTML = singleVariantRowHTML(card, v, pageEditMode);
+    tr.classList.toggle('row-editing', pageEditMode);
     return tr;
 }
 
@@ -600,7 +610,8 @@ function buildVariantSubRow(card, v) {
     const tr = document.createElement('tr');
     tr.className = 'variant-subrow';
     tr.dataset.id = v.id;
-    tr.innerHTML = variantSubRowHTML(card, v, false);
+    tr.innerHTML = variantSubRowHTML(card, v, pageEditMode);
+    tr.classList.toggle('row-editing', pageEditMode);
     return tr;
 }
 
@@ -678,6 +689,11 @@ function hideCollapsedVariants() {
 // ===================== ROW EDIT (Edit → Save / Cancel) =====================
 // Action buttons for a row: Edit + Delete when idle, Save + Cancel while editing.
 function rowEditActions(id, editing) {
+    if (editing && pageEditMode) {
+        // Page-wide edit: the top toolbar owns Save/Cancel, and per-row delete/add are done in
+        // normal mode (a delete here would reload and discard other unsaved edits). No row actions.
+        return '';
+    }
     if (editing) {
         return `<button onclick="saveSingleRow(${id})" class="text-green-600 hover:text-green-800 font-bold px-1" title="Save">💾</button>
                 <button onclick="cancelSingleRow(${id})" class="text-gray-400 hover:text-gray-600 font-bold px-1" title="Cancel">✕</button>`;
@@ -716,9 +732,8 @@ function cancelSingleRow(id) {
     rerenderRow(id, false);
 }
 
-async function saveSingleRow(id) {
-    const tr = document.querySelector(`#singles-body tr[data-id="${id}"]`);
-    if (!tr) return;
+// Build the { column: value } body from a row's [data-edit] inputs (shared by per-row + page save).
+function gatherRowEdits(tr) {
     const body = {};
     tr.querySelectorAll('[data-edit]').forEach(el => {
         const field = el.dataset.edit;
@@ -731,9 +746,15 @@ async function saveSingleRow(id) {
             body[field] = (field === 'card_id' || field === 'rarity') ? (val || null) : val;
         }
     });
+    return body;
+}
+
+async function saveSingleRow(id) {
+    const tr = document.querySelector(`#singles-body tr[data-id="${id}"]`);
+    if (!tr) return;
     try {
         const res = await fetch(`${API_URL}/inventory/${id}`, {
-            method: 'PUT', headers: authHeaders(), body: JSON.stringify(body)
+            method: 'PUT', headers: authHeaders(), body: JSON.stringify(gatherRowEdits(tr))
         });
         if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || res.statusText); }
         showToast('Saved', 'success');
@@ -743,6 +764,94 @@ async function saveSingleRow(id) {
         showToast('Save failed: ' + e.message, 'error');
     }
 }
+
+// ===================== PAGE-WIDE EDIT MODE =====================
+// Normalise a field value for dirty comparison (numbers as fixed strings; null/''/undefined equal).
+function normEdit(field, val) {
+    if (field === 'price') return (parseFloat(val) || 0).toFixed(2);
+    return (val ?? '').toString().trim();
+}
+// Original stored value of an editable field, from the last fetched rows.
+function origFieldValue(card, v, field) {
+    switch (field) {
+        case 'card_id':        return card.card_id;
+        case 'card_name':      return card.card_name;
+        case 'price':          return v.price;
+        case 'card_condition': return v.card_condition;
+        case 'card_finish':    return v.card_finish;
+        default:               return undefined;
+    }
+}
+function rowIsDirty(tr) {
+    const found = findVariantById(tr.dataset.id);
+    if (!found) return true;   // unknown row → treat as changed, to be safe
+    const body = gatherRowEdits(tr);
+    return Object.entries(body).some(([field, val]) =>
+        normEdit(field, val) !== normEdit(field, origFieldValue(found.card, found.v, field)));
+}
+function pageDirty() {
+    return [...document.querySelectorAll('#singles-body tr[data-id]')]
+        .some(tr => tr.querySelector('[data-edit]') && rowIsDirty(tr));
+}
+// Disable the controls that would navigate away (and lose page edits) while editing.
+function setNavDisabled(disabled) {
+    ['search-input','sidebar-search','rarity-filter','sort-select','instock-toggle',
+     'btn-prev','btn-next','btn-prev-b','btn-next-b',
+     'add-card-btn','import-btn','open-sealed-btn','stock-in-btn'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = disabled;
+    });
+    const list = document.getElementById('sets-list');
+    if (list) { list.style.pointerEvents = disabled ? 'none' : ''; list.style.opacity = disabled ? '0.5' : ''; }
+}
+// Returns false (and the caller should abort) if there are unsaved page edits the user keeps.
+function guardLeaveEdit() {
+    if (pageEditMode && pageDirty() && !confirm('Discard unsaved changes on this page?')) return false;
+    if (pageEditMode) toggleEditMode(false);
+    return true;
+}
+
+function cancelEditPage() {
+    if (pageDirty() && !confirm('Discard unsaved changes on this page?')) return;
+    toggleEditMode(false);
+}
+
+function toggleEditMode(on) {
+    if (on && stockInMode) toggleStockIn(false);   // Edit and Stock-In are mutually exclusive
+    pageEditMode = on;
+    document.getElementById('edit-page-btn').classList.toggle('hidden', on);
+    document.getElementById('edit-save-btn').classList.toggle('hidden', !on);
+    document.getElementById('edit-cancel-btn').classList.toggle('hidden', !on);
+    setNavDisabled(on);
+    if (on) for (const card of lastRows) if (card.variant_count > 1) expandedCards.add(groupKey(card));
+    renderSinglesRows(lastRows);
+}
+
+async function saveEditPage() {
+    const rows = [...document.querySelectorAll('#singles-body tr[data-id]')].filter(tr => tr.querySelector('[data-edit]'));
+    const dirty = rows.filter(rowIsDirty);
+    if (!dirty.length) { showToast('No changes to save'); toggleEditMode(false); return; }
+    let ok = 0; const failed = [];
+    await Promise.all(dirty.map(async tr => {
+        const id = tr.dataset.id;
+        try {
+            const res = await fetch(`${API_URL}/inventory/${id}`, {
+                method: 'PUT', headers: authHeaders(), body: JSON.stringify(gatherRowEdits(tr))
+            });
+            if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || res.statusText); }
+            ok++;
+        } catch (e) { failed.push(id); }
+    }));
+    showToast(`Saved ${ok} card${ok !== 1 ? 's' : ''}${failed.length ? `, ${failed.length} failed` : ''}`, failed.length ? 'error' : 'success');
+    toggleEditMode(false);
+    reloadFamilyMeta();
+    loadSingles();
+}
+
+// Warn before leaving the tab with unsaved page edits.
+window.addEventListener('beforeunload', e => {
+    if (pageEditMode && pageDirty()) { e.preventDefault(); e.returnValue = ''; }
+});
 
 // ===================== ADD CARD =====================
 function addCardRow() {
@@ -903,6 +1012,7 @@ function updatePagination() {
 }
 
 function changePage(dir) {
+    if (!guardLeaveEdit()) return;   // don't lose unsaved page edits when paging
     const { offset, limit, total } = currentPage;
     const newOffset = Math.max(0, Math.min(offset + dir * limit, total - 1));
     if (newOffset === offset) return;
